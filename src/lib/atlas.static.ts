@@ -11,7 +11,7 @@ async function snapshot(): Promise<Snapshot> {
   }).catch(error => { pending = undefined; throw error; });
   return pending;
 }
-export async function getAtlas(): Promise<AtlasData> { const data = await snapshot(); return { ...data.atlas, generatedAt: data.generatedAt, reviewPolicy: data.reviewPolicy }; }
+export async function getAtlas(): Promise<AtlasData> { const data = await snapshot(); return { ...data.atlas, generatedAt: data.generatedAt, reviewPolicy: data.reviewPolicy, evidenceIndex: data.treatments.map(r => ({ c: r.conclusionId, p: r.periodId, articleNo: r.articleNo, concepts: r.concepts || [], relation: r.relation, reviewStatus: r.reviewStatus })) }; }
 export async function getTreatments({ data }: { data: { conclusionId: number } }): Promise<Treatment[]> {
   if (!Number.isInteger(data.conclusionId) || data.conclusionId < 1) throw new Error('Virheellinen päätelmä');
   return (await snapshot()).treatments.filter(row => row.conclusionId === data.conclusionId);

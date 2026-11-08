@@ -14,7 +14,7 @@
     "build:pages": "vite build --config vite.pages.config.ts",
     "preview:pages": "vite preview --config vite.pages.config.ts",
     "export:atlas": "node scripts/export-atlas.mjs",
-    "test:pages": "node --test scripts/pages.test.mjs"
+    "test:pages": "node --experimental-strip-types --test scripts/pages.test.mjs scripts/relationships.test.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",

@@ -45,3 +45,11 @@ Vasemman reunan **Näkymä → Atlas-pallo** näyttää saman aineiston pyörite
 Klikkaus valitsee päätelmän ja aikakauden sekä avaa niiden käsittelykortit. Saman päätelmän pisteet eri aikakausina korostuvat; muut himmenevät tai ne voi piilottaa. Katkoviivat yhdistävät viereisten aikakausien saman päätelmän pisteitä vain silloin, kun molemmissa on aineistoa. Ne eivät väitä kausaalista vaikutusta. Valinta säilyy näkymää vaihdettaessa.
 
 Palloa voi kiertää vetämällä tai nuolinäppäimillä. Zoomia säädetään liukusäätimellä tai +/−-näppäimillä. Esc tai **Näytä kokonaisuus** poistaa valinnan. Pisteet ovat valittavissa myös tekstivalikosta. Teemojen ja havainto–käsitekytkentöjen tuominen tähän projektioon edellyttää niiden lisäämistä yhteiseen JSON-vientiin; nykyinen pallonäkymä käyttää päätelmäaineistoa.
+
+### Yhteyksien perusteet ja tarkistustilat
+
+Päätelmien välinen kaari tarvitsee samalla aikakaudella vähintään yhden yhteisen artikkelin tai täsmälleen vastaavan kirjatun avainkäsitteen. Pelkkä esiintyminen samalla aikakaudella ei riitä. Käsitesanoista verrataan Unicode-normalisoitua, reunaväleistä siivottua ja pienaakkostettua tekstiä; synonyymejä ei päätellä eikä vapaita käsitesanoja esitetä vielä yhtenäistettyinä käsite-ID:inä. Yhteinen artikkeli ei välttämättä tarkoita yhteistä havaintoa tai tekstinäytettä. Kaari on asiayhteys, ei kausaalinen vaikutuspolku.
+
+Yhteyskorteissa näytetään peruste (artikkelinumerot ja/tai käsitesanat), ja niistä voi avata toisen päätelmän saman aikakauden käsittelyn. Kuvaajassa näytetään enintään 14 yhteyttä, mutta kaikki perusteet voi lukea luettelosta. Aikajana ei yhdistä aineistoaukkojen yli. Puuttuvat jaksot luetellaan erikseen ja ne riippuvat nykyisestä lajien ja kerrosten rajauksesta.
+
+Pallon ja käsittelypaneelin aikakausivalinta on yhteinen. Artikkelikorteissa näkyvät tarkistustila, rajaukset ja kirjatut käsitteet. Sivun alareunassa näkyvät JSON-viennin ajankohta ja tarkistusperiaate. Sekä palvelinversio että Pages-vienti käyttävät samaa nykyisiin revisioihin rajattua SQL-vientiä.

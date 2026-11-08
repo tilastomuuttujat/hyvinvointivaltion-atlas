@@ -126,11 +126,12 @@ export function AtlasPage() {
         </section>
 
         <aside className="border-t border-border p-6 lg:border-l lg:border-t-0">
-          {sel ? <ConclusionDetail key={`${sel.id}-${period}`} c={sel} data={data} model={model} initialPeriod={period} onClose={() => { setSelected(null); setPeriod(null); }} /> : <Intro data={data} model={model} />}
+          {sel ? <ConclusionDetail key={sel.id} c={sel} data={data} model={model} period={period} onPeriod={setPeriod} onClose={() => { setSelected(null); setPeriod(null); }} /> : <Intro data={data} model={model} />}
         </aside>
       </main>
       <footer className="border-t border-border px-6 py-4 text-xs text-muted-foreground md:px-10">
         Lähde: Neon-tietokanta, skeema atlas_editing · arvot ovat toimituksellisia kytkentöjä artikkelien ja päätelmien välillä; ne eivät todista syy-yhteyttä.
+        {data.generatedAt && <p className="mt-2">Aineistovienti: {new Date(data.generatedAt).toLocaleString("fi-FI")} · {data.reviewPolicy}</p>}
       </footer>
     </div>
   );
@@ -353,13 +354,13 @@ function Intro({ data, model }: { data: AtlasData; model: Model }) {
 
 const REL: Record<string, string> = { direct: "Suora", context: "Taustoittava", counterevidence: "Vastanäyttö" };
 
-function ConclusionDetail({ c, data, model, onClose, initialPeriod }: { c: Conclusion; data: AtlasData; model: Model; onClose: () => void; initialPeriod?: string | null }) {
+function ConclusionDetail({ c, data, model, onClose, period, onPeriod }: { c: Conclusion; data: AtlasData; model: Model; onClose: () => void; period: string | null; onPeriod: (p: string | null) => void }) {
   const k = kindOf(c.kind);
   const { data: rows, isLoading, error } = useQuery({
     queryKey: ["treatments", c.id],
     queryFn: () => getTreatments({ data: { conclusionId: c.id } }),
   });
-  const [period, setPeriod] = useState<string | null>(initialPeriod ?? null);
+
   const mx = Math.max(...data.periods.map((p) => model.get(c.id, p.id).v), 1);
   const shown = (rows ?? []).filter((r) => !period || r.periodId === period);
   return (
@@ -376,7 +377,7 @@ function ConclusionDetail({ c, data, model, onClose, initialPeriod }: { c: Concl
           const cell = model.get(c.id, p.id);
           const on = period === p.id;
           return (
-            <button key={p.id} onClick={() => setPeriod(on ? null : p.id)} className="group flex flex-1 flex-col items-center gap-1" title={p.label}>
+            <button key={p.id} onClick={() => onPeriod(on ? null : p.id)} className="group flex flex-1 flex-col items-center gap-1" title={p.label}>
               <div className="flex h-16 w-full items-end">
                 <div className={`w-full rounded-t ${p.start >= 2026 ? "border border-dashed" : ""}`}
                   style={{ height: `${Math.max(3, (cell.v / mx) * 100)}%`, background: k.color, opacity: on || !period ? 1 : 0.35, borderColor: k.color }} />
@@ -389,6 +390,7 @@ function ConclusionDetail({ c, data, model, onClose, initialPeriod }: { c: Concl
 
       {c.limitations && <p className="border-l-2 border-warning pl-3 text-xs text-muted-foreground"><b className="text-foreground">Rajaukset:</b> {c.limitations}</p>}
 
+      <p className="text-xs text-muted-foreground">{period ? `Valittu aikakausi: ${data.periods.find(p=>p.id===period)?.label}` : "Kaikki aikakaudet"}. {period && <button className="underline" onClick={()=>onPeriod(null)}>Näytä kaikki aikakaudet</button>}</p>
       <div className="max-h-[52vh] space-y-3 overflow-auto pr-1">
         {isLoading && <p className="text-sm text-muted-foreground">Ladataan näyttöä…</p>}
         {error && <p className="text-sm text-destructive">{(error as Error).message}</p>}
@@ -400,6 +402,9 @@ function ConclusionDetail({ c, data, model, onClose, initialPeriod }: { c: Concl
               <span className={r.relation === "direct" ? "text-primary" : r.relation === "counterevidence" ? "text-warning" : ""}>{REL[r.relation] ?? r.relation}</span>
             </div>
             <h3 className="mt-1 font-display text-sm">{r.articleTitle}</h3>
+            <p className="mt-1 text-[11px] text-muted-foreground">Tarkistuksen tila: {({accepted:"hyväksytty",needs_review:"odottaa tarkistusta",draft:"luonnos",in_review:"tarkistuksessa",rejected:"hylätty"} as Record<string,string>)[r.reviewStatus || ""] || r.reviewStatus || "ei ilmoitettu"}</p>
+            {r.limitations && <p className="mt-1 border-l border-warning pl-2 text-xs text-muted-foreground">Rajaus: {r.limitations}</p>}
+            {!!r.concepts?.length && <p className="mt-1 text-xs text-muted-foreground">Kirjatut avainkäsitteet: {r.concepts.join("; ")}</p>}
             {r.treatment && <p className="mt-1 text-xs leading-relaxed">{r.treatment}</p>}
             {r.evidence && <p className="mt-2 border-l border-border pl-2 text-xs italic text-muted-foreground">”{r.evidence}”</p>}
           </article>
@@ -408,3 +413,4 @@ function ConclusionDetail({ c, data, model, onClose, initialPeriod }: { c: Concl
     </div>
   );
 }
+
