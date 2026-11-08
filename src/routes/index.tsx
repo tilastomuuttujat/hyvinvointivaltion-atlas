@@ -44,7 +44,7 @@ function arc(r0: number, r1: number, a0: number, a1: number) {
   return `M${x0},${y0}A${r1},${r1} 0 ${large} 1 ${x1},${y1}L${x2},${y2}A${r0},${r0} 0 ${large} 0 ${x3},${y3}Z`;
 }
 
-function AtlasPage() {
+export function AtlasPage() {
   const { data } = useSuspenseQuery(atlasQuery);
   const [selected, setSelected] = useState<number | null>(null);
   const [hover, setHover] = useState<{ c: number; p: string } | null>(null);
@@ -113,6 +113,7 @@ function AtlasPage() {
       </main>
       <footer className="border-t border-border px-6 py-4 text-xs text-muted-foreground md:px-10">
         Lähde: Neon-tietokanta, skeema atlas_editing · arvot ovat toimituksellisia kytkentöjä artikkelien ja päätelmien välillä; ne eivät todista syy-yhteyttä.
+        {data.generatedAt && <p className="mt-2">Aineistovienti: {new Date(data.generatedAt).toLocaleString("fi-FI")} · {data.reviewPolicy}</p>}
       </footer>
     </div>
   );
@@ -382,6 +383,8 @@ function ConclusionDetail({ c, data, model, onClose }: { c: Conclusion; data: At
               <span className={r.relation === "direct" ? "text-primary" : r.relation === "counterevidence" ? "text-warning" : ""}>{REL[r.relation] ?? r.relation}</span>
             </div>
             <h3 className="mt-1 font-display text-sm">{r.articleTitle}</h3>
+            <p className="mt-1 text-[11px] text-muted-foreground">Tarkistuksen tila: {r.reviewStatus === "accepted" ? "hyväksytty" : r.reviewStatus || "ei ilmoitettu"}</p>
+            {r.limitations && <p className="mt-1 text-xs text-muted-foreground">Rajaus: {r.limitations}</p>}
             {r.treatment && <p className="mt-1 text-xs leading-relaxed">{r.treatment}</p>}
             {r.evidence && <p className="mt-2 border-l border-border pl-2 text-xs italic text-muted-foreground">”{r.evidence}”</p>}
           </article>
@@ -390,3 +393,4 @@ function ConclusionDetail({ c, data, model, onClose }: { c: Conclusion; data: At
     </div>
   );
 }
+
