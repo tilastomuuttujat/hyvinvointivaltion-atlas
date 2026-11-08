@@ -37,6 +37,12 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
   const [scenario, setScenario] = useState<number | null>(null);
   const [year, setYear] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [lens, setLens] = useState<{ c: number; p: string; x: number; y: number; rel: string; relColor: string; count: number } | null>(null);
+  const [lensTrail, setLensTrail] = useState<number[]>([]);
+  const [lensMode, setLensMode] = useState<"network" | "mindmap">("network");
+  const [lensHover, setLensHover] = useState<string | number | null>(null);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lensFired = useRef(false);
   const drag = useRef<{ x: number; y: number; sx: number; sy: number; moved: boolean } | null>(null);
   const vel = useRef({ y: 0, p: 0 });
   const target = useRef<number | null>(null);
@@ -192,6 +198,40 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
   }, [playing]);
   const stopTop = useMemo(() => (stop && story ? data.cells.filter((x) => x.p === stop && storySet.has(x.c)).sort((a, b) => b.direct + b.context - (a.direct + a.context)).slice(0, 3) : []), [stop, story, storySet, data]);
 
+  const lensGraph = useMemo(() => {
+    if (!lens) return null;
+    const ev = (data.evidenceIndex ?? []).filter((e) => e.p === lens.p);
+    const own = ev.filter((e) => e.c === lens.c);
+    const ownArts = new Set(own.map((e) => e.articleNo));
+    const cw = new Map<string, number>();
+    for (const e of own) for (const k of e.concepts) cw.set(k, (cw.get(k) ?? 0) + 1);
+    const concepts = [...cw.entries()].sort((x, y) => y[1] - x[1]).slice(0, 9).map(([k, w]) => ({ k, w }));
+    const cset = new Set(concepts.map((x) => x.k));
+    const others = new Map<number, { c: number; concepts: Set<string>; arts: Set<number> }>();
+    for (const e of ev) {
+      if (e.c === lens.c) continue;
+      const shared = e.concepts.filter((k) => cset.has(k)), art = ownArts.has(e.articleNo);
+      if (!shared.length && !art) continue;
+      const o = others.get(e.c) ?? { c: e.c, concepts: new Set(), arts: new Set() };
+      shared.forEach((k) => o.concepts.add(k)); if (art) o.arts.add(e.articleNo);
+      others.set(e.c, o);
+    }
+    const outer = [...others.values()].sort((x, y) => y.concepts.size + y.arts.size - (x.concepts.size + x.arts.size)).slice(0, 12);
+    return { concepts, outer, articles: ownArts.size };
+  }, [lens, data]);
+  const lensGo = (c: number) => {
+    if (!lens) return;
+    onPick(c, lens.p);
+    if (c === lens.c) return;
+    setLensTrail((t) => [...t, lens.c]); setLensHover(null); setLens({ ...lens, c });
+  };
+  const lensBack = () => { const prev = lensTrail[lensTrail.length - 1]; if (prev == null || !lens) return; setLensTrail((t) => t.slice(0, -1)); setLensHover(null); setLens({ ...lens, c: prev }); onPick(prev, lens.p); };
+  const nearestAt = (el: SVGSVGElement, cx: number, cy: number) => {
+    const box = el.getBoundingClientRect(), x = ((cx - box.left) * W) / box.width, y = ((cy - box.top) * H) / box.height;
+    return visible.filter((p) => p.z > -0.2).map((p) => ({ p, d: Math.hypot(p.x - x, p.y - y) })).filter((v) => v.d < 14).sort((a, b) => a.d - b.d || b.p.z - a.p.z)[0]?.p;
+  };
+  const clearPress = () => { if (pressTimer.current) clearTimeout(pressTimer.current); pressTimer.current = null; };
+  useEffect(() => clearPress, []);
   const steer = (dy: number, dp: number) => { setYaw((v) => v + dy); setPitch((v) => clampP(v + dp)); };
   const pick = (c: number, p: string) => {
     onPick(c, p);
@@ -293,11 +333,12 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
       <p className="mx-2 mt-3 min-h-[2.5em] text-xs text-muted-foreground" role="status">
         {selectedConclusion
           ? <>Korostettu: <span className="text-foreground">{selectedConclusion.title}</span>. Hehkuva aikajana kulkee 1850 → 2050; kaaret yhdistävät päätelmiin, joilla on samalla aikakaudella yhteinen artikkeli tai sama avainkäsite. Aineistoaukkoja ei yhdistetä.</>
-          : `${plotted.length} pistettä. Vedä kiertääksesi, valitse piste avataksesi sen käsittelyt.`}
+          : `${plotted.length} pistettä. Vedä kiertääksesi, valitse piste avataksesi sen käsittelyt, pidä pistettä painettuna avataksesi tarkennuslinssin.`}
       </p>
 
+      <div className="relative">
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full cursor-grab touch-none select-none rounded-xl bg-[var(--space)] outline-none focus-visible:ring-2 focus-visible:ring-primary active:cursor-grabbing" tabIndex={0}
-        aria-label="Pyöritettävä Atlas-pallo. Nuolinäppäimet kiertävät, plus ja miinus zoomaavat, välilyönti pysäyttää pyörityksen. Esc poistaa valinnan."
+        aria-label="Pyöritettävä Atlas-pallo. Nuolinäppäimet kiertävät, plus ja miinus zoomaavat, välilyönti pysäyttää pyörityksen. Esc poistaa valinnan. Verkostonäkymä sulkeutuu vain Takaisin palloon -painikkeella."
         onWheel={(e) => setZoom((v) => Math.max(0.6, Math.min(1.5, v - e.deltaY * 0.001)))}
         onKeyDown={(e) => {
           const k = e.key;
@@ -305,17 +346,22 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
           if (k === "ArrowLeft") steer(-0.12, 0); if (k === "ArrowRight") steer(0.12, 0);
           if (k === "ArrowUp") steer(0, 0.1); if (k === "ArrowDown") steer(0, -0.1);
           if (k === "+") setZoom((v) => Math.min(1.5, v + 0.1)); if (k === "-") setZoom((v) => Math.max(0.6, v - 0.1));
-          if (k === " ") setAuto((a) => !a); if (k === "Escape") onClear();
+          if (k === " ") setAuto((a) => !a); if (k === "Escape" && !lens) onClear();
         }}
-        onPointerDown={(e) => { if (e.button !== 0) return; drag.current = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false }; vel.current = { y: 0, p: 0 }; target.current = null; suppressClick.current = false; e.currentTarget.setPointerCapture?.(e.pointerId); }}
+        onPointerDown={(e) => { if (e.button !== 0 || (e.target as Element).closest("[data-lens]")) return; drag.current = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false }; vel.current = { y: 0, p: 0 }; target.current = null; suppressClick.current = false; e.currentTarget.setPointerCapture?.(e.pointerId);
+          lensFired.current = false; clearPress();
+          const hit = nearestAt(e.currentTarget, e.clientX, e.clientY);
+          if (hit) pressTimer.current = setTimeout(() => { lensFired.current = true; suppressClick.current = true; setAuto(false); setLensHover(null); setLensTrail([]); setLens({ c: hit.cell.c, p: hit.cell.p, x: hit.x, y: hit.y, rel: hit.rel.label, relColor: hit.rel.color, count: hit.cell[hit.rel.key] }); target.current = -angleOf(hit.cell.p); }, 550); }}
         onPointerMove={(e) => {
           const d = drag.current; if (!d) return;
-          if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 5) d.moved = true;
+          if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 5) { d.moved = true; clearPress(); }
           if (d.moved) { const dy = (e.clientX - d.x) * 0.008, dp = (e.clientY - d.y) * 0.008; steer(dy, dp); vel.current = { y: dy, p: dp }; }
           d.x = e.clientX; d.y = e.clientY;
         }}
         onPointerUp={(e) => {
-          const d = drag.current; suppressClick.current = !!d?.moved; drag.current = null;
+          clearPress();
+          const d = drag.current; suppressClick.current = !!d?.moved || lensFired.current; drag.current = null;
+          if (lensFired.current) return;
           if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
           if (d && !d.moved) {
             const box = e.currentTarget.getBoundingClientRect(), x = ((e.clientX - box.left) * W) / box.width, y = ((e.clientY - box.top) * H) / box.height;
@@ -323,7 +369,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
             if (near) { pick(near.p.cell.c, near.p.cell.p); suppressClick.current = true; }
           }
         }}
-        onPointerCancel={() => { drag.current = null; suppressClick.current = true; }}
+        onPointerCancel={() => { clearPress(); drag.current = null; suppressClick.current = true; }}
         onPointerLeave={() => setHover(null)}>
         <title>Atlas-pallo: aikakaudet, päätelmät ja kytkentöjen laji</title>
         <defs>
@@ -545,7 +591,99 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
             </g>
           );
         })()}
+
+        {lens && lensGraph && (() => {
+          const per = perMap.get(lens.p), c0 = conMap.get(lens.c);
+          const { concepts, outer } = lensGraph;
+          const cpos = new Map(concepts.map((k, i) => { const a = -Math.PI / 2 + (i / Math.max(1, concepts.length)) * Math.PI * 2; return [k.k, { x: CX + Math.cos(a) * 120, y: CY + Math.sin(a) * 100, a }]; }));
+          const opos = outer.map((o, i) => {
+            const as = [...o.concepts].map((k) => cpos.get(k)!.a);
+            const base = as.length ? Math.atan2(as.reduce((s, a) => s + Math.sin(a), 0), as.reduce((s, a) => s + Math.cos(a), 0)) : -Math.PI / 2 + (i / outer.length) * Math.PI * 2;
+            const a = base + ((i % 3) - 1) * 0.22;
+            return { ...o, x: CX + Math.cos(a) * 245, y: CY + Math.sin(a) * 215 };
+          });
+          const short = (t: string, n: number) => (t.length > n ? t.slice(0, n) + "…" : t);
+          const hi = lensHover;
+          const lit = (k: string | number) => hi == null || hi === k;
+          return (
+            <g data-lens>
+              <rect x="0" y="0" width={W} height={H} fill="var(--space)" opacity="0.94" />
+              <g pointerEvents="none">
+                <line x1={lens.x} y1={lens.y} x2={CX} y2={CY} stroke={lens.relColor} strokeOpacity="0.35" strokeDasharray="2 4" />
+                <circle cx={lens.x} cy={lens.y} r="9" fill="none" stroke={lens.relColor} strokeWidth="1.5" className="atlas-pulse" />
+                <circle cx={lens.x} cy={lens.y} r="4" fill={lens.relColor} />
+              </g>
+              {lensMode === "mindmap" ? <MindMap center={lens.c} concepts={concepts} outer={outer} title={(c) => conMap.get(c)?.title ?? ""} hi={hi} setHi={setLensHover}
+                onPick={lensGo} /> : <>
+              {[120, 245].map((r, i) => <ellipse key={r} cx={CX} cy={CY} rx={r} ry={i ? 215 : 100} fill="none" stroke="var(--sphere-grid)" strokeOpacity="0.1" strokeDasharray="2 6" pointerEvents="none" />)}
+              {opos.map((o) => [...o.concepts].map((k) => { const p = cpos.get(k)!; const on = lit(k) || lit(o.c);
+                return <line key={o.c + k} x1={p.x} y1={p.y} x2={o.x} y2={o.y} stroke="var(--kind-hypo)" strokeWidth={on && hi != null ? 1.8 : 1} strokeOpacity={on ? 0.55 : 0.06} pointerEvents="none" />; }))}
+              {opos.filter((o) => o.arts.size).map((o) => (
+                <line key={"a" + o.c} x1={CX} y1={CY} x2={o.x} y2={o.y} stroke="var(--primary)" strokeWidth={1 + Math.min(3, o.arts.size)} strokeOpacity={lit(o.c) ? 0.35 : 0.05} strokeDasharray="4 7" className="atlas-flow" pointerEvents="none" />
+              ))}
+              {concepts.map((k) => { const p = cpos.get(k.k)!; const on = lit(k.k);
+                return <line key={"c" + k.k} x1={CX} y1={CY} x2={p.x} y2={p.y} stroke="var(--primary)" strokeWidth={1 + k.w} strokeOpacity={on ? 0.7 : 0.1} className="atlas-flow" strokeDasharray="6 5" pointerEvents="none" />; })}
+              {opos.map((o) => { const on = lit(o.c) || [...o.concepts].some((k) => hi === k);
+                return (
+                  <g key={o.c} className="cursor-pointer" opacity={hi == null || on ? 1 : 0.25} onPointerEnter={() => setLensHover(o.c)} onPointerLeave={() => setLensHover(null)}
+                    onClick={() => lensGo(o.c)}>
+                    <title>{conMap.get(o.c)?.title}</title>
+                    <circle cx={o.x} cy={o.y} r={6 + Math.min(6, (o.concepts.size + o.arts.size) * 1.4)} fill="var(--card)" stroke="var(--foreground)" strokeOpacity="0.6" />
+                    <text x={o.x} y={o.y + 3.5} fontSize="9" textAnchor="middle" fill="var(--foreground)">{o.c}</text>
+                    <text x={o.x} y={o.y + (o.y > CY ? 26 : -16)} fontSize="9.5" textAnchor="middle" fill="var(--muted-foreground)">{short(conMap.get(o.c)?.title ?? "", 26)}</text>
+                  </g>
+                ); })}
+              {concepts.map((k) => { const p = cpos.get(k.k)!; const on = lit(k.k);
+                const w = Math.min(150, k.k.length * 6 + 18);
+                return (
+                  <g key={"n" + k.k} opacity={on ? 1 : 0.3} onPointerEnter={() => setLensHover(k.k)} onPointerLeave={() => setLensHover(null)} className="cursor-default">
+                    <rect x={p.x - w / 2} y={p.y - 11} width={w} height="22" rx="11" fill="var(--popover)" stroke="var(--kind-hypo)" strokeWidth={1 + k.w * 0.5} filter={hi === k.k ? "url(#glow)" : undefined} />
+                    <text x={p.x} y={p.y + 4} fontSize="10.5" textAnchor="middle" fill="var(--kind-hypo)">{short(k.k, 22)}</text>
+                  </g>
+                ); })}
+              <g className="cursor-pointer" onClick={() => lensGo(lens.c)}>
+                <circle cx={CX} cy={CY} r="30" fill="var(--primary)" opacity="0.18" className="atlas-pulse" pointerEvents="none" />
+                <circle cx={CX} cy={CY} r="24" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5" filter="url(#glow)" />
+                <text x={CX} y={CY + 4} fontSize="12" textAnchor="middle" fill="var(--foreground)" fontWeight="600">#{lens.c}</text>
+              </g>
+              </>}
+              <text x="20" y="30" fontSize="13" fill="var(--foreground)" className="font-display">{short(c0?.title ?? "", 52)}</text>
+              <text x="20" y="66" fontSize="10.5" fill="var(--muted-foreground)">Painettu kohta: <tspan fill={lens.relColor}>●</tspan> {per?.label} · {lens.rel} · {lens.count} kytkentää — merkitty pallolle sykkivällä renkaalla</text>
+              <g fontSize="10.5">
+                {(["network", "mindmap"] as const).map((m, i) => (
+                  <g key={m} className="cursor-pointer" onClick={() => { setLensMode(m); setLensHover(null); }}>
+                    <rect x={W - 196 + i * 92} y="16" width="88" height="24" rx="12" fill={lensMode === m ? "var(--primary)" : "var(--card)"} stroke="var(--border)" />
+                    <text x={W - 152 + i * 92} y="32" textAnchor="middle" fill={lensMode === m ? "var(--primary-foreground)" : "var(--muted-foreground)"}>{m === "network" ? "Verkosto" : "Mielikartta"}</text>
+                  </g>
+                ))}
+              </g>
+              <g fontSize="11" className="cursor-pointer">
+                <g onClick={() => setLens(null)} className="cursor-pointer transition-opacity hover:opacity-80">
+                  <title>Sulje verkostonäkymä ja palaa pallonäkymään</title>
+                  <rect x={W - 196} y="48" width="180" height="26" rx="13" fill="var(--card)" stroke="var(--primary)" strokeWidth="1.5" />
+                  <text x={W - 106} y="65" textAnchor="middle" fill="var(--primary)" fontWeight="600">◐ Takaisin palloon</text>
+                </g>
+                {lensTrail.length > 0 && (
+                  <g onClick={lensBack}>
+                    <rect x={W - 196} y="80" width="180" height="24" rx="12" fill="var(--card)" stroke="var(--border)" />
+                    <text x={W - 106} y="96" textAnchor="middle" fill="var(--muted-foreground)">‹ Edellinen (#{lensTrail[lensTrail.length - 1]})</text>
+                  </g>
+                )}
+              </g>
+              {lensTrail.length > 0 && <text x="20" y="84" fontSize="10" fill="var(--muted-foreground)">Polku: {[...lensTrail, lens.c].slice(-6).map((c) => `#${c}`).join(" → ")}</text>}
+              <text x="20" y="48" fontSize="10.5" fill="var(--muted-foreground)">{lensMode === "network" ? "Käsiteverkko" : "Mielikartta"} · {per?.label} · {lensGraph.articles} artikkelia · {concepts.length} käsitettä · {outer.length} kytkettyä päätelmää</text>
+              {!concepts.length && !outer.length && <text x={CX} y={CY + 60} fontSize="11" textAnchor="middle" fill="var(--muted-foreground)">Tälle aikakaudelle ei ole kirjattu käsitelinkkejä</text>}
+              <g fontSize="10" fill="var(--muted-foreground)">
+                <rect x="20" y={H - 52} width="18" height="10" rx="5" fill="none" stroke="var(--kind-hypo)" /><text x="44" y={H - 43}>avainkäsite</text>
+                <circle cx="124" cy={H - 47} r="5" fill="var(--card)" stroke="var(--foreground)" /><text x="134" y={H - 43}>päätelmä, jolla sama käsite</text>
+                <line x1="290" y1={H - 47} x2="312" y2={H - 47} stroke="var(--primary)" strokeDasharray="4 4" /><text x="318" y={H - 43}>yhteinen artikkeli</text>
+                <text x="20" y={H - 22}>Vie osoitin käsitteen päälle korostaaksesi sen yhteydet · klikkaa päätelmää siirtyäksesi siihen · paluu vain ◐ Takaisin palloon -painikkeella</text>
+              </g>
+            </g>
+          );
+        })()}
       </svg>
+      </div>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3 px-2 text-xs text-muted-foreground">
         <label className="flex items-center gap-2">Zoom <input aria-label="Pallon zoom" className="accent-primary" type="range" min=".6" max="1.5" step=".05" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} /></label>
@@ -601,6 +739,57 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
 }
 
 const clampP = (v: number) => Math.max(-1.3, Math.min(1.3, v));
+
+type MMProps = { center: number; concepts: { k: string; w: number }[]; outer: { c: number; concepts: Set<string>; arts: Set<number> }[];
+  title: (c: number) => string; hi: string | number | null; setHi: (v: string | number | null) => void; onPick: (c: number) => void };
+function MindMap({ center, concepts, outer, title, hi, setHi, onPick }: MMProps) {
+  const short = (t: string, n: number) => (t.length > n ? t.slice(0, n) + "…" : t);
+  const branches: { label: string; concept: boolean; kids: number[] }[] = concepts.map((k) => ({ label: k.k, concept: true, kids: outer.filter((o) => o.concepts.has(k.k)).map((o) => o.c).slice(0, 4) }));
+  const artOnly = outer.filter((o) => !o.concepts.size).map((o) => o.c);
+  if (artOnly.length) branches.push({ label: "Yhteiset artikkelit", concept: false, kids: artOnly.slice(0, 6) });
+  const sides: (typeof branches)[] = [[], []];
+  const load = [0, 0];
+  for (const b of [...branches].sort((x, y) => y.kids.length - x.kids.length)) { const i = load[0]! <= load[1]! ? 0 : 1; sides[i]!.push(b); load[i]! += Math.max(1, b.kids.length); }
+  const top = 90, bottom = H - 70;
+  return (
+    <g>
+      {sides.map((list, si) => {
+        const dir = si === 0 ? 1 : -1, bx = CX + dir * 130, kx = CX + dir * 195;
+        const slots = list.reduce((s, b) => s + Math.max(1, b.kids.length), 0) || 1;
+        const step = Math.min(34, (bottom - top) / slots);
+        let y = CY - (slots * step) / 2;
+        return list.map((b) => {
+          const n = Math.max(1, b.kids.length), by = y + (n * step) / 2;
+          const kidsY = b.kids.map((_, i) => y + step * (i + 0.5)); y += n * step;
+          const on = hi == null || hi === b.label || b.kids.some((k) => k === hi);
+          const col = b.concept ? "var(--kind-hypo)" : "var(--primary)";
+          const w = Math.min(150, b.label.length * 6 + 18);
+          return (
+            <g key={b.label} opacity={on ? 1 : 0.25}>
+              <path d={`M${CX + dir * 24},${CY} C${CX + dir * 80},${CY} ${bx - dir * 60},${by} ${bx - dir * w / 2},${by}`} fill="none" stroke={col} strokeWidth="2" strokeOpacity="0.6" />
+              {b.kids.map((k, i) => (
+                <g key={k} className="cursor-pointer" onPointerEnter={() => setHi(k)} onPointerLeave={() => setHi(null)} onClick={() => onPick(k)}>
+                  <title>{title(k)}</title>
+                  <path d={`M${bx + dir * w / 2},${by} C${bx + dir * (w / 2 + 30)},${by} ${kx - dir * 30},${kidsY[i]} ${kx - dir * 6},${kidsY[i]}`} fill="none" stroke={col} strokeOpacity="0.4" />
+                  <circle cx={kx} cy={kidsY[i]} r="4" fill="var(--card)" stroke="var(--foreground)" strokeOpacity="0.7" />
+                  <text x={kx + dir * 9} y={kidsY[i]! + 3.5} fontSize="9.5" textAnchor={dir > 0 ? "start" : "end"} fill="var(--foreground)" opacity="0.85">#{k} {short(title(k), 20)}</text>
+                </g>
+              ))}
+              <g onPointerEnter={() => setHi(b.label)} onPointerLeave={() => setHi(null)}>
+                <rect x={bx - w / 2} y={by - 11} width={w} height="22" rx="11" fill="var(--popover)" stroke={col} />
+                <text x={bx} y={by + 4} fontSize="10.5" textAnchor="middle" fill={col}>{short(b.label, 22)}</text>
+              </g>
+            </g>
+          );
+        });
+      })}
+      <g className="cursor-pointer" onClick={() => onPick(center)}>
+        <circle cx={CX} cy={CY} r="24" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5" filter="url(#glow)" />
+        <text x={CX} y={CY + 4} fontSize="12" textAnchor="middle" fill="var(--foreground)" fontWeight="600">#{center}</text>
+      </g>
+    </g>
+  );
+}
 
 function Segments({ pts, path, strong }: { pts: { x: number; y: number; z: number }[]; path: (p: { x: number; y: number }[]) => string; strong?: boolean }) {
   const segs: { front: boolean; pts: typeof pts }[] = [];
