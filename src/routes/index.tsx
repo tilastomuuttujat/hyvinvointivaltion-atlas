@@ -45,7 +45,7 @@ function arc(r0: number, r1: number, a0: number, a1: number) {
   return `M${x0},${y0}A${r1},${r1} 0 ${large} 1 ${x1},${y1}L${x2},${y2}A${r0},${r0} 0 ${large} 0 ${x3},${y3}Z`;
 }
 
-function AtlasPage() {
+export function AtlasPage() {
   const { data } = useSuspenseQuery(atlasQuery);
   const [selected, setSelected] = useState<number | null>(null);
   const [hover, setHover] = useState<{ c: number; p: string } | null>(null);
