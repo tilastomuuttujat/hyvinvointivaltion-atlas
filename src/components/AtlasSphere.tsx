@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AtlasData, Cell } from "@/lib/atlas.functions";
 import { relatedConnections, timelineSegments } from "../lib/atlas.relationships";
+import { heightField, contourSegments } from "../lib/atlas.contours";
 import { STORYLINES, storylineStops, backcast, futurePeriods, periodAt } from "../lib/atlas.storylines";
 
 type Relation = "direct" | "context" | "counter";
@@ -127,6 +128,39 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
   const causal = related.slice(0, 14).map((x) => ({ ...x, w: x.articles.length + x.concepts.length }));
   const relatedSet = useMemo(() => new Set(related.map((x) => `${x.c}:${x.p}`)), [related]);
 
+  // Topography: each conclusion×era is a hill whose height = number of supporting articles
+  const [topo, setTopo] = useState(true);
+  const contours = useMemo(() => {
+    const peaks = cells.filter((c) => c.articles > 0).map((c) => ({ lat: latOf(c.c), ang: angleOf(c.p), w: c.articles }));
+    const f = heightField(peaks, 56, 112, 0.11);
+    // Levels from value quantiles so mid-density regions also surface as land, not only the tallest peak
+    const vals = f.h.flat().filter((v) => v > f.max * 0.01).sort((a, b) => a - b);
+    const q = (t: number) => vals[Math.floor(t * (vals.length - 1))] ?? f.max;
+    const levels = [0.3, 0.5, 0.66, 0.8, 0.9, 0.96].map(q);
+    // Land raster: grid cells above sea level, tinted by elevation band
+    const land: { la0: number; la1: number; an0: number; an1: number; band: number }[] = [];
+    for (let i = 0; i < f.lats.length - 1; i++) for (let j = 0; j < f.angs.length - 1; j++) {
+      const v = (f.h[i]![j]! + f.h[i]![j + 1]! + f.h[i + 1]![j]! + f.h[i + 1]![j + 1]!) / 4;
+      let band = -1; levels.forEach((lv, k) => { if (v >= lv) band = k; });
+      if (band >= 0) land.push({ la0: f.lats[i]!, la1: f.lats[i + 1]!, an0: f.angs[j]!, an1: f.angs[j + 1]!, band });
+    }
+    return { land, lines: levels.map((lv, i) => ({ i, segs: contourSegments(f, lv) })) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, kinds, order]);
+  const summits = useMemo(() => {
+    const best = new Map<number, Cell>();
+    for (const c of cells) if (c.articles > (best.get(c.c)?.articles ?? 0)) best.set(c.c, c);
+    return [...best.values()].sort((a, b) => b.articles - a.articles).slice(0, 7);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, kinds]);
+  const kindBands = useMemo(() => {
+    const m = new Map<string, number[]>();
+    order.forEach((c) => { if (kinds.has(c.kind)) m.set(c.kind, [...(m.get(c.kind) ?? []), c.id]); });
+    return [...m.entries()].map(([kind, ids]) => ({ kind, lat: (latOf(ids[0]!) + latOf(ids[ids.length - 1]!)) / 2 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, kinds]);
+  const KIND_FI: Record<string, string> = { synteesi: "Synteesit", "hypoteesi / ajallisesti todennettava väite": "Hypoteesit" };
+
   // Theme paths, scenario back-casting and time machine
   const story = STORYLINES.find((x) => x.id === storyId) ?? null;
   const stops = useMemo(() => (story ? storylineStops(data.periods, data.cells, story.conclusions) : []), [story, data]);
@@ -251,6 +285,11 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
         </section>
       </div>
 
+      <div className="mx-2 mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <button aria-pressed={topo} onClick={() => setTopo((x) => !x)} className={`rounded-full border px-2.5 py-0.5 ${topo ? "border-primary text-primary" : "border-border"}`}>Korkeuskäyrät</button>
+        {topo && <span>Lue palloa kuin karttaa: lähekkäiset, aineiston tukemat päätelmät muodostavat saaria ja mantereita; tumma meri on vähäisen aineiston aluetta. Mitä tiheämmät ja kirkkaammat käyrät, sitä useampi artikkeli tukee sitä. ▲ = alueen korkein huippu. Pituuspiirit ovat aikakausia, leveysvyöhykkeet päätelmätyyppejä.</span>}
+      </div>
+
       <p className="mx-2 mt-3 min-h-[2.5em] text-xs text-muted-foreground" role="status">
         {selectedConclusion
           ? <>Korostettu: <span className="text-foreground">{selectedConclusion.title}</span>. Hehkuva aikajana kulkee 1850 → 2050; kaaret yhdistävät päätelmiin, joilla on samalla aikakaudella yhteinen artikkeli tai sama avainkäsite. Aineistoaukkoja ei yhdistetä.</>
@@ -337,6 +376,46 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
             return <Segments key={`lon${p.id}`} pts={pts} path={path} strong={period === p.id && selected != null} />;
           })}
         </g>
+
+        {/* Contour topography: thin elevation lines, higher = more supporting articles */}
+        {topo && (
+          <g fill="none" pointerEvents="none" strokeLinecap="round">
+            {[0, 1, 2, 3, 4, 5].map((band) => {
+              let d = "";
+              for (const q of contours.land) {
+                if (q.band !== band) continue;
+                const c = [project(sph(q.la0, q.an0, 0.972)), project(sph(q.la0, q.an1, 0.972)), project(sph(q.la1, q.an1, 0.972)), project(sph(q.la1, q.an0, 0.972))];
+                if (c.every((p) => p.z < 0)) continue;
+                d += `M${c.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join("L")}Z`;
+              }
+              return <path key={`l${band}`} d={d} fill={band >= 4 ? "var(--kind-hypo)" : "var(--primary)"} fillOpacity={0.18 + band * 0.08} stroke="none" />;
+            })}
+            {contours.lines.map(({ i, segs }) => {
+              let d = "";
+              for (const [a, b] of segs) {
+                const pa = project(sph(a[0], a[1], 0.975 + i * 0.006)), pb = project(sph(b[0], b[1], 0.975 + i * 0.006));
+                if (pa.z < 0 && pb.z < 0) continue;
+                d += `M${pa.x.toFixed(1)},${pa.y.toFixed(1)}L${pb.x.toFixed(1)},${pb.y.toFixed(1)}`;
+              }
+              return <path key={i} d={d} stroke={i >= 4 ? "var(--kind-hypo)" : "var(--primary)"} strokeOpacity={0.45 + i * 0.1} strokeWidth={i === 0 ? 1.2 : 0.8 + i * 0.1} />;
+            })}
+            {kindBands.map((b) => {
+              const v = project(sph(b.lat, -yaw, 1.0));
+              return v.z > 0.3 && <text key={b.kind} x={v.x} y={v.y} textAnchor="middle" fontSize="11" letterSpacing="3" className="font-display uppercase" fill="var(--foreground)" opacity="0.35">{KIND_FI[b.kind] ?? b.kind.split(" ")[0]}</text>;
+            })}
+            {summits.map((s) => {
+              const v = project(location(s.c, s.p, 1.0));
+              if (v.z < 0.15) return null;
+              const t = conMap.get(s.c)?.title ?? "";
+              return (
+                <g key={`${s.c}:${s.p}`}>
+                  <path d={`M${v.x - 4},${v.y + 3}L${v.x},${v.y - 4}L${v.x + 4},${v.y + 3}Z`} fill="var(--kind-hypo)" opacity="0.85" />
+                  <text x={v.x + 6} y={v.y - 4} fontSize="9.5" fill="var(--foreground)" opacity="0.85" stroke="var(--space)" strokeWidth="2.5" paintOrder="stroke">{t.length > 28 ? t.slice(0, 27) + "…" : t} · {s.articles} art.</text>
+                </g>
+              );
+            })}
+          </g>
+        )}
 
         {/* Era labels on an outer orbit */}
         {data.periods.map((p) => {
