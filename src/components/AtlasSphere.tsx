@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AtlasData, Cell } from "@/lib/atlas.functions";
 
+import { relatedConnections, timelineSegments } from "../lib/atlas.relationships";
+
 type Relation = "direct" | "context" | "counter";
 const RELATIONS: { key: Relation; label: string; radius: number; color: string }[] = [
   { key: "context", label: "Taustoittava", radius: 0.8, color: "var(--kind-hypo)" },
@@ -80,7 +82,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
   const points = cells.flatMap((cell) => rels.filter((rel) => cell[rel.key] > 0).map((rel) => ({ cell, rel, id: `${cell.c}:${cell.p}:${rel.key}` })));
   const max = Math.max(1, ...points.map((p) => p.cell[p.rel.key]));
   const plotted = points.map((p) => ({ ...p, ...project(location(p.cell.c, p.cell.p, p.rel.radius)) })).sort((a, b) => a.z - b.z);
-  const visible = plotted.filter((p) => !hideOthers || selected === null || p.cell.c === selected);
+
   const hoverPoint = plotted.find((p) => p.id === hover);
 
   // Lifted 3D arc between two surface points (rendered as glowing animated path)
@@ -102,30 +104,31 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
     if (selected == null) return [];
     return data.periods.map((p) => {
       const cell = data.cells.find((x) => x.c === selected && x.p === p.id);
-      const v = cell ? cell.direct + (showContext ? cell.context * 0.5 : 0) : 0;
-      return { p, cell, v };
+      const v = cell ? rels.reduce((n,r)=>n+cell[r.key],0) : 0;
+      const hasData = !!cell && rels.some(r => cell[r.key] > 0) && kinds.has(conMap.get(selected)?.kind ?? "");
+      return { p, cell, v, hasData };
     });
-  }, [data, selected, showContext]);
+  }, [data, selected, showContext, layer, kinds, conMap]);
   const tlMax = Math.max(1, ...timeline.map((t) => t.v));
 
-  // Causal arcs: conclusions co-occurring with the selected one in the same period (shared evidence context)
-  const causal = useMemo(() => {
-    if (selected == null) return [];
-    const mine = new Map(data.cells.filter((x) => x.c === selected && x.direct > 0).map((x) => [x.p, x.direct]));
-    const scored = data.cells
-      .filter((x) => x.c !== selected && x.direct > 0 && mine.has(x.p) && kinds.has(conMap.get(x.c)?.kind ?? ""))
-      .map((x) => ({ c: x.c, p: x.p, w: Math.min(x.direct, mine.get(x.p)!) }))
-      .sort((a, b) => b.w - a.w);
-    return scored.slice(0, 14);
-  }, [data, selected, kinds, conMap]);
+  // Only a shared article or an explicitly matching recorded concept creates an arc.
+  const connections = useMemo(() => selected == null ? [] : relatedConnections(data.evidenceIndex || [], selected)
+    .filter(k => kinds.has(conMap.get(k.c)?.kind ?? "") && timeline.some(t => t.p.id===k.p && t.hasData)
+      && points.some(p => p.cell.c===k.c && p.cell.p===k.p)), [data.evidenceIndex, selected, kinds, conMap, layer, showContext]);
+  const connectionsShown = connections.slice(0,14);
+  const relatedPairs = new Set(connectionsShown.map(k=>`${k.c}:${k.p}`));
+  const relevant = (p: typeof plotted[number]) => p.cell.c===selected || relatedPairs.has(`${p.cell.c}:${p.cell.p}`);
+  const visible = plotted.filter(p=>!hideOthers || selected===null || relevant(p));
+  const anchorRadius = (c: number,p: string) => points.find(x=>x.cell.c===c&&x.cell.p===p&&x.rel.key==='direct')?.rel.radius || points.find(x=>x.cell.c===c&&x.cell.p===p)?.rel.radius || .97;
 
   const steer = (dy: number, dp: number) => { setYaw((v) => v + dy); setPitch((v) => clampP(v + dp)); };
   const pick = (c: number, p: string) => {
+    setAuto(false); vel.current={y:0,p:0};
     onPick(c, p);
     target.current = -angleOf(p); // rotate chosen era to the front
   };
   const focusYaw = selected != null && period ? -angleOf(period) : null;
-  useEffect(() => { if (focusYaw != null) target.current = focusYaw; }, [focusYaw]);
+  useEffect(() => { target.current = focusYaw; }, [focusYaw]);
 
   const lightX = CX - R * 0.38, lightY = CY - R * 0.42;
 
@@ -133,7 +136,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
     <div className="w-full" data-testid="atlas-sphere">
       <div className="flex flex-wrap items-center gap-2 px-2 text-xs">
         <div className="flex overflow-hidden rounded-full border border-border bg-card/60 backdrop-blur" role="group" aria-label="Pallon kerros">
-          {(["all", ...rels.map((r) => r.key)] as const).filter((v, i, a) => a.indexOf(v) === i).map((k) => {
+          {(["all", ...RELATIONS.filter(r=>showContext||r.key!=="context").map((r) => r.key)] as const).filter((v, i, a) => a.indexOf(v) === i).map((k) => {
             const rel = RELATIONS.find((r) => r.key === k);
             return (
               <button key={k} onClick={() => setLayer(k as typeof layer)} aria-pressed={layer === k}
@@ -148,14 +151,14 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
           className={`rounded-full border px-3 py-1.5 transition-colors ${auto ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
           {auto ? "❚❚ Pysäytä pyöritys" : "▶ Pyöritä"}
         </button>
-        <label className="flex items-center gap-2 text-muted-foreground"><input type="checkbox" className="accent-primary" checked={hideOthers} onChange={(e) => setHideOthers(e.target.checked)} />Vain valittu</label>
+        <label className="flex items-center gap-2 text-muted-foreground"><input type="checkbox" className="accent-primary" checked={hideOthers} onChange={(e) => setHideOthers(e.target.checked)} />Vain liittyvät pisteet</label>
         <button className="rounded-full border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground" onClick={() => { setYaw(-0.6); setPitch(0.25); setZoom(1); vel.current = { y: 0, p: 0 }; }}>Palauta asento</button>
         <button className="rounded-full border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-40" onClick={onClear} disabled={selected === null}>Näytä kokonaisuus</button>
       </div>
 
       <p className="mx-2 mt-3 min-h-[2.5em] text-xs text-muted-foreground" role="status">
         {selectedConclusion
-          ? <>Korostettu: <span className="text-foreground">{selectedConclusion.title}</span>. Hehkuva aikajana kulkee 1850 → 2050; kaaret näyttävät päätelmät, joita samat aikakaudet tukevat suoraan.</>
+          ? <>Korostettu: <span className="text-foreground">{selectedConclusion.title}</span>. Aikajana yhdistää vain aineistoa sisältävät vierekkäiset jaksot. Kaaret perustuvat yhteisiin artikkeleihin tai kirjattuihin avainkäsitteisiin, eivät saman aikakauden esiintymiseen.</>
           : `${plotted.length} pistettä. Vedä kiertääksesi, valitse piste avataksesi sen käsittelyt.`}
       </p>
 
@@ -254,7 +257,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
 
         {/* Points (back to front) */}
         {visible.map((p) => {
-          const active = selected === null || p.cell.c === selected;
+          const active = selected === null || relevant(p);
           const exact = p.cell.c === selected && p.cell.p === period;
           const isHover = hover === p.id;
           const count = p.cell[p.rel.key], size = (2.4 + Math.sqrt(count / max) * 4.2) * (0.75 + 0.35 * (p.z + 1) / 2) * zoom;
@@ -275,15 +278,15 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
           );
         })}
 
-        {/* Causal arcs: shared-era evidence to other conclusions */}
-        {selected != null && causal.map((k, i) => {
-          const a = location(selected, k.p, 0.97), b = location(k.c, k.p, 0.97);
+        {/* Context arcs based on actual shared article/concept references */}
+        {selected != null && connectionsShown.map((k, i) => {
+          const a = location(selected, k.p, anchorRadius(selected,k.p)), b = location(k.c, k.p, anchorRadius(k.c,k.p));
           const pts = liftArc(a, b, 0.14);
           const front = pts[14]!.z > -0.15;
           const tgt = conMap.get(k.c);
           return (
-            <g key={`ca${i}`} pointerEvents="none" opacity={front ? 0.9 : 0.25}>
-              <path d={path(pts)} fill="none" stroke="var(--kind-principle)" strokeWidth={0.8 + k.w * 0.5} strokeLinecap="round" filter="url(#glow)" opacity="0.35" />
+            <g data-related-arc={`${k.c}:${k.p}`} key={`ca${i}`} pointerEvents="none" opacity={front ? 0.9 : 0.25}>
+              <path d={path(pts)} fill="none" stroke="var(--kind-principle)" strokeWidth={0.8 + Math.min(4,k.articles.length+k.concepts.length) * 0.5} strokeLinecap="round" filter="url(#glow)" opacity="0.35" />
               <path d={path(pts)} fill="none" stroke="var(--kind-principle)" strokeWidth={1.2} strokeLinecap="round" strokeDasharray="4 10" className="atlas-flow" style={{ animationDelay: `${i * -0.2}s` }} />
               {front && <circle cx={pts[28]!.x} cy={pts[28]!.y} r={2.4} fill="var(--kind-principle)" filter="url(#glow)"><title>{tgt?.title}</title></circle>}
             </g>
@@ -291,22 +294,21 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
         })}
 
         {/* Timeline arcs across eras for the selected conclusion */}
-        {selected != null && timeline.slice(1).map((t, i) => {
-          const prev = timeline[i]!;
+        {selected != null && timelineSegments(timeline).map(([prev, t], i) => {
           const a = location(selected, prev.p.id, 1.02), b = location(selected, t.p.id, 1.02);
           const pts = liftArc(a, b, 0.07 + 0.12 * ((prev.v + t.v) / (2 * tlMax)));
           const fut = t.p.start >= 2026;
           const strength = 1 + 3 * ((prev.v + t.v) / (2 * tlMax));
           const front = pts[14]!.z > -0.2;
           return (
-            <g key={`tl${i}`} pointerEvents="none" opacity={front ? 1 : 0.3}>
+            <g data-timeline-segment={`${prev.p.id}:${t.p.id}`} key={`tl${i}`} pointerEvents="none" opacity={front ? 1 : 0.3}>
               <path d={path(pts)} fill="none" stroke="var(--primary)" strokeWidth={strength + 3} opacity="0.25" filter="url(#glow-strong)" />
               <path d={path(pts)} fill="none" stroke="var(--primary)" strokeWidth={strength} strokeLinecap="round"
                 strokeDasharray={fut ? "2 6" : "14 8"} className="atlas-flow" style={{ animationDuration: fut ? "2.4s" : "1.6s" }} />
             </g>
           );
         })}
-        {selected != null && timeline.map((t) => {
+        {selected != null && timeline.filter(t=>t.hasData).map((t) => {
           const v = project(location(selected, t.p.id, 1.02));
           const front = v.z > -0.2;
           const on = t.p.id === period;
@@ -346,13 +348,24 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
           </select>
         </label>
       </div>
+      {selectedConclusion && <section className="mx-2 mt-4 rounded-lg border border-border bg-card/60 p-3" aria-label="Valinnan yhteydet ja aineistoaukot">
+        <h3 className="text-sm font-medium">Valinnan yhteydet ja aineistoaukot</h3>
+        <p className="mt-2 text-xs text-muted-foreground">Puuttuvat jaksot nykyisessä rajauksessa: {timeline.filter(t=>!t.hasData).map(t=>t.p.label).join(", ") || "ei puuttuvia jaksoja"}. Aukko tarkoittaa puuttuvaa kytkentää tässä aineistossa, ei ilmiön puuttumista historiasta.</p>
+        <p className="mt-2 text-xs text-muted-foreground">{connections.length} perusteltua asiayhteyttä; kuvaajassa enintään 14. Artikkelin tai käsitteen jakaminen on tarkasteluyhteys, ei todiste päätelmien välisestä vaikutuksesta.</p>
+        <div className="mt-2 max-h-64 space-y-2 overflow-auto">{connections.map(k=><article key={`${k.c}:${k.p}`} className="rounded border border-border p-2 text-xs">
+          <h4>{conMap.get(k.c)?.title} · {perMap.get(k.p)?.label}</h4>
+          {k.articles.length>0 && <p className="mt-1 text-muted-foreground">Yhteiset artikkelit: {k.articles.join(", ")}</p>}
+          {k.concepts.length>0 && <p className="mt-1 text-muted-foreground">Yhteiset kirjatut avainkäsitteet: {k.concepts.join("; ")}</p>}
+          <button className="mt-1 text-primary underline" onClick={()=>pick(k.c,k.p)}>Avaa päätelmän käsittely tällä aikakaudella</button>
+        </article>)}</div>
+      </section>}
       <div className="mx-2 mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded bg-primary shadow-[0_0_6px_var(--primary)]" />Aikajana 1850 → 2050</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-principle)" }} />Saman aikakauden yhteinen näyttö</span>
-        <span>Ontto piste = skenaario · koko = kytkentöjen määrä</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-principle)" }} />Yhteinen artikkeli / kirjattu avainkäsite</span>
+        <span>Ontto piste = tulevaisuusjakson käsittely · koko = kytkentöjen määrä</span>
       </div>
       <p className="mx-2 mt-2 text-[11px] leading-relaxed text-muted-foreground/80">
-        Pituusaste = aikakausi, leveysaste = päätelmä, kerros = yhteystyyppi. Kaaret kuvaavat aineiston toimituksellisia kytkentöjä — ne eivät todista syy-yhteyttä.
+        Pituusaste = aikakausi, leveysaste = päätelmä, kerros = yhteystyyppi. Päätelmien väliset kaaret kuvaavat yhteistä artikkelia tai täsmälleen vastaavaa kirjattua avainkäsitettä samalla aikakaudella. Ne eivät osoita yhteistä faktanäyttöä tai kausaalista vaikutusta.
       </p>
     </div>
   );
