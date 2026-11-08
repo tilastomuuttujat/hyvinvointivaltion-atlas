@@ -4,11 +4,11 @@ import { neonQuery, neonUserError, type NeonBatchResult } from "./neon";
 export type Period = { id: string; label: string; start: number; end: number; coverage: { A: number; K: number; S: number } };
 export type Conclusion = { id: number; title: string; claim: string; kind: string; limitations: string | null };
 export type Cell = { c: number; p: string; direct: number; context: number; counter: number; articles: number };
-export type AtlasData = { periods: Period[]; conclusions: Conclusion[]; cells: Cell[]; articleCount: number };
+export type AtlasData = { periods: Period[]; conclusions: Conclusion[]; cells: Cell[]; articleCount: number; generatedAt?: string; reviewPolicy?: string };
 
 export type Treatment = {
   articleNo: number; articleTitle: string; periodId: string; relation: string;
-  treatment: string | null; evidence: string | null; limitations: string | null;
+  reviewStatus?: string; treatment: string | null; evidence: string | null; limitations: string | null;
 };
 
 const S = "atlas_editing";
@@ -88,3 +88,4 @@ export const getTreatments = createServerFn({ method: "GET" })
       throw new Error(neonUserError(err).message);
     }
   });
+
