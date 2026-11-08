@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { AtlasSphere } from "@/components/AtlasSphere";
 import { getAtlas, getTreatments, type AtlasData, type Conclusion } from "@/lib/atlas.functions";
-
-import { AtlasSphere } from "../components/AtlasSphere";
 
 const atlasQuery = queryOptions({ queryKey: ["atlas"], queryFn: () => getAtlas(), staleTime: 5 * 60_000 });
 
@@ -46,16 +45,14 @@ function arc(r0: number, r1: number, a0: number, a1: number) {
   return `M${x0},${y0}A${r1},${r1} 0 ${large} 1 ${x1},${y1}L${x2},${y2}A${r0},${r0} 0 ${large} 0 ${x3},${y3}Z`;
 }
 
-export function AtlasPage() {
+function AtlasPage() {
   const { data } = useSuspenseQuery(atlasQuery);
-  const [view, setView] = useState<"radial" | "sphere">("radial");
-  const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null);
-  const pickConclusion = (id: number) => { setSelected(id); setSelectedPeriod(null); };
-  const clearSelection = () => { setSelected(null); setSelectedPeriod(null); };
   const [selected, setSelected] = useState<number | null>(null);
   const [hover, setHover] = useState<{ c: number; p: string } | null>(null);
   const [kinds, setKinds] = useState<Set<string>>(new Set(KINDS.map((k) => k.key)));
   const [showContext, setShowContext] = useState(true);
+  const [view, setView] = useState<"sphere" | "radial">("sphere");
+  const [period, setPeriod] = useState<string | null>(null);
 
   const model = useMemo(() => buildModel(data, showContext), [data, showContext]);
   const sel = selected != null ? data.conclusions.find((c) => c.id === selected) ?? null : null;
@@ -67,7 +64,8 @@ export function AtlasPage() {
           <p className="text-xs uppercase tracking-[0.25em] text-primary">Atlas · Suomen rakennemuutokset</p>
           <h1 className="mt-1 font-display text-3xl md:text-4xl">Hyvinvointivaltion kehityskaari 1850–2050</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            {view === "sphere" ? "Pituusasteet sijoittavat aikakaudet ajalle ja leveysasteet järjestävät päätelmät. Sisäkkäiset kerrokset erottavat suorat kytkennät, taustoituksen ja vastanäytön. Valitse piste nähdäksesi sen artikkelikäsittelyt." : "Jokainen rengas on yksi aineiston päätelmä, jokainen sektori aikakausi. Mitä kirkkaampi solu, sitä useampi artikkeli käsittelee päätelmää kyseisellä aikakaudella."} Kuvaaja näyttää aineiston käsittelyä, ei mitattua yhteiskunnallista kehitystä.
+            Jokainen rengas on yksi aineiston päätelmä, jokainen sektori aikakausi. Mitä kirkkaampi solu, sitä useampi artikkeli
+            käsittelee päätelmää kyseisellä aikakaudella. Kuvaaja näyttää, missä kehityksen selitys on rakennettu — ei mitattua kehitystä.
           </p>
         </div>
         <div className="flex gap-6 text-right">
@@ -79,7 +77,6 @@ export function AtlasPage() {
 
       <main className="grid gap-0 lg:grid-cols-[260px_1fr_400px]">
         <aside className="space-y-6 border-b border-border p-6 lg:border-b-0 lg:border-r">
-          <section aria-label="Atlasin näkymä"><h2 className="mb-3 text-xs uppercase tracking-widest text-muted-foreground">Näkymä</h2><div className="flex gap-2">{([ ["radial", "Säteittäinen"], ["sphere", "Atlas-pallo"] ] as const).map(([key,label]) => <button key={key} aria-pressed={view===key} onClick={()=>{setView(key);setHover(null);}} className={`rounded-md border px-3 py-2 text-sm ${view===key ? "border-primary bg-accent text-primary" : "border-border"}`}>{label}</button>)}</div></section>
           <section>
             <h2 className="mb-3 text-xs uppercase tracking-widest text-muted-foreground">Päätelmän laji</h2>
             {KINDS.map((k) => (
@@ -98,9 +95,9 @@ export function AtlasPage() {
           </section>
 
           <InsightList title="Nykytilaan johtavat" subtitle="Eniten vahvistuneet 1990–2009 → 2010–2025"
-            items={model.rising} conclusions={data.conclusions} onPick={pickConclusion} selected={selected} />
+            items={model.rising} conclusions={data.conclusions} onPick={(id) => { setSelected(id); setPeriod(null); }} selected={selected} />
           <InsightList title="Tulevaisuuden näkymät" subtitle="Vahvimmin 2026–2050 skenaarioihin kytketyt"
-            items={model.future} conclusions={data.conclusions} onPick={pickConclusion} selected={selected} />
+            items={model.future} conclusions={data.conclusions} onPick={(id) => { setSelected(id); setPeriod(null); }} selected={selected} />
 
           <p className="text-xs leading-relaxed text-muted-foreground">
             ◇ merkitsee vastanäyttöä. Katkoviivainen sektori 2026–2050 on skenaarioita. Renkaat on ryhmitelty lajeittain sisältä ulos.
@@ -108,18 +105,32 @@ export function AtlasPage() {
         </aside>
 
         <section className="relative flex items-start justify-center p-4 lg:sticky lg:top-0 lg:self-start">
-          {view === "sphere" ? <AtlasSphere data={data} selected={selected} period={selectedPeriod} kinds={kinds} showContext={showContext} onPick={(id,p)=>{setSelected(id);setSelectedPeriod(p);}} onClear={clearSelection} /> : <RadialAtlas data={data} model={model} kinds={kinds} selected={selected} hover={hover}
-            onHover={setHover} onSelect={(id) => {setSelected(id === selected ? null : id);setSelectedPeriod(null);}} />}
+          <div className="w-full max-w-[860px]">
+            <div className="mb-3 flex justify-center">
+              <div className="inline-flex rounded-full border border-border bg-card p-1 text-xs" role="tablist" aria-label="Näkymä">
+                {([["sphere", "Atlas-pallo"], ["radial", "Säteittäinen"]] as const).map(([k, l]) => (
+                  <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)}
+                    className={`rounded-full px-4 py-1.5 transition-colors ${view === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>{l}</button>
+                ))}
+              </div>
+            </div>
+            {view === "sphere" ? (
+              <AtlasSphere data={data} selected={selected} period={period} kinds={kinds} showContext={showContext}
+                onPick={(c, p) => { setSelected(c); setPeriod(p); }} onClear={() => { setSelected(null); setPeriod(null); }} />
+            ) : (
+              <RadialAtlas data={data} model={model} kinds={kinds} selected={selected} hover={hover}
+                onHover={setHover} onSelect={(id) => { setSelected(id === selected ? null : id); setPeriod(null); }} />
+            )}
+          </div>
           {view === "radial" && hover && <HoverCard data={data} model={model} hover={hover} />}
         </section>
 
         <aside className="border-t border-border p-6 lg:border-l lg:border-t-0">
-          {sel ? <ConclusionDetail key={sel.id} c={sel} data={data} model={model} period={selectedPeriod} onPeriod={setSelectedPeriod} onClose={clearSelection} /> : <Intro data={data} model={model} view={view} />}
+          {sel ? <ConclusionDetail key={`${sel.id}-${period}`} c={sel} data={data} model={model} initialPeriod={period} onClose={() => { setSelected(null); setPeriod(null); }} /> : <Intro data={data} model={model} />}
         </aside>
       </main>
       <footer className="border-t border-border px-6 py-4 text-xs text-muted-foreground md:px-10">
         Lähde: Neon-tietokanta, skeema atlas_editing · arvot ovat toimituksellisia kytkentöjä artikkelien ja päätelmien välillä; ne eivät todista syy-yhteyttä.
-        {data.generatedAt && <p className="mt-2">Aineistovienti: {new Date(data.generatedAt).toLocaleString("fi-FI")} · {data.reviewPolicy}</p>}
       </footer>
     </div>
   );
@@ -303,16 +314,18 @@ function InsightList({ title, subtitle, items, conclusions, onPick, selected }: 
   );
 }
 
-function Intro({ data, model, view }: { data: AtlasData; model: Model; view: "radial" | "sphere" }) {
+function Intro({ data, model }: { data: AtlasData; model: Model }) {
   const peak = model.periodTotals.indexOf(Math.max(...model.periodTotals));
   return (
     <div className="space-y-4 text-sm leading-relaxed">
       <h2 className="font-display text-2xl">Miten luet atlasta</h2>
       <p className="text-muted-foreground">
-        {view === "sphere" ? "Palloa voi kiertää vetämällä tai nuolinäppäimillä. Pisteen koko kuvaa kytkentöjen määrää. Valitun päätelmän pisteet korostuvat ja muut himmenevät; muut voi myös piilottaa. Tiheimmin aineisto käsittelee jaksoa " : "Aika kiertää myötäpäivään vuodesta 1850. Ulkokehän palkki näyttää kullekin aikakaudelle kohdistuvan käsittelyn määrän. Tiheimmin aineisto käsittelee jaksoa "}<b className="text-foreground">{data.periods[peak]?.label}</b>.
+        Aika kiertää myötäpäivään vuodesta 1850. Ulkokehän palkki näyttää, kuinka paljon selitystyötä kullekin aikakaudelle on kohdistunut;
+        tiheimmin aineisto käsittelee jaksoa <b className="text-foreground">{data.periods[peak]?.label}</b>.
       </p>
       <p className="text-muted-foreground">
-        {view === "sphere" ? "Saman päätelmän ajalliset vertailupisteet yhdistetään katkoviivalla. Yhteinen päätelmä tekee pisteistä relevantteja tähän tarkasteluun; viiva ei ole osoitettu vaikutuspolku." : "Seuraa yhtä rengasta ympäri: näet, millä aikakausilla päätelmää käsitellään ja ulottuuko käsittely skenaarioihin."} Vasemman laidan listat nostavat esiin nykyhetken ja tulevaisuusjakson kytkentöjä.
+        Seuraa yhtä rengasta ympäri: näet, milloin päätelmä syntyy, missä se vahvistuu ja ulottuuko se skenaarioihin.
+        Vasemman laidan listat nostavat esiin päätelmät, jotka selittävät nykytilaa ja ennakoivat tulevaa.
       </p>
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="text-xs uppercase tracking-widest text-muted-foreground">Jaksojen kattavuus artikkeleissa</div>
@@ -333,20 +346,20 @@ function Intro({ data, model, view }: { data: AtlasData; model: Model; view: "ra
         </div>
         <p className="mt-3 text-xs text-muted-foreground">Käsittelykoodit A / K / S sellaisina kuin ne on kirjattu aineistoon.</p>
       </div>
-      <p className="text-xs text-muted-foreground">Valitse piste, rengas tai päätelmä listasta nähdäksesi sen käsittelyn artikkeleittain.</p>
+      <p className="text-xs text-muted-foreground">Valitse rengas tai päätelmä listasta nähdäksesi sen näytön artikkeleittain.</p>
     </div>
   );
 }
 
 const REL: Record<string, string> = { direct: "Suora", context: "Taustoittava", counterevidence: "Vastanäyttö" };
 
-function ConclusionDetail({ c, data, model, period, onPeriod, onClose }: { c: Conclusion; data: AtlasData; model: Model; period: string | null; onPeriod: (p: string | null) => void; onClose: () => void }) {
+function ConclusionDetail({ c, data, model, onClose, initialPeriod }: { c: Conclusion; data: AtlasData; model: Model; onClose: () => void; initialPeriod?: string | null }) {
   const k = kindOf(c.kind);
   const { data: rows, isLoading, error } = useQuery({
     queryKey: ["treatments", c.id],
     queryFn: () => getTreatments({ data: { conclusionId: c.id } }),
   });
-
+  const [period, setPeriod] = useState<string | null>(initialPeriod ?? null);
   const mx = Math.max(...data.periods.map((p) => model.get(c.id, p.id).v), 1);
   const shown = (rows ?? []).filter((r) => !period || r.periodId === period);
   return (
@@ -363,7 +376,7 @@ function ConclusionDetail({ c, data, model, period, onPeriod, onClose }: { c: Co
           const cell = model.get(c.id, p.id);
           const on = period === p.id;
           return (
-            <button key={p.id} onClick={() => onPeriod(on ? null : p.id)} className="group flex flex-1 flex-col items-center gap-1" title={p.label}>
+            <button key={p.id} onClick={() => setPeriod(on ? null : p.id)} className="group flex flex-1 flex-col items-center gap-1" title={p.label}>
               <div className="flex h-16 w-full items-end">
                 <div className={`w-full rounded-t ${p.start >= 2026 ? "border border-dashed" : ""}`}
                   style={{ height: `${Math.max(3, (cell.v / mx) * 100)}%`, background: k.color, opacity: on || !period ? 1 : 0.35, borderColor: k.color }} />
@@ -376,7 +389,6 @@ function ConclusionDetail({ c, data, model, period, onPeriod, onClose }: { c: Co
 
       {c.limitations && <p className="border-l-2 border-warning pl-3 text-xs text-muted-foreground"><b className="text-foreground">Rajaukset:</b> {c.limitations}</p>}
 
-      <p className="text-xs text-muted-foreground">{period ? `Valittu aikakausi: ${data.periods.find(p=>p.id===period)?.label}. Alla näkyvät tähän päätelmään ja aikakauteen liittyvät artikkelikäsittelyt.` : "Alla tämän päätelmän käsittelyt kaikilta aikakausilta."} {period && <button className="underline" onClick={()=>onPeriod(null)}>Näytä kaikki aikakaudet</button>}</p>
       <div className="max-h-[52vh] space-y-3 overflow-auto pr-1">
         {isLoading && <p className="text-sm text-muted-foreground">Ladataan näyttöä…</p>}
         {error && <p className="text-sm text-destructive">{(error as Error).message}</p>}
@@ -388,8 +400,6 @@ function ConclusionDetail({ c, data, model, period, onPeriod, onClose }: { c: Co
               <span className={r.relation === "direct" ? "text-primary" : r.relation === "counterevidence" ? "text-warning" : ""}>{REL[r.relation] ?? r.relation}</span>
             </div>
             <h3 className="mt-1 font-display text-sm">{r.articleTitle}</h3>
-            <p className="mt-1 text-[11px] text-muted-foreground">Tarkistuksen tila: {r.reviewStatus === "accepted" ? "hyväksytty" : r.reviewStatus || "ei ilmoitettu"}</p>
-            {r.limitations && <p className="mt-1 text-xs text-muted-foreground">Rajaus: {r.limitations}</p>}
             {r.treatment && <p className="mt-1 text-xs leading-relaxed">{r.treatment}</p>}
             {r.evidence && <p className="mt-2 border-l border-border pl-2 text-xs italic text-muted-foreground">”{r.evidence}”</p>}
           </article>
@@ -398,4 +408,3 @@ function ConclusionDetail({ c, data, model, period, onPeriod, onClose }: { c: Co
     </div>
   );
 }
-

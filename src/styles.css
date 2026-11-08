@@ -97,6 +97,10 @@
   --kind-synth: oklch(0.82 0.1 180);
   --kind-hypo: oklch(0.8 0.12 65);
   --kind-principle: oklch(0.74 0.12 15);
+  --space: oklch(0.11 0.03 260);
+  --sphere-lit: oklch(0.36 0.07 220);
+  --sphere-mid: oklch(0.19 0.045 245);
+  --sphere-grid: oklch(0.75 0.06 210);
   --border: oklch(0.31 0.03 238);
   --input: oklch(0.31 0.03 238);
   --ring: oklch(0.82 0.1 180);
@@ -161,3 +165,11 @@
     font-family: var(--font-sans);
   }
 }
+
+@keyframes atlas-flow { to { stroke-dashoffset: -44; } }
+@keyframes atlas-twinkle { 0%,100% { opacity: .15; } 50% { opacity: .9; } }
+@keyframes atlas-pulse { 0% { transform: scale(.85); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+.atlas-flow { animation: atlas-flow 1.6s linear infinite; }
+.atlas-twinkle { animation: atlas-twinkle 4s ease-in-out infinite; }
+.atlas-pulse { transform-box: fill-box; transform-origin: center; animation: atlas-pulse 1.8s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .atlas-flow, .atlas-twinkle, .atlas-pulse { animation: none; } }
