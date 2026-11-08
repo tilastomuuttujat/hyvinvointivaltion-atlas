@@ -37,3 +37,11 @@ Valitse **Actions → Publish Atlas to GitHub Pages → Run workflow → main** 
 Vienti on vain luku -transaktio ja julkaisee vain SQL-tiedostossa luetellut julkisen lukuversion kentät. Mukana ovat myös toimitukselliset, tarkistusta odottavat kytkennät: tarkistustila näkyy kortissa. Hylätyt ja vanhoihin revisioihin perustuvat linkit jätetään pois. Kuvaajan kytkentämäärä ei ole vaikutuksen voimakkuus tai kausaalinen näyttö.
 
 `npm run test:pages` tarkistaa JSONin viitteet, koontilukujen vastaavuuden yksittäisiin kytkentöihin ja tunnusten puuttumisen aineistosta. Peruspolku on `/hyvinvointivaltion-atlas/`; repositorion nimen vaihtuessa workflow käyttää uutta nimeä. Mukautetulle verkkotunnukselle käytä `PAGES_BASE_PATH=/`.
+
+### Vaihtoehtoinen Atlas-pallo
+
+Vasemman reunan **Näkymä → Atlas-pallo** näyttää saman aineiston pyöritettävänä kolmiulotteisena projektiona. Pituusaste perustuu aikakauden keskivuoteen (1850–2050), leveysaste järjestää päätelmät, kerros erottaa taustoittavat/suorat/vastanäyttökytkennät ja pisteen koko kertoo kytkentöjen määrän. Nämä eivät ole poikkeamien tai yhteiskunnallisten vaikutusten mittareita.
+
+Klikkaus valitsee päätelmän ja aikakauden sekä avaa niiden käsittelykortit. Saman päätelmän pisteet eri aikakausina korostuvat; muut himmenevät tai ne voi piilottaa. Katkoviivat yhdistävät viereisten aikakausien saman päätelmän pisteitä vain silloin, kun molemmissa on aineistoa. Ne eivät väitä kausaalista vaikutusta. Valinta säilyy näkymää vaihdettaessa.
+
+Palloa voi kiertää vetämällä tai nuolinäppäimillä. Zoomia säädetään liukusäätimellä tai +/−-näppäimillä. Esc tai **Näytä kokonaisuus** poistaa valinnan. Pisteet ovat valittavissa myös tekstivalikosta. Teemojen ja havainto–käsitekytkentöjen tuominen tähän projektioon edellyttää niiden lisäämistä yhteiseen JSON-vientiin; nykyinen pallonäkymä käyttää päätelmäaineistoa.
