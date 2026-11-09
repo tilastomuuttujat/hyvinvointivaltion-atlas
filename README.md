@@ -115,3 +115,20 @@ Artikkeliperustelut näyttävät kaikki nykyisen aikakauden osumat, mukaan lukie
 HUD:n kohdistuksen ja perustelutekstin päivitykset eivät käynnistä maaston uudelleenprojektiota: pysyvä pallo on muistettu komponentti ja sille välitetyt tapahtumat sekä tutkintataso vakautetaan. Kamera renderöityy normaalisti pyöritettäessä ja zoomattaessa.
 
 `npm run test:experience` tarkistaa rakennetun Pages-sovelluksen DOM-ympäristössä: kaikki artikkeliperustelut, kuusi tietotasoa, alkuperäislähteen avaamislinkin, saman pallon säilymisen, loitonnuksen/lähennyksen muistaman kontekstin ja muuttuneen aikarajauksen varoituksen. Aja sitä ennen `npm run build:pages`. Pages-työnkulku suorittaa tarkistuksen ennen julkaisuartifaktin lähettämistä. Testin jsdom-riippuvuus on vain kehityskäyttöön, eikä sitä sisällytetä selainpakettiin. DOM-testi ei korvaa oikean selaimen visuaalista tai kosketuseletestiä.
+
+
+### Valitse päätelmät: vertaileva kertomus
+
+**Valitse vertailtavat päätelmät** avaa hakemiston, josta lukija ruksaa kaksi tai kolme päätelmää. Ruksi tarkoittaa kiinnostusta tarkasteluun, ei väitteen hyväksymistä todeksi. Haku säilyttää aiemmat valinnat, ja neljättä päätelmää ei voi lisätä. **Näytä yhteydet ja erot** aloittaa kolmivaiheisen kertomuksen:
+
+1. Yhteinen rakenne: samat kirjatut artikkelit tai täsmälleen samat käsitesanat samalla aikakaudella. Kaikille valituille yhteinen tausta erotetaan vain pareittain löytyvistä yhteyksistä.
+2. Olennaiset erot: käsittelyn aikajaksot, väitteen laji, omasta käsittelystä erottuvat käsitesanat sekä mekanismi- ja lähdekerroksen kattavuus. Kytkentämäärä ei ole vaikutus- tai luotettavuuspistemäärä.
+3. Mahdollinen yhteisvaikutus: vain nykyisiin, ei-hylättyihin päätelmäsiltoihin ja kirjattuihin väitteiden suhteisiin perustuvat argumenttiyhteydet. Pelkästä yhteisestä aiheesta ei rakenneta vaikutusketjua, eikä aineistosta lasketa puuttuvaa numeerista yhteisvaikutusta.
+
+Sama `AtlasSphere` säilyy koko ajan. Valitut päätelmät näkyvät A-, B- ja C-tunnuksin ja omilla väreillään alkuperäisissä koordinaateissa. Yhteinen tausta piirretään suuntaamattomina katkoviivoina. Erovaiheessa korostuvat omat ajalliset polut, joita ei yhdistetä aineistoaukkojen yli. Tulevaisuuden jaksot merkitään tulevaisuustarkasteluiksi. Yhteisen taustan viivoja ei käytetä yhteisvaikutusvaiheen vaikutusnuolina.
+
+Vertailu alkaa koko aikajanalta. Sen aikavälin voi rajata pudotusvalikosta, matriisista, pallon valitusta kohdasta tai aikakausipainikkeesta valintoja menettämättä. **Mihin tämä perustuu?** avaa nykyiset artikkelikirjaukset tarkistustiloineen ja selitysrakenteen lähdehavainnot. **Tutki itse** siirtyy yhden valitun päätelmän tarkasteluun; vertailuun voi palata. **Muuta valintoja** muokkaa seuraavaa vertailua: tulos muuttuu vasta, kun uusi valinta otetaan käyttöön.
+
+Kertomus etenee käsin tai käyttäjän käynnistämänä toistona. Laitteen reduced-motion-asetus estää automaattisen toiston. Lähteet, epävarmuus ja aineistoaukot säilyvät kertomuksen osana. Muutos käyttää samaa julkista JSONia, eikä lisää tietokantakyselyjä, kielimallikutsuja tai Neon-rakenteita.
+
+`atlas.comparison.ts` sisältää vertailun aineistosäännöt, `ConclusionComparison.tsx` valinnan ja kertomuksen. `comparison.test.mjs` testaa muun muassa saman aikakauden vaatimuksen, tarkat käsitesanat, kolmikon ja parien eron, tarkistustilat sekä aineistoaukot. Rakennetun sovelluksen testi tarkistaa myös ruksauksen, enimmäisvalinnan, kertomuksen vaiheet, perusteet, aikarajauksen ja saman pallon säilymisen.

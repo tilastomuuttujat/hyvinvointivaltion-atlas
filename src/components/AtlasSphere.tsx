@@ -1,3 +1,4 @@
+import { COMPARISON_COLORS,comparisonSegments,type ComparisonLink } from '@/lib/atlas.comparison';
 import type { SurfaceNode } from '@/lib/atlas.investigation';
 import { orderedNodes } from '@/lib/atlas.investigation';
 import type { Intent } from '@/lib/atlas.navigation';
@@ -29,6 +30,8 @@ type Props = {
   onInvestigationPreview?: (node:SurfaceNode)=>void;
   zoomRequest?: {id:number;zoom:number;anchor?:{x:number;y:number};focus?:{c:number;p:string}};
   onZoomChange?: (zoom:number)=>void;
+  comparison?: {ids:number[];phase:number;periodId:string|null;links:ComparisonLink[]};
+  onComparisonFocus?: (focus:{c?:number;pair?:string;p:string})=>void;
   onMapDetail?: (detail: { c: number; p: string; label: string; articles: number[] }) => void;
 };
 
@@ -41,7 +44,7 @@ const STARS = Array.from({ length: 140 }, (_, i) => {
   return { x: q(r(1) * W), y: q(r(2) * H), s: q(0.3 + r(3) * 1.2), o: q(0.2 + r(4) * 0.7), d: q(2 + r(5) * 5) };
 });
 
-function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear, onMapDetail, investigation, onInvestigationPick, onInvestigationPreview, zoomRequest, onZoomChange }: Props) {
+function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear, onMapDetail, investigation, onInvestigationPick, onInvestigationPreview, zoomRequest, onZoomChange, comparison, onComparisonFocus }: Props) {
   const [yaw, setYaw] = useState(-0.6), [pitch, setPitch] = useState(0.25), [zoom, setZoom] = useState(1);
   const svgRef = useRef<SVGSVGElement>(null);
   const camera = useRef<Camera>({ zoom: 1, x: 0, y: 0 });
@@ -116,6 +119,9 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
     return () => cancelAnimationFrame(raf);
   }, [auto, hover]);
 
+  useEffect(()=>{if(comparison)setLens(null)},[!!comparison]);
+  const comparisonPaths=useMemo(()=>comparison?comparisonSegments(data,comparison.ids,comparison.periodId):[],[data,comparison]);
+  const comparisonColor=(c:number)=>COMPARISON_COLORS[comparison?.ids.indexOf(c)??0]??'var(--primary)';
   const order = useMemo(() => [...data.conclusions].sort((a, b) => a.kind.localeCompare(b.kind) || a.id - b.id), [data]);
   const orderIdx = useMemo(() => new Map(order.map((c, i) => [c.id, i])), [order]);
   const perMap = useMemo(() => new Map(data.periods.map((p) => [p.id, p])), [data]);
@@ -217,6 +223,7 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
   const scrubPeriod = effectiveYear != null ? periodAt(data.periods, effectiveYear) : undefined;
   const storySet = useMemo(() => new Set(story?.conclusions ?? []), [story]);
   const inFocus = (c: number, pid: string) => {
+    if(comparison)return comparison.ids.includes(c)&&(!comparison.periodId||pid===comparison.periodId);
     if (story && !storySet.has(c)) return false;
     if (scenario != null && !((c === scenario && futureIds.has(pid)) || backSet.has(`${c}:${pid}`))) return false;
     if (scrubPeriod && (perMap.get(pid)?.start ?? 0) > scrubPeriod.start) return false;
@@ -427,7 +434,7 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
           drag.current = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false }; vel.current = { y: 0, p: 0 }; target.current = null; suppressClick.current = false; e.currentTarget.setPointerCapture?.(e.pointerId);
           lensFired.current = false; clearPress();
           const hit = nearestAt(e.currentTarget, e.clientX, e.clientY);
-          if (hit) pressTimer.current = setTimeout(() => { lensFired.current = true; suppressClick.current = true; setAuto(false); setLensHover(null); setLensTrail([]); setLens({ c: hit.cell.c, p: hit.cell.p, x: hit.x, y: hit.y, rel: hit.rel.label, relColor: hit.rel.color, count: hit.cell[hit.rel.key] }); target.current = -angleOf(hit.cell.p); }, 550); }}
+          if (hit && !comparison) pressTimer.current = setTimeout(() => { lensFired.current = true; suppressClick.current = true; setAuto(false); setLensHover(null); setLensTrail([]); setLens({ c: hit.cell.c, p: hit.cell.p, x: hit.x, y: hit.y, rel: hit.rel.label, relColor: hit.rel.color, count: hit.cell[hit.rel.key] }); target.current = -angleOf(hit.cell.p); }, 550); }}
         onPointerMove={(e) => {
           if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x:e.clientX,y:e.clientY });
           if (pinch.current) { const [a,b] = [...pointers.current.values()]; if (a && b) { const distance = Math.hypot(a.x-b.x,a.y-b.y); const box = e.currentTarget.getBoundingClientRect(); const center = { x:(a.x+b.x)/2,y:(a.y+b.y)/2 }; applyZoom(camera.current.zoom * distance / Math.max(1,pinch.current.distance), { x:(center.x-box.left)*W/box.width,y:(center.y-box.top)*H/box.height }); pinch.current = {distance,center}; } return; }
@@ -444,6 +451,9 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
           if (lensFired.current) return;
           if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
           if (d && !d.moved) {
+            const comparisonKey=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-comparison-link]')?.getAttribute('data-comparison-link');
+            const comparisonLink=comparison?.links.find(link=>link.key===comparisonKey);
+            if(comparisonLink){onComparisonFocus?.({pair:comparisonLink.key,p:comparisonLink.periodId});suppressClick.current=true;return;}
             const reasoningKey=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-investigation-place]')?.getAttribute('data-investigation-place');
             const reasoningPlace=reasoningPlaces.find(p=>p.node.key===reasoningKey);
             if(reasoningPlace){onInvestigationPick?.(reasoningPlace.node,{x:reasoningPlace.x,y:reasoningPlace.y});suppressClick.current=true;return;}
@@ -569,7 +579,10 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
         <g>
         {/* Points (back to front) */}
         {visible.map((p) => {
-          const active = selected === null || p.cell.c === selected;
+          const active = comparison?comparison.ids.includes(p.cell.c):selected === null || p.cell.c === selected;
+          const pointColor=comparison?comparisonColor(p.cell.c):p.rel.color;
+          const letter=comparison?String.fromCharCode(65+comparison.ids.indexOf(p.cell.c)):'';
+          const primaryLayer=p.rel.key===(p.cell.direct?'direct':p.cell.context?'context':'counter');
           const exact = p.cell.c === selected && p.cell.p === period;
           const isHover = hover === p.id;
           const count = p.cell[p.rel.key], size = (2.4 + Math.sqrt(count / max) * 4.2) * (0.75 + 0.35 * (p.z + 1) / 2) * zoom;
@@ -578,18 +591,31 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
           const op = active ? (back ? 0.3 : 0.55 + 0.45 * p.z) : 0.05;
           return (
             <g key={p.id} opacity={isHover ? 1 : op}>
-              <circle data-sphere-point={p.id} cx={p.x} cy={p.y} r={size + (exact || isHover ? 2 : 0)}
-                fill={per.start >= 2026 ? "var(--space)" : p.rel.color} stroke={p.rel.color} strokeWidth={exact ? 2.4 : 1}
+              <circle data-comparison-series={comparison?letter:undefined} data-sphere-point={p.id} cx={p.x} cy={p.y} r={size + (exact || isHover ? 2 : 0)}
+                fill={per.start >= 2026 ? "var(--space)" : pointColor} stroke={pointColor} strokeWidth={exact ? 2.4 : 1}
                 filter={!back && active && (selected != null || count / max > 0.4) ? "url(#glow)" : undefined}
                 onPointerEnter={() => setHover(p.id)} onPointerLeave={() => setHover((h) => (h === p.id ? null : h))}
                 onClick={() => { if (!suppressClick.current) pick(p.cell.c, p.cell.p); }} className="cursor-pointer transition-[r]">
                 <title>{`${c.title} · ${per.label} · ${p.rel.label}: ${count} kytkentää`}</title>
               </circle>
+              {comparison&&primaryLayer&&!back&&<text x={p.x+size+3} y={p.y+4} fontSize="12" fill={pointColor} stroke="var(--space)" strokeWidth="2" paintOrder="stroke" pointerEvents="none">{letter}</text>}
+              {comparison?.phase===0&&primaryLayer&&comparison.links.some(link=>link.periodId===p.cell.p&&(link.left===p.cell.c||link.right===p.cell.c))&&<circle cx={p.x} cy={p.y} r={size+4} fill="none" stroke={pointColor} strokeDasharray="2 3" pointerEvents="none"/>}
               {exact && <circle cx={p.x} cy={p.y} r={size + 7} fill="none" stroke="var(--foreground)" strokeWidth="1" className="atlas-pulse" pointerEvents="none" />}
             </g>
           );
         })}
 
+        {/* Recorded co-occurrence is undirected context, never an effect arrow. */}
+        {comparison?.phase===0&&comparison.links.slice(0,24).map(link=>{
+         const pts=liftArc(location(link.left,link.periodId,1.015),location(link.right,link.periodId,1.015),.10);
+         if(pts[14].z<-.15)return null;
+         const basis=`${link.articles.length?'Yhteiset artikkelit '+link.articles.join(', '):''}${link.articles.length&&link.concepts.length?' · ':''}${link.concepts.join('; ')}. Asiayhteys, ei syy-yhteys.`;
+         return <g key={link.key} data-comparison-link={link.key} role="button" tabIndex={0} aria-label={basis} className="comparison-map-link" onFocus={()=>onComparisonFocus?.({pair:link.key,p:link.periodId})} onClick={e=>{e.stopPropagation();if(!suppressClick.current)onComparisonFocus?.({pair:link.key,p:link.periodId})}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();onComparisonFocus?.({pair:link.key,p:link.periodId})}}}><title>{basis}</title><path d={path(pts)} fill="none" stroke="var(--foreground)" strokeOpacity=".5" strokeWidth="1.6" strokeDasharray="4 5"/><path d={path(pts)} fill="none" stroke="transparent" strokeWidth="16"/></g>;
+        })}
+        {comparisonPaths.flatMap(row=>row.segments.map(([a,b])=>{
+         const pts=liftArc(location(row.c,a,1.02),location(row.c,b,1.02),.08),future=(perMap.get(b)?.start??0)>=2026;
+         return <path key={`compare:${row.c}:${a}:${b}`} data-comparison-timeline={`${row.c}:${a}:${b}`} d={path(pts)} fill="none" stroke={comparisonColor(row.c)} strokeOpacity={comparison?.phase===1 ? .85 : .4} strokeWidth="2" strokeDasharray={future?'3 6':undefined} pointerEvents="none"/>;
+        }))}
         {/* Causal arcs: shared-era evidence to other conclusions */}
         {selected != null && causal.filter(k => !scrubPeriod || (perMap.get(k.p)?.start ?? 0) <= scrubPeriod.start).map((k, i) => {
           const a = location(selected, k.p, 0.97), b = location(k.c, k.p, 0.97);
@@ -674,7 +700,7 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
         <ellipse cx={lightX + R * 0.1} cy={lightY + R * 0.02} rx={R * 0.22} ry={R * 0.11} transform={`rotate(-35 ${lightX + R * 0.1} ${lightY + R * 0.02})`} fill="var(--foreground)" opacity="0.08" pointerEvents="none" />
         </g>
 
-        <g data-map-labels visibility={investigation&&investigation.depth>0&&!investigation.missingRoot?"hidden":undefined}>
+        <g data-map-labels visibility={comparison||investigation&&investigation.depth>0&&!investigation.missingRoot?"hidden":undefined}>
           {mapPlaces.map(place => <g key={place.key} data-map-place={place.key} role="button" tabIndex={0} aria-label={`${place.label} · ${place.kind === 'concept' ? 'kirjattu käsite' : place.kind === 'article' ? 'artikkeliviite' : 'päätelmä'}`} className={`map-place map-${place.kind}`} opacity={place.opacity}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onMapDetail?.({ c:place.c,p:place.p,label:place.label,articles:place.articles }); } }}>
             <title>{place.label} · {perMap.get(place.p)?.label} · artikkelit {place.articles.join(', ')}</title>
@@ -919,3 +945,4 @@ export type { Cell };
 
 // Contextual HUD updates do not reproject the terrain; camera changes still render normally.
 export const AtlasSphere=memo(AtlasSphereInner);
+
