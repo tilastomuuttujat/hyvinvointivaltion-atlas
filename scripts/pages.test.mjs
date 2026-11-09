@@ -30,3 +30,24 @@ test('public snapshot contains no connection credentials or privileged configura
   const text = JSON.stringify(data);
   assert.doesNotMatch(text, /postgres(?:ql)?:\/\/|LOVABLE_API_KEY|NEON_API_KEY|NEON_DATABASE_URL|neonQuery/);
 });
+
+test('observation layer preserves references, publication holds, months and research dates', async () => {
+ const { conceptObservations, observationDate } = await import('../src/lib/atlas.evidence.ts');
+ const { evidence:e } = JSON.parse(await readFile(new URL('../public/data/atlas.json',import.meta.url),'utf8'));
+ assert.equal(e.concepts.length,13);
+ assert.equal(e.observations.length,284);
+ assert.equal(e.withheld,30);
+ assert.equal(e.links.length,519);
+ const ids=new Set(e.observations.map(o=>o.id)), concepts=new Set(e.concepts.map(c=>c.id));
+ assert.equal(ids.size,e.observations.length);
+ for(const l of e.links) { assert.ok(ids.has(l.observationId)); assert.ok(concepts.has(l.conceptId)); assert.notEqual(l.reviewStatus,'rejected'); }
+ assert.equal(conceptObservations(e,'benefit_non_take_up').length,0);
+ const months=e.observations.filter(o=>o.period);
+ assert.ok(months.some(o=>o.period==='2024-12'));
+ assert.ok(months.every(o=>observationDate(o)===o.period));
+ const research=e.observations.filter(o=>o.kind==='research_finding');
+ assert.equal(research.length,2);
+ const approximate=research.find(o=>o.start===null);
+ assert.ok(approximate); assert.match(observationDate(approximate),/ei tarkka havaintojakso/);
+ assert.ok(e.articleRefs.every(r=>ids.has(r.observationId)&&!r.isCurrent&&r.reviewStatus==='needs_review'));
+});

@@ -1,3 +1,4 @@
+import type { EvidenceBundle } from './atlas.evidence';
 import { createServerFn } from "@tanstack/react-start";
 import { neonQuery, neonUserError } from "./neon";
 
@@ -5,7 +6,7 @@ export type Period = { id: string; label: string; start: number; end: number; co
 export type Conclusion = { id: number; title: string; claim: string; kind: string; limitations: string | null };
 export type Cell = { c: number; p: string; direct: number; context: number; counter: number; articles: number };
 import type { EvidenceRef } from "./atlas.relationships";
-export type AtlasData = { periods: Period[]; conclusions: Conclusion[]; cells: Cell[]; articleCount: number; generatedAt?: string; reviewPolicy?: string; evidenceIndex?: EvidenceRef[] };
+export type AtlasData = { evidence?: EvidenceBundle; periods: Period[]; conclusions: Conclusion[]; cells: Cell[]; articleCount: number; generatedAt?: string; reviewPolicy?: string; evidenceIndex?: EvidenceRef[] };
 
 export type Treatment = {
   articleNo: number; articleTitle: string; periodId: string; relation: string;
@@ -14,7 +15,7 @@ export type Treatment = {
 
 // The server reader uses the same read-only, current-revision export as Pages.
 import snapshotSql from "../../scripts/export-atlas.sql?raw";
-type Snapshot = { atlas: AtlasData; generatedAt: string; reviewPolicy: string; treatments: (Treatment & { conclusionId: number })[] };
+type Snapshot = { atlas: AtlasData; evidence?: EvidenceBundle; generatedAt: string; reviewPolicy: string; treatments: (Treatment & { conclusionId: number })[] };
 async function readSnapshot(): Promise<Snapshot> {
   try {
     const { rows } = await neonQuery<{ rows: { snapshot: Snapshot }[] }>(snapshotSql);
@@ -24,7 +25,7 @@ async function readSnapshot(): Promise<Snapshot> {
 }
 export const getAtlas = createServerFn({ method: "GET" }).handler(async (): Promise<AtlasData> => {
   const data = await readSnapshot();
-  return { ...data.atlas, generatedAt: data.generatedAt, reviewPolicy: data.reviewPolicy,
+  return { ...data.atlas, evidence: data.evidence, generatedAt: data.generatedAt, reviewPolicy: data.reviewPolicy,
     evidenceIndex: data.treatments.map(r=>({c:r.conclusionId,p:r.periodId,articleNo:r.articleNo,concepts:r.concepts || [],relation:r.relation,reviewStatus:r.reviewStatus})) };
 });
 export const getTreatments = createServerFn({ method: "GET" })
