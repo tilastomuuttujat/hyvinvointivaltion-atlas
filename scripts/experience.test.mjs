@@ -99,3 +99,34 @@ test('reader can select conclusions, follow their comparison and inspect its bas
   assert.deepEqual(errors,[]);assert.equal(requests.length,1);
  }finally{dom.window.close()}
 });
+
+test('concept maps drill down to sources, retain context across views and follow recorded routes',{timeout:60000},async()=>{
+ const snapshot=JSON.parse(await readFile(new URL('../public/data/atlas.json',import.meta.url),'utf8'));
+ const directory=new URL('../dist-pages/assets/',import.meta.url),entry=(await readdir(directory)).find(n=>/^index-.*\.js$/.test(n));
+ const errors=[],requests=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
+ const dom=new JSDOM('<div id="root"></div>',{url:'https://example.org/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window;
+ w.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){}});w.requestAnimationFrame=()=>1;w.cancelAnimationFrame=()=>{};w.fetch=async url=>{requests.push(url);return {ok:true,json:async()=>snapshot}};
+ const button=(scope,text)=>[...scope.querySelectorAll('button')].find(b=>b.textContent===text);
+ const click=e=>{assert.ok(e,'Missing target');e.click()};
+ try{
+  w.eval(await readFile(new URL(entry,directory),'utf8'));await until(()=>w.document.querySelector('.view-switch'),'menu');
+  const menu=w.document.querySelector('.view-switch'),sphere=w.document.querySelector('[data-testid="atlas-sphere"]');
+  click(button(menu,'⊹ Akselikenttä'));await until(()=>w.document.querySelector('[data-layout="field"]'),'map');
+  const map=w.document.querySelector('[data-layout="field"]'),svg=map.querySelector('svg[data-depth]');
+  assert.equal(map.querySelectorAll('[data-concept-id]').length,13);
+  const node=map.querySelector('[data-concept-id="sustained_return_to_work"]');node.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+  await until(()=>svg.dataset.depth==='2','concept zoom');
+  click([...map.querySelectorAll('.concept-map-list button')].find(b=>b.textContent.startsWith('Tutkimustulos')));
+  await until(()=>map.querySelector('.concept-map-evidence'),'finding');assert.ok(map.textContent.includes('8,0 prosenttiyksikköä'));
+  click([...map.querySelectorAll('.concept-map-evidence button')].find(b=>b.textContent.startsWith('Lähde:')));
+  await until(()=>map.querySelector('.concept-map-source a'),'source');assert.equal(map.querySelector('.concept-map-source a').href,'https://www.sjweh.fi/article/3664');
+  const zoom=svg.dataset.zoom;
+  click(button(menu,'◎ Säteittäinen'));await until(()=>button(menu,'◎ Säteittäinen').getAttribute('aria-current')==='true','radial');
+  click(button(menu,'⊹ Akselikenttä'));await pause(80);assert.equal(map.querySelector('svg'),svg);assert.equal(svg.dataset.zoom,zoom);assert.ok(map.querySelector('.concept-map-source a'));
+  const period=map.querySelector('select[aria-label="Käsitekartan aikakausi"]');period.value='p1';period.dispatchEvent(new w.Event('change',{bubbles:true}));await until(()=>map.querySelector('.concept-map-caution'),'time warning');assert.equal(button(map,'Aloita reitti').disabled,true);
+  period.value='';period.dispatchEvent(new w.Event('change',{bubbles:true}));await until(()=>!button(map,'Aloita reitti').disabled,'restore route');click(button(map,'Aloita reitti'));await until(()=>map.querySelector('.concept-map-path-steps [aria-current="step"]')?.textContent.startsWith('1.'),'start');
+  click(button(map,'Seuraava vaihe →'));await until(()=>map.querySelector('.concept-map-path-steps [aria-current="step"]')?.textContent.startsWith('2.'),'next');assert.equal(button(map,'Toista reitti').disabled,true);
+  click(button(menu,'⌁ Reittikartta'));await until(()=>w.document.querySelector('[data-layout="routes"]'),'routes');const routes=w.document.querySelector('[data-layout="routes"]');assert.equal(routes.querySelectorAll('[data-mechanism-id]').length,2);
+  click(button(menu,'◐ Pallo'));await pause(80);assert.equal(w.document.querySelector('[data-testid="atlas-sphere"]'),sphere);assert.equal(requests.length,1);assert.deepEqual(errors,[]);
+ }finally{dom.window.close()}
+});

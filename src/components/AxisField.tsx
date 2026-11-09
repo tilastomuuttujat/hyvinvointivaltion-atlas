@@ -1,3 +1,4 @@
+import { ConceptMap } from "./ConceptMap";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ function ticks(a: number, b: number) {
 }
 
 /** Zoomable scatter field where the reader picks both axes. */
-export function AxisField({ data }: { data: AtlasData }) {
+function MetricAxisField({ data }: { data: AtlasData }) {
   const [xk, setXk] = useState<AxisKey>("year"), [yk, setYk] = useState<AxisKey>("articles");
   const [sel, setSel] = useState<number | null>(null);
   const [cluster, setCluster] = useState("all");
@@ -33,7 +34,7 @@ export function AxisField({ data }: { data: AtlasData }) {
   const base = useMemo<View>(() => {
     const xs = pts.map(p => p[xk]), ys = pts.map(p => p[yk]);
     const pad = (a: number, b: number) => { const d = (b - a) * 0.08 || 1; return [a - d, b + d]; };
-    const [x0, x1] = pad(Math.min(...xs), Math.max(...xs)), [y0, y1] = pad(Math.min(...ys), Math.max(...ys));
+    const [x0, x1] = pad(xs.length ? Math.min(...xs) : 0, xs.length ? Math.max(...xs) : 1), [y0, y1] = pad(ys.length ? Math.min(...ys) : 0, ys.length ? Math.max(...ys) : 1);
     return { x0: x0!, x1: x1!, y0: y0!, y1: y1! };
   }, [pts, xk, yk]);
   const [view, setView] = useState<View>(base);
@@ -89,7 +90,7 @@ export function AxisField({ data }: { data: AtlasData }) {
         </div>
       </div>
       <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className="axis-svg" data-zoom={zoomLevel.toFixed(2)} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
-        role="img" aria-label={`Hajontakenttä: ${label(xk)} ja ${label(yk)}`}>
+        role="group" aria-label={`Hajontakenttä: ${label(xk)} ja ${label(yk)}`}>
         <defs><clipPath id="axis-clip"><rect x={L} y={T} width={W - L - RT} height={H - B - T} /></clipPath></defs>
         {ticks(view.x0, view.x1).map(v => <g key={"x" + v}><line x1={sx(v)} x2={sx(v)} y1={T} y2={H - B} className="axis-grid" /><text x={sx(v)} y={H - B + 18} textAnchor="middle" className="axis-tick">{v}</text></g>)}
         {ticks(view.y0, view.y1).map(v => <g key={"y" + v}><line x1={L} x2={W - RT} y1={sy(v)} y2={sy(v)} className="axis-grid" /><text x={L - 8} y={sy(v) + 4} textAnchor="end" className="axis-tick">{v}</text></g>)}
@@ -98,7 +99,7 @@ export function AxisField({ data }: { data: AtlasData }) {
         <g clipPath="url(#axis-clip)">
           {pts.map(p => {
             const x = sx(p[xk]), y = sy(p[yk]), r = 4 + Math.sqrt(p.articles / maxA) * 10;
-            return <g key={p.id} className="axis-point" onPointerDown={e => e.stopPropagation()} onClick={() => setSel(p.id)} tabIndex={0} role="button" aria-label={p.title}>
+            return <g key={p.id} className="axis-point" onPointerDown={e => e.stopPropagation()} onClick={() => setSel(p.id)} onKeyDown={e => {if(e.key === "Enter" || e.key === " "){e.preventDefault();setSel(p.id)}}} tabIndex={0} role="button" aria-label={p.title}>
               <circle cx={x} cy={y} r={r} fill={kindColor(p.kind)} opacity={sel && sel !== p.id ? 0.35 : 0.85} />
               {sel === p.id && <circle cx={x} cy={y} r={r + 4} className="axis-ring" />}
               {(zoomLevel > 1.8 || sel === p.id) && <text x={x + r + 4} y={y + 4} className="axis-label">{p.title.length > 48 ? p.title.slice(0, 46) + "…" : p.title}</text>}
@@ -128,4 +129,10 @@ export function AxisField({ data }: { data: AtlasData }) {
       </aside>}
     </div>
   );
+}
+
+
+export function AxisField({data,active=true}:{data:AtlasData;active?:boolean}){
+ const [mode,setMode]=useState<'map'|'metrics'>('map');const [metricsVisited,setMetricsVisited]=useState(false);
+ return <section aria-label="Akselikentän näkymät"><nav className="axis-mode-switch" aria-label="Akselikentän esitystapa"><button type="button" aria-pressed={mode==='map'} onClick={()=>setMode('map')}>Klusterien käsitekartta</button><button type="button" aria-pressed={mode==='metrics'} onClick={()=>{setMode('metrics');setMetricsVisited(true)}}>Mittarikenttä</button><p>Käsitekartta jäsentää merkityksiä ja selityspolkuja. Mittarikentän akselit kuvaavat aineiston kirjauksia, eivät vaikutuksen suuruutta.</p></nav><div hidden={mode!=='map'}><ConceptMap data={data} active={active&&mode==='map'}/></div>{metricsVisited&&<div hidden={mode!=='metrics'}><MetricAxisField data={data}/></div>}</section>;
 }

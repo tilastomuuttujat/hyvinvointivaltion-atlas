@@ -132,3 +132,11 @@ Vertailu alkaa koko aikajanalta. Sen aikavälin voi rajata pudotusvalikosta, mat
 Kertomus etenee käsin tai käyttäjän käynnistämänä toistona. Laitteen reduced-motion-asetus estää automaattisen toiston. Lähteet, epävarmuus ja aineistoaukot säilyvät kertomuksen osana. Muutos käyttää samaa julkista JSONia, eikä lisää tietokantakyselyjä, kielimallikutsuja tai Neon-rakenteita.
 
 `atlas.comparison.ts` sisältää vertailun aineistosäännöt, `ConclusionComparison.tsx` valinnan ja kertomuksen. `comparison.test.mjs` testaa muun muassa saman aikakauden vaatimuksen, tarkat käsitesanat, kolmikon ja parien eron, tarkistustilat sekä aineistoaukot. Rakennetun sovelluksen testi tarkistaa myös ruksauksen, enimmäisvalinnan, kertomuksen vaiheet, perusteet, aikarajauksen ja saman pallon säilymisen.
+
+### Käsitekartta ja reittikartta
+
+Akselikenttä avautuu nyt klusteroituna käsitekarttana. Lähentäminen avaa alueet → määritellyt avainkäsitteet → valitun käsitteen havainnot → valitun havainnon lähteet. Aluetta, käsitettä tai havaintoa voi myös napsauttaa tai avata näppäimistöllä. Karttaa voi siirtää vetämällä ja zoomata rullalla, nipistämällä tai painikkeilla. Mittarikenttä säilyy akselikentän alavalintana.
+
+Valikon Reittikartta esittää saman käsitteistön aluekaistoina ja kirjatut mekanismit reitteinä. Sivupaneelissa voi seurata olemassa olevaa selityspolkua vaiheittain tai toistaa sen; vähennetty liike estää automaattisen toiston. Aikarajaus ei sijoita ajoittamattomia havaintoja keinotekoisesti kauteen. Avoimet ajoitukset ja näyttöaukot kerrotaan lukijalle.
+
+Kartta käyttää julkisen JSON-viennin määriteltyjä käsiteklustereita, jäsenyyksiä ja nykyisiä, hylkäämättömiä mekanismeja. Nykyinen sanasto sisältää neljä klusteria ja 13 käsitettä; se ei vielä kata koko artikkelisarjaa. Useaan klusteriin kuuluva käsite näkyy kerran, muut jäsenyydet kerrotaan sisältöpaneelissa. Sijainnit ja reittien pituudet ovat navigointia, eivät vaikutusten suuruuksia. Katkoviiva ja tarkastustila erottavat ehdotetun vaikutussuunnan hyväksytystä kausaaliväitteestä. Kartan sijainti ja valinnat säilyvät näkymää vaihdettaessa; piilotetun pallon pyöritys ja kartan reittitoisto pysähtyvät.

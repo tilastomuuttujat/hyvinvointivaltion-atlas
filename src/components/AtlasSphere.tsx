@@ -23,6 +23,7 @@ type Props = {
   data: AtlasData; selected: number | null; period: string | null;
   kinds: Set<string>; showContext: boolean;
   onPick: (conclusion: number, period: string) => void; onClear: () => void;
+  paused?:boolean;
   immersive?: boolean; onEra?: (period: string) => void; onLensChange?: (open: boolean) => void;
   scrubYear?: number;
   investigation?: {nodes:SurfaceNode[];intent:Intent;depth:number;missingRoot:boolean};
@@ -44,7 +45,7 @@ const STARS = Array.from({ length: 140 }, (_, i) => {
   return { x: q(r(1) * W), y: q(r(2) * H), s: q(0.3 + r(3) * 1.2), o: q(0.2 + r(4) * 0.7), d: q(2 + r(5) * 5) };
 });
 
-function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear, onMapDetail, investigation, onInvestigationPick, onInvestigationPreview, zoomRequest, onZoomChange, comparison, onComparisonFocus }: Props) {
+function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear, onMapDetail, investigation, onInvestigationPick, onInvestigationPreview, zoomRequest, onZoomChange, comparison, onComparisonFocus, paused=false }: Props) {
   const [yaw, setYaw] = useState(-0.6), [pitch, setPitch] = useState(0.25), [zoom, setZoom] = useState(1);
   const svgRef = useRef<SVGSVGElement>(null);
   const camera = useRef<Camera>({ zoom: 1, x: 0, y: 0 });
@@ -98,6 +99,7 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
 
   // Smooth rotation loop: auto-spin, drag inertia, and easing to the selected point
   useEffect(() => {
+    if(paused)return;
     let raf = 0, last = performance.now();
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const tick = (t: number) => {
@@ -117,7 +119,7 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [auto, hover]);
+  }, [auto, hover,paused]);
 
   useEffect(()=>{if(comparison)setLens(null)},[!!comparison]);
   const comparisonPaths=useMemo(()=>comparison?comparisonSegments(data,comparison.ids,comparison.periodId):[],[data,comparison]);

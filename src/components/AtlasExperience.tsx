@@ -13,7 +13,7 @@ import { periodAt } from '@/lib/atlas.storylines';
 import { conceptTrail, descend, initialNavigation, LEVELS, returnTo, stopLabel, validPaths, type Intent, type Navigation, type NavNode, type Stop } from '@/lib/atlas.navigation';
 import { prepareInvestigation, zoomDepth, zoomForStop, type SurfaceNode } from '@/lib/atlas.investigation';
 const QUESTIONS:{id:Intent;label:string}[]=[{id:'causes',label:'Mistä tämä johtuu?'},{id:'effects',label:'Mihin tämä vaikuttaa?'},{id:'evidence',label:'Mihin tieto perustuu?'}];
-export function AtlasExperience({ data }: { data: AtlasData }) {
+export function AtlasExperience({ data, active: visible=true }: { data: AtlasData; active?:boolean }) {
  const [selected,setSelected]=useState<number|null>(1),[period,setPeriod]=useState<string|null>('p1');
  const [story,setStory]=useState<number|null>(0),[lensOpen,setLensOpen]=useState(false),[year,setYear]=useState(1850);
  const [mapFocus,setMapFocus]=useState<{c:number;p:string;label:string;articles:number[]}|null>(null);
@@ -70,7 +70,7 @@ export function AtlasExperience({ data }: { data: AtlasData }) {
   {comparisonPicker&&<ConclusionPicker data={data} ids={comparisonDraft} onChange={setComparisonDraft} onStart={startComparison} onClose={()=>setComparisonPicker(false)}/>}
   <div className="investigation-status"><span>Zoom {zoom.toFixed(2)}× · {comparison?'Päätelmien vertailu':prepared?.depthLabel??'Kokonaiskuva'}</span><span>Maaston korkeus kuvaa artikkelikytkentöjen tiheyttä, ei ilmiön voimakkuutta.</span></div>
   <div className="experience-field">
-   <AtlasSphere data={data} kinds={kinds} selected={comparison?null:selected} period={comparison?comparisonPeriod:period} showContext immersive scrubYear={comparison?undefined:year} onMapDetail={setMapFocus}
+   <AtlasSphere paused={!visible} data={data} kinds={kinds} selected={comparison?null:selected} period={comparison?comparisonPeriod:period} showContext immersive scrubYear={comparison?undefined:year} onMapDetail={setMapFocus}
     onEra={chooseEra} onLensChange={setLensOpen}
     onPick={comparison?comparePick:chooseConclusion} onClear={comparison?closeComparison:clearConclusion} comparison={comparisonSurface} onComparisonFocus={setComparisonFocus}
     onZoomChange={reportZoom} zoomRequest={zoomRequest}
