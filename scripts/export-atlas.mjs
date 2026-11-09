@@ -1,3 +1,4 @@
+import { validateReasoning } from '../src/lib/atlas.reasoning.ts';
 // Runs only in Node / Actions. Never import this module into the browser.
 import pg from 'pg';
 import { readFile, writeFile, rename } from 'node:fs/promises';
@@ -11,6 +12,7 @@ try {
   const { rows } = await client.query(await readFile(new URL('./export-atlas.sql', import.meta.url), 'utf8'));
   const snapshot = rows[0]?.snapshot;
   if (!snapshot || snapshot.schemaVersion !== 1 || !snapshot.atlas?.periods?.length || !snapshot.atlas?.conclusions?.length || !Array.isArray(snapshot.treatments) || !Array.isArray(snapshot.evidence?.observations) || !Array.isArray(snapshot.evidence?.links) || !Array.isArray(snapshot.evidence?.concepts)) throw new Error('Export was empty or invalid; previous snapshot preserved.');
+  validateReasoning(snapshot.evidence,new Set(snapshot.atlas.conclusions.map(c=>c.id)));
   await client.query('COMMIT');
   const target = fileURLToPath(new URL('../public/data/atlas.json', import.meta.url));
   await writeFile(target + '.tmp', JSON.stringify(snapshot) + '\n');
@@ -20,3 +22,4 @@ try {
   // Driver errors can contain connection metadata. Keep CI logs credential-free.
   throw new Error('Atlas export failed. Check database access, read permissions and the schema. The previous snapshot was preserved.');
 } finally { await client.end().catch(() => {}); }
+

@@ -1,8 +1,11 @@
+import { conceptsInCluster } from '@/lib/atlas.reasoning';
+import { ReasoningTrail } from './ReasoningTrail';
 import { useState } from 'react';
 import { conceptObservations, observationDate, type EvidenceBundle } from '@/lib/atlas.evidence';
 const relationLabel:Record<string,string>={measures:'Mittaa käsitettä',component_of:'Osatekijä',context_for:'Taustayhteys'};
 export function EvidenceExplorer({bundle}:{bundle?:EvidenceBundle}) {
  const [open,setOpen]=useState(false),[concept,setConcept]=useState(''),[kind,setKind]=useState('all'),[limit,setLimit]=useState(12);
+ const [cluster,setCluster]=useState('');
  const selected=bundle?.concepts.find(c=>c.id===concept);
  const rows=bundle&&selected?conceptObservations(bundle,selected.id,kind):[];
  return <section className="border-b border-border px-6 py-4 md:px-10">
@@ -12,10 +15,13 @@ export function EvidenceExplorer({bundle}:{bundle?:EvidenceBundle}) {
    <p className="max-w-3xl text-sm text-muted-foreground">{bundle.concepts.length} määriteltyä avainkäsitettä · {bundle.observations.length} julkaistavaa havaintoa · {bundle.withheld} havaintoa odottaa lähdetarkistusta eikä niiden arvoja julkaista. Tämä luettelo kattaa koko havaintoaineiston; pallon aikakausivalinta ei rajaa sitä.</p>
    <p className="max-w-3xl text-sm text-muted-foreground">Avainkäsitteet ovat oma määritelty sanastonsa. Pallon artikkeliteksteistä poimitut käsitteet eivät muodosta niihin automaattista kytkentää. Havaintokytkentä ei osoita syyvaikutusta.</p>
    <div className="flex flex-wrap gap-4">
-    <label className="text-sm">Avainkäsite<select className="ml-2 rounded border border-border bg-background p-2" value={concept} onChange={e=>{setConcept(e.target.value);setLimit(12)}}><option value="">Valitse käsite</option>{bundle.concepts.map(c=><option key={c.id} value={c.id}>{c.label} ({conceptObservations(bundle,c.id).length})</option>)}</select></label>
+    {bundle.reasoning&&<label className="text-sm">Käsiteklusteri<select className="ml-2 rounded border border-border bg-background p-2" value={cluster} onChange={e=>{setCluster(e.target.value);setConcept('');setLimit(12)}}><option value="">Kaikki klusterit</option>{bundle.reasoning.clusters.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select></label>}
+    <label className="text-sm">Avainkäsite<select className="ml-2 rounded border border-border bg-background p-2" value={concept} onChange={e=>{setConcept(e.target.value);setLimit(12)}}><option value="">Valitse käsite</option>{conceptsInCluster(bundle,cluster).map(c=><option key={c.id} value={c.id}>{c.label} ({conceptObservations(bundle,c.id).length})</option>)}</select></label>
     <label className="text-sm">Havaintotyyppi<select className="ml-2 rounded border border-border bg-background p-2" value={kind} onChange={e=>{setKind(e.target.value);setLimit(12)}}><option value="all">Kaikki</option><option value="statistical">Tilastohavainnot</option><option value="research_finding">Tutkimustulokset</option></select></label>
    </div>
+   {cluster&&<p className="text-sm text-muted-foreground">{bundle.reasoning?.clusters.find(c=>c.id===cluster)?.question} Ryhmittely on toimituksellinen, tarkistusta odottava. Sama käsite voi kuulua useaan ryhmään.</p>}
    {selected&&<><h3 className="font-display text-xl">{selected.label}</h3><p>{selected.definition}</p><p className="text-sm text-muted-foreground">{selected.limitations}</p><p role="status" className="text-sm">{rows.length} havaintoa valituilla rajauksilla. {bundle.links.filter(l=>l.conceptId===selected.id&&l.relation==='measures').length} suoraa mittauskytkentää koko aineistossa.</p>{!rows.length&&<p>Havaintoaukko: tällä rajauksella ei ole julkaistavaa havaintoa. Käsitteen määrittely ei vielä tarkoita sen mittaamista.</p>}</>}
+   {selected&&<ReasoningTrail key={selected.id} bundle={bundle} conceptId={selected.id}/>}
    <div className="grid gap-4 xl:grid-cols-2">{rows.slice(0,limit).map(o=><article key={o.id} className="rounded-lg border border-border p-4 space-y-2">
     <p className="text-xs uppercase tracking-wide text-primary">{o.kind==='statistical'?'Tilastohavainto':'Tutkimustulos'} · {observationDate(o)}</p>
     <h4 className="font-semibold">{o.title}</h4><p className="text-sm">{o.population}</p>
@@ -30,3 +36,4 @@ export function EvidenceExplorer({bundle}:{bundle?:EvidenceBundle}) {
   </div>)}
  </section>;
 }
+
