@@ -2,13 +2,13 @@ import type { AtlasData } from "./atlas.functions";
 
 export type AxisKey = "year" | "direct" | "context" | "counter" | "articles" | "span" | "share";
 export const AXES: { key: AxisKey; label: string }[] = [
-  { key: "year", label: "Painopistevuosi" },
+  { key: "year", label: "Käsittelyn painopistevuosi" },
   { key: "direct", label: "Suorat kytkennät" },
   { key: "context", label: "Kontekstikytkennät" },
-  { key: "counter", label: "Vastanäyttö" },
-  { key: "articles", label: "Artikkelit" },
+  { key: "counter", label: "Vastanäyttökytkennät" },
+  { key: "articles", label: "Artikkelikäsittelyt (jaksoittain)" },
   { key: "span", label: "Aikakausien määrä" },
-  { key: "share", label: "Suoran näytön osuus (%)" },
+  { key: "share", label: "Suorien kytkentöjen osuus (%)" },
 ];
 
 export type AxisPoint = { id: number; title: string; kind: string } & Record<AxisKey, number>;
@@ -27,7 +27,7 @@ export function axisPoints(data: AtlasData): AxisPoint[] {
   }).filter(p => p.span > 0);
 }
 
-import { normalizeConcept } from "./atlas.relationships";
+import { normalizeConcept } from "./atlas.relationships.ts";
 
 export type ConceptUse = { key: string; label: string; conclusions: number[]; articles: number[]; periods: string[] };
 export type AxisCluster = { id: string; label: string; members: number[] };
@@ -36,7 +36,7 @@ export type AxisCluster = { id: string; label: string; members: number[] };
 export function conceptUses(data: AtlasData): Map<string, ConceptUse> {
   const out = new Map<string, ConceptUse & { c: Set<number>; a: Set<number>; p: Set<string> }>();
   for (const r of data.evidenceIndex ?? []) {
-    if (r.relation === "none") continue;
+    if (r.reviewStatus === "rejected" || !["direct", "context", "counterevidence"].includes(r.relation)) continue;
     for (const raw of r.concepts) {
       const key = normalizeConcept(raw); if (!key) continue;
       const u = out.get(key) ?? { key, label: raw.trim(), conclusions: [], articles: [], periods: [], c: new Set(), a: new Set(), p: new Set() };
@@ -56,7 +56,7 @@ export function distinctiveConcepts(uses: Map<string, ConceptUse>, id: number): 
 export function articleClusters(data: AtlasData, ids: number[]): AxisCluster[] {
   const counts = new Map<number, Map<number, number>>();
   for (const r of data.evidenceIndex ?? []) {
-    if (r.relation === "none") continue;
+    if (r.reviewStatus === "rejected" || !["direct", "context", "counterevidence"].includes(r.relation)) continue;
     const m = counts.get(r.c) ?? new Map<number, number>(); m.set(r.articleNo, (m.get(r.articleNo) ?? 0) + 1); counts.set(r.c, m);
   }
   const groups = new Map<number, number[]>();
@@ -68,3 +68,4 @@ export function articleClusters(data: AtlasData, ids: number[]): AxisCluster[] {
   return [...groups].sort((a, b) => b[1].length - a[1].length || a[0] - b[0])
     .map(([no, members]) => ({ id: "a" + no, label: `Artikkeli ${no}`, members }));
 }
+
