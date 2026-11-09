@@ -696,6 +696,184 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
               {opos.filter((o) => o.arts.size).map((o) => (
                 <line key={"a" + o.c} x1={CX} y1={CY} x2={o.x} y2={o.y} stroke="var(--primary)" strokeWidth={1 + Math.min(3, o.arts.size)} strokeOpacity={lit(o.c) ? 0.35 : 0.05} strokeDasharray="4 7" className="atlas-flow" pointerEvents="none" />
               ))}
-              {concepts.map((k) => { const
+              {concepts.map((k) => { const p = cpos.get(k.k)!; const on = lit(k.k);
+                return <line key={"c" + k.k} x1={CX} y1={CY} x2={p.x} y2={p.y} stroke="var(--primary)" strokeWidth={1 + k.w} strokeOpacity={on ? 0.7 : 0.1} className="atlas-flow" strokeDasharray="6 5" pointerEvents="none" />; })}
+              {opos.map((o) => { const on = lit(o.c) || [...o.concepts].some((k) => hi === k);
+                return (
+                  <g key={o.c} className="cursor-pointer" opacity={hi == null || on ? 1 : 0.25} onPointerEnter={() => setLensHover(o.c)} onPointerLeave={() => setLensHover(null)}
+                    onClick={() => lensGo(o.c)}>
+                    <title>{conMap.get(o.c)?.title}</title>
+                    <circle cx={o.x} cy={o.y} r={6 + Math.min(6, (o.concepts.size + o.arts.size) * 1.4)} fill="var(--card)" stroke="var(--foreground)" strokeOpacity="0.6" />
+                    <text x={o.x} y={o.y + 3.5} fontSize="9" textAnchor="middle" fill="var(--foreground)">{o.c}</text>
+                    <text x={o.x} y={o.y + (o.y > CY ? 26 : -16)} fontSize="9.5" textAnchor="middle" fill="var(--muted-foreground)">{short(conMap.get(o.c)?.title ?? "", 26)}</text>
+                  </g>
+                ); })}
+              {concepts.map((k) => { const p = cpos.get(k.k)!; const on = lit(k.k);
+                const w = Math.min(150, k.k.length * 6 + 18);
+                return (
+                  <g key={"n" + k.k} opacity={on ? 1 : 0.3} onPointerEnter={() => setLensHover(k.k)} onPointerLeave={() => setLensHover(null)} className="cursor-default">
+                    <rect x={p.x - w / 2} y={p.y - 11} width={w} height="22" rx="11" fill="var(--popover)" stroke="var(--kind-hypo)" strokeWidth={1 + k.w * 0.5} filter={hi === k.k ? "url(#glow)" : undefined} />
+                    <text x={p.x} y={p.y + 4} fontSize="10.5" textAnchor="middle" fill="var(--kind-hypo)">{short(k.k, 22)}</text>
+                  </g>
+                ); })}
+              <g className="cursor-pointer" onClick={() => lensGo(lens.c)}>
+                <circle cx={CX} cy={CY} r="30" fill="var(--primary)" opacity="0.18" className="atlas-pulse" pointerEvents="none" />
+                <circle cx={CX} cy={CY} r="24" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5" filter="url(#glow)" />
+                <text x={CX} y={CY + 4} fontSize="12" textAnchor="middle" fill="var(--foreground)" fontWeight="600">#{lens.c}</text>
+              </g>
+              </>}
+              <text x="20" y="30" fontSize="13" fill="var(--foreground)" className="font-display">{short(c0?.title ?? "", 52)}</text>
+              <text x="20" y="66" fontSize="10.5" fill="var(--muted-foreground)">Painettu kohta: <tspan fill={lens.relColor}>●</tspan> {per?.label} · {lens.rel} · {lens.count} kytkentää — merkitty pallolle sykkivällä renkaalla</text>
+              <g fontSize="10.5">
+                {(["network", "mindmap"] as const).map((m, i) => (
+                  <g key={m} className="cursor-pointer" onClick={() => { setLensMode(m); setLensHover(null); }}>
+                    <rect x={W - 196 + i * 92} y="16" width="88" height="24" rx="12" fill={lensMode === m ? "var(--primary)" : "var(--card)"} stroke="var(--border)" />
+                    <text x={W - 152 + i * 92} y="32" textAnchor="middle" fill={lensMode === m ? "var(--primary-foreground)" : "var(--muted-foreground)"}>{m === "network" ? "Verkosto" : "Mielikartta"}</text>
+                  </g>
+                ))}
+              </g>
+              <g fontSize="11" className="cursor-pointer">
+                <g onClick={() => setLens(null)} className="cursor-pointer transition-opacity hover:opacity-80">
+                  <title>Sulje verkostonäkymä ja palaa pallonäkymään</title>
+                  <rect x={W - 196} y="48" width="180" height="26" rx="13" fill="var(--card)" stroke="var(--primary)" strokeWidth="1.5" />
+                  <text x={W - 106} y="65" textAnchor="middle" fill="var(--primary)" fontWeight="600">◐ Takaisin palloon</text>
+                </g>
+                {lensTrail.length > 0 && (
+                  <g onClick={lensBack}>
+                    <rect x={W - 196} y="80" width="180" height="24" rx="12" fill="var(--card)" stroke="var(--border)" />
+                    <text x={W - 106} y="96" textAnchor="middle" fill="var(--muted-foreground)">‹ Edellinen (#{lensTrail[lensTrail.length - 1]})</text>
+                  </g>
+                )}
+              </g>
+              {lensTrail.length > 0 && <text x="20" y="84" fontSize="10" fill="var(--muted-foreground)">Polku: {[...lensTrail, lens.c].slice(-6).map((c) => `#${c}`).join(" → ")}</text>}
+              <text x="20" y="48" fontSize="10.5" fill="var(--muted-foreground)">{lensMode === "network" ? "Käsiteverkko" : "Mielikartta"} · {per?.label} · {lensGraph.articles} artikkelia · {concepts.length} käsitettä · {outer.length} kytkettyä päätelmää</text>
+              {!concepts.length && !outer.length && <text x={CX} y={CY + 60} fontSize="11" textAnchor="middle" fill="var(--muted-foreground)">Tälle aikakaudelle ei ole kirjattu käsitelinkkejä</text>}
+              <g fontSize="10" fill="var(--muted-foreground)">
+                <rect x="20" y={H - 52} width="18" height="10" rx="5" fill="none" stroke="var(--kind-hypo)" /><text x="44" y={H - 43}>avainkäsite</text>
+                <circle cx="124" cy={H - 47} r="5" fill="var(--card)" stroke="var(--foreground)" /><text x="134" y={H - 43}>päätelmä, jolla sama käsite</text>
+                <line x1="290" y1={H - 47} x2="312" y2={H - 47} stroke="var(--primary)" strokeDasharray="4 4" /><text x="318" y={H - 43}>yhteinen artikkeli</text>
+                <text x="20" y={H - 22}>Vie osoitin käsitteen päälle korostaaksesi sen yhteydet · klikkaa päätelmää siirtyäksesi siihen · paluu vain ◐ Takaisin palloon -painikkeella</text>
+              </g>
+            </g>
+          );
+        })()}
+      </svg>
+      </div>
 
-... [truncated — file is 65487 bytes, showing first 51200]
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3 px-2 text-xs text-muted-foreground">
+        <label className="flex items-center gap-2">Zoom <input aria-label="Pallon zoom" className="accent-primary" type="range" min=".6" max="3" step=".05" value={zoom} onChange={(e) => applyZoom(Number(e.target.value))} /></label>
+        <label className="flex max-w-full items-center gap-2">Valitse piste
+          <select aria-label="Valitse pallon piste" className="min-w-0 max-w-[300px] rounded-md border border-border bg-card p-1.5 text-foreground" value=""
+            onChange={(e) => { const p = points.find((p) => p.id === e.target.value); if (p) pick(p.cell.c, p.cell.p); }}>
+            <option value="">Päätelmä · aikakausi · yhteystyyppi</option>
+            {points.map((p) => <option key={p.id} value={p.id}>{p.cell.c} · {perMap.get(p.cell.p)?.label} · {p.rel.label} ({p.cell[p.rel.key]})</option>)}
+          </select>
+        </label>
+      </div>
+      <div className="mx-2 mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded bg-primary shadow-[0_0_6px_var(--primary)]" />Aikajana 1850 → 2050</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-principle)" }} />Yhteinen artikkeli tai avainkäsite samalla aikakaudella</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-synth)" }} />Teemapolku</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 border-t border-dashed" style={{ borderColor: "var(--kind-hypo)" }} />Skenaarion takaisinmallinnus</span>
+        <span>Ontto piste = skenaario · koko = kytkentöjen määrä</span>
+      </div>
+      {selectedConclusion && (
+        <section className="mx-2 mt-4 rounded-xl border border-border bg-card/60 p-3 text-xs backdrop-blur" aria-label="Valinnan yhteydet ja aineistoaukot">
+          <h3 className="font-display text-sm text-foreground">Valinnan yhteydet ja aineistoaukot</h3>
+          <p className="mt-1 text-muted-foreground">
+            {gaps.length
+              ? <>Ei aineistoa jaksoilla: {gaps.map((g, i) => <span key={g.p.id}>{i ? ", " : ""}<span className="text-foreground">{g.p.label}</span></span>)}. Aikajanaa ei vedetä aukkojen yli.</>
+              : "Aineistoa on kaikilla jaksoilla."}
+          </p>
+          {related.length === 0
+            ? <p className="mt-2 text-muted-foreground">Ei aineistoperustaisia yhteyksiä muihin päätelmiin näillä rajauksilla.</p>
+            : (
+              <ul className="mt-2 max-h-56 space-y-1 overflow-auto pr-1">
+                {related.slice(0, 30).map((x) => (
+                  <li key={`${x.c}:${x.p}`}>
+                    <button onClick={() => pick(x.c, x.p)} className="w-full rounded-md px-2 py-1.5 text-left transition-colors hover:bg-secondary">
+                      <span className="text-muted-foreground">{perMap.get(x.p)?.label} · #{x.c}</span>{" "}
+                      <span className="text-foreground">{conMap.get(x.c)?.title}</span>
+                      <span className="block text-[11px] text-muted-foreground">
+                        {x.articles.length > 0 && <>Yhteiset art. {x.articles.join(", ")}</>}
+                        {x.articles.length > 0 && x.concepts.length > 0 && " · "}
+                        {x.concepts.length > 0 && <>Käsitteet: {x.concepts.join(", ")}</>}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+        </section>
+      )}
+      <p className="mx-2 mt-2 text-[11px] leading-relaxed text-muted-foreground/80">
+        Pituusaste = aikakausi, leveysaste = päätelmä, kerros = yhteystyyppi. Kaaret kuvaavat aineiston toimituksellisia kytkentöjä — ne eivät todista syy-yhteyttä.
+      </p>
+    </div>
+  );
+}
+
+const clampP = (v: number) => Math.max(-1.3, Math.min(1.3, v));
+
+type MMProps = { center: number; concepts: { k: string; w: number }[]; outer: { c: number; concepts: Set<string>; arts: Set<number> }[];
+  title: (c: number) => string; hi: string | number | null; setHi: (v: string | number | null) => void; onPick: (c: number) => void };
+function MindMap({ center, concepts, outer, title, hi, setHi, onPick }: MMProps) {
+  const short = (t: string, n: number) => (t.length > n ? t.slice(0, n) + "…" : t);
+  const branches: { label: string; concept: boolean; kids: number[] }[] = concepts.map((k) => ({ label: k.k, concept: true, kids: outer.filter((o) => o.concepts.has(k.k)).map((o) => o.c).slice(0, 4) }));
+  const artOnly = outer.filter((o) => !o.concepts.size).map((o) => o.c);
+  if (artOnly.length) branches.push({ label: "Yhteiset artikkelit", concept: false, kids: artOnly.slice(0, 6) });
+  const sides: (typeof branches)[] = [[], []];
+  const load = [0, 0];
+  for (const b of [...branches].sort((x, y) => y.kids.length - x.kids.length)) { const i = load[0]! <= load[1]! ? 0 : 1; sides[i]!.push(b); load[i]! += Math.max(1, b.kids.length); }
+  const top = 90, bottom = H - 70;
+  return (
+    <g>
+      {sides.map((list, si) => {
+        const dir = si === 0 ? 1 : -1, bx = CX + dir * 130, kx = CX + dir * 195;
+        const slots = list.reduce((s, b) => s + Math.max(1, b.kids.length), 0) || 1;
+        const step = Math.min(34, (bottom - top) / slots);
+        let y = CY - (slots * step) / 2;
+        return list.map((b) => {
+          const n = Math.max(1, b.kids.length), by = y + (n * step) / 2;
+          const kidsY = b.kids.map((_, i) => y + step * (i + 0.5)); y += n * step;
+          const on = hi == null || hi === b.label || b.kids.some((k) => k === hi);
+          const col = b.concept ? "var(--kind-hypo)" : "var(--primary)";
+          const w = Math.min(150, b.label.length * 6 + 18);
+          return (
+            <g key={b.label} opacity={on ? 1 : 0.25}>
+              <path d={`M${CX + dir * 24},${CY} C${CX + dir * 80},${CY} ${bx - dir * 60},${by} ${bx - dir * w / 2},${by}`} fill="none" stroke={col} strokeWidth="2" strokeOpacity="0.6" />
+              {b.kids.map((k, i) => (
+                <g key={k} className="cursor-pointer" onPointerEnter={() => setHi(k)} onPointerLeave={() => setHi(null)} onClick={() => onPick(k)}>
+                  <title>{title(k)}</title>
+                  <path d={`M${bx + dir * w / 2},${by} C${bx + dir * (w / 2 + 30)},${by} ${kx - dir * 30},${kidsY[i]} ${kx - dir * 6},${kidsY[i]}`} fill="none" stroke={col} strokeOpacity="0.4" />
+                  <circle cx={kx} cy={kidsY[i]} r="4" fill="var(--card)" stroke="var(--foreground)" strokeOpacity="0.7" />
+                  <text x={kx + dir * 9} y={kidsY[i]! + 3.5} fontSize="9.5" textAnchor={dir > 0 ? "start" : "end"} fill="var(--foreground)" opacity="0.85">#{k} {short(title(k), 20)}</text>
+                </g>
+              ))}
+              <g onPointerEnter={() => setHi(b.label)} onPointerLeave={() => setHi(null)}>
+                <rect x={bx - w / 2} y={by - 11} width={w} height="22" rx="11" fill="var(--popover)" stroke={col} />
+                <text x={bx} y={by + 4} fontSize="10.5" textAnchor="middle" fill={col}>{short(b.label, 22)}</text>
+              </g>
+            </g>
+          );
+        });
+      })}
+      <g className="cursor-pointer" onClick={() => onPick(center)}>
+        <circle cx={CX} cy={CY} r="24" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5" filter="url(#glow)" />
+        <text x={CX} y={CY + 4} fontSize="12" textAnchor="middle" fill="var(--foreground)" fontWeight="600">#{center}</text>
+      </g>
+    </g>
+  );
+}
+
+function Segments({ pts, path, strong }: { pts: { x: number; y: number; z: number }[]; path: (p: { x: number; y: number }[]) => string; strong?: boolean }) {
+  const segs: { front: boolean; pts: typeof pts }[] = [];
+  for (const p of pts) {
+    const front = p.z >= 0, last = segs[segs.length - 1];
+    if (!last || last.front !== front) segs.push({ front, pts: last ? [last.pts[last.pts.length - 1]!, p] : [p] });
+    else last.pts.push(p);
+  }
+  return <>{segs.map((s, i) => <path key={i} d={path(s.pts)} stroke={strong ? "var(--primary)" : "var(--sphere-grid)"} strokeOpacity={s.front ? (strong ? 0.9 : 0.55) : 0.12} />)}</>;
+}
+
+export type { Cell };
