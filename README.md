@@ -53,3 +53,11 @@ Päätelmien välinen kaari tarvitsee samalla aikakaudella vähintään yhden yh
 Yhteyskorteissa näytetään peruste (artikkelinumerot ja/tai käsitesanat), ja niistä voi avata toisen päätelmän saman aikakauden käsittelyn. Kuvaajassa näytetään enintään 14 yhteyttä, mutta kaikki perusteet voi lukea luettelosta. Aikajana ei yhdistä aineistoaukkojen yli. Puuttuvat jaksot luetellaan erikseen ja ne riippuvat nykyisestä lajien ja kerrosten rajauksesta.
 
 Pallon ja käsittelypaneelin aikakausivalinta on yhteinen. Artikkelikorteissa näkyvät tarkistustila, rajaukset ja kirjatut käsitteet. Sivun alareunassa näkyvät JSON-viennin ajankohta ja tarkistusperiaate. Sekä palvelinversio että Pages-vienti käyttävät samaa nykyisiin revisioihin rajattua SQL-vientiä.
+
+### Havaintoaineisto
+
+Avainkäsitteittäin avattava havaintoluettelo käyttää samaa julkista JSONia kuin pallo. `evidence` sisältää määritellyn sanaston, tilastohavainnot, tutkimustulokset ja niiden kytkennät. Se on erillinen pallon vapaamuotoisista artikkelikäsitteistä. Pallon aikakausisuodatin ei rajaa luetteloa.
+
+Vienti jättää pois julkaisukiellossa olevat ja julkaisemattomiksi merkityt tilastohavainnot sekä hylätyt kytkennät. Tutkimusten epätarkat ajoitukset ja kuukausitietojen viiteajat säilyvät. Artikkeliviitteissä näkyvät hyväksyntä ja revisioiden ajantasaisuus; viitettä ei tulkita päätelmän näytöksi. Lähdearvojen peritty tarkistustila säilyy, eikä vienti tee uutta lähdevarmennusta. Tyhjät käsitteet näkyvät havaintoaukkoina.
+
+Nykyinen havaintokerros: 13 käsitettä, 284 havaintoa, 519 kytkentää; 30 havaintoa pidätetty. Päivitä koko snapshot olemassa olevalla `export:atlas`-komennolla tai Pages-työnkulun refresh-valinnalla.

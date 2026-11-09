@@ -1,3 +1,4 @@
+import { EvidenceExplorer } from "@/components/EvidenceExplorer";
 import { createFileRoute } from "@tanstack/react-router";
 import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -74,6 +75,7 @@ export function AtlasPage() {
           <Stat n={model.totalDirect} l="suoraa kytkentää" />
         </div>
       </header>
+      <EvidenceExplorer bundle={data.evidence} />
 
       <main className="grid gap-0 lg:grid-cols-[260px_1fr_400px]">
         <aside className="space-y-6 border-b border-border p-6 lg:border-b-0 lg:border-r">

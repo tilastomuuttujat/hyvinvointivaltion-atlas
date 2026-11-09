@@ -10,7 +10,7 @@ try {
   await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
   const { rows } = await client.query(await readFile(new URL('./export-atlas.sql', import.meta.url), 'utf8'));
   const snapshot = rows[0]?.snapshot;
-  if (!snapshot || snapshot.schemaVersion !== 1 || !snapshot.atlas?.periods?.length || !snapshot.atlas?.conclusions?.length || !Array.isArray(snapshot.treatments)) throw new Error('Export was empty or invalid; previous snapshot preserved.');
+  if (!snapshot || snapshot.schemaVersion !== 1 || !snapshot.atlas?.periods?.length || !snapshot.atlas?.conclusions?.length || !Array.isArray(snapshot.treatments) || !Array.isArray(snapshot.evidence?.observations) || !Array.isArray(snapshot.evidence?.links) || !Array.isArray(snapshot.evidence?.concepts)) throw new Error('Export was empty or invalid; previous snapshot preserved.');
   await client.query('COMMIT');
   const target = fileURLToPath(new URL('../public/data/atlas.json', import.meta.url));
   await writeFile(target + '.tmp', JSON.stringify(snapshot) + '\n');

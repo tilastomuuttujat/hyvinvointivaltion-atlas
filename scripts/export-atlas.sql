@@ -24,7 +24,26 @@ WITH current_links AS (
  count(DISTINCT article_id) articles FROM current_links GROUP BY 1,2
 )
 SELECT jsonb_build_object(
- 'schemaVersion',1,'generatedAt',now(),
+ 'schemaVersion',1,'generatedAt',now(),'evidenceGeneratedAt',now(),'evidence',(WITH published AS (
+ SELECT o.observation_id, jsonb_build_object('id',o.observation_id,'kind','statistical','title',s.title,'start',o.year,'end',o.year,'period',o.period,'population',coalesce(o.group_label,o.group_key),'value',o.value,'unit',o.unit,'valueKind',o.value_kind,'sourceUrl',o.source_url,'sourceVersion',o.source_version,'verification',o.source_validation_status) row
+ FROM atlas_evidence.observations o JOIN atlas_evidence.observation_series s USING(series_key)
+ WHERE o.publication_hold IS FALSE AND o.source_is_published IS TRUE
+ UNION ALL
+ SELECT observation_id,jsonb_build_object('id',observation_id,'kind','research_finding','title',source_title,'finding',finding_text,'start',start_year,'end',end_year,'temporalPrecision',temporal_precision,'placementPeriod',placement_period,'population',population,'design',research_design,'result',result,'limitations',limitations,'sourceUrl',source_url,'publicationYear',source_publication_year,'verification',source_verification)
+ FROM atlas_evidence.research_observations
+), links AS (
+ SELECT a.observation_id,a.concept_id,a.relation_type,a.rationale,a.limitations,a.review_status,a.source_verification FROM atlas_evidence.all_observation_concepts a JOIN published p USING(observation_id) WHERE a.review_status<>'rejected'
+), article_refs AS (
+ SELECT observation_id,article_no,review_status,is_current FROM atlas_evidence.observation_article_link_status WHERE review_status<>'rejected'
+ UNION ALL SELECT observation_id,article_no,review_status,is_current FROM atlas_evidence.research_article_link_status WHERE review_status<>'rejected'
+)
+SELECT jsonb_build_object(
+ 'concepts',(SELECT jsonb_agg(jsonb_build_object('id',concept_id,'label',label_fi,'definition',definition,'limitations',limitations) ORDER BY label_fi) FROM atlas_evidence.concepts),
+ 'observations',coalesce((SELECT jsonb_agg(row ORDER BY observation_id) FROM published),'[]'::jsonb),
+ 'links',coalesce((SELECT jsonb_agg(jsonb_build_object('observationId',observation_id,'conceptId',concept_id,'relation',relation_type,'rationale',rationale,'limitations',limitations,'reviewStatus',review_status,'verification',source_verification) ORDER BY concept_id,observation_id,relation_type) FROM links),'[]'::jsonb),
+ 'articleRefs',coalesce((SELECT jsonb_agg(jsonb_build_object('observationId',a.observation_id,'articleNo',article_no,'reviewStatus',review_status,'isCurrent',is_current) ORDER BY a.observation_id,article_no) FROM article_refs a JOIN published p USING(observation_id)),'[]'::jsonb),
+ 'withheld',(SELECT count(*) FROM atlas_evidence.observations WHERE publication_hold IS NOT FALSE OR source_is_published IS NOT TRUE)
+) evidence),
  'source','Neon / atlas_editing; nykyiset revisiot, hylätyt kytkennät poistettu',
  'reviewPolicy','Mukana myös tarkistusta odottavat kytkennät. Linkki ei ole kausaalisen vaikutuksen todiste.',
  'atlas',jsonb_build_object(

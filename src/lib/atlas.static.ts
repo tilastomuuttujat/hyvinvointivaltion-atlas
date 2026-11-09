@@ -1,6 +1,7 @@
+import type { EvidenceBundle } from './atlas.evidence';
 import type { AtlasData, Treatment } from './atlas.functions';
 export type { AtlasData, Conclusion } from './atlas.functions';
-type Snapshot = { schemaVersion: number; generatedAt: string; reviewPolicy: string; atlas: AtlasData; treatments: (Treatment & { conclusionId: number; reviewStatus: string })[] };
+type Snapshot = { evidence?: EvidenceBundle; schemaVersion: number; generatedAt: string; reviewPolicy: string; atlas: AtlasData; treatments: (Treatment & { conclusionId: number; reviewStatus: string })[] };
 let pending: Promise<Snapshot> | undefined;
 async function snapshot(): Promise<Snapshot> {
   if (!pending) pending = fetch(`${import.meta.env.BASE_URL}data/atlas.json`).then(async response => {
@@ -11,7 +12,7 @@ async function snapshot(): Promise<Snapshot> {
   }).catch(error => { pending = undefined; throw error; });
   return pending;
 }
-export async function getAtlas(): Promise<AtlasData> { const data = await snapshot(); return { ...data.atlas, generatedAt: data.generatedAt, reviewPolicy: data.reviewPolicy, evidenceIndex: data.treatments.map(r => ({ c: r.conclusionId, p: r.periodId, articleNo: r.articleNo, concepts: r.concepts || [], relation: r.relation, reviewStatus: r.reviewStatus })) }; }
+export async function getAtlas(): Promise<AtlasData> { const data = await snapshot(); return { ...data.atlas, evidence: data.evidence, generatedAt: data.generatedAt, reviewPolicy: data.reviewPolicy, evidenceIndex: data.treatments.map(r => ({ c: r.conclusionId, p: r.periodId, articleNo: r.articleNo, concepts: r.concepts || [], relation: r.relation, reviewStatus: r.reviewStatus })) }; }
 export async function getTreatments({ data }: { data: { conclusionId: number } }): Promise<Treatment[]> {
   if (!Number.isInteger(data.conclusionId) || data.conclusionId < 1) throw new Error('Virheellinen päätelmä');
   return (await snapshot()).treatments.filter(row => row.conclusionId === data.conclusionId);
