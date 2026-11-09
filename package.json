@@ -14,7 +14,7 @@
     "build:pages": "vite build --config vite.pages.config.ts",
     "preview:pages": "vite preview --config vite.pages.config.ts",
     "export:atlas": "node scripts/export-atlas.mjs",
-    "test:pages": "node --experimental-strip-types --test scripts/pages.test.mjs scripts/relationships.test.mjs",
+    "test:pages": "node --experimental-strip-types --test scripts/pages.test.mjs scripts/relationships.test.mjs scripts/navigation.test.mjs",
     "migrate:reasoning": "node scripts/migrate-reasoning.mjs"
   },
   "dependencies": {
