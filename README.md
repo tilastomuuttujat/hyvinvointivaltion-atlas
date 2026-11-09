@@ -1,8 +1,8 @@
 # Hyvinvointivaltion Atlas (1850–2050)
 
-Suomen hyvinvointivaltion kehityskaarta, nykytilaan johtaneita syitä ja tulevaisuuden näkymiä avaava säteittäinen atlasvisualisointi.
+Suomen hyvinvointivaltion kehityskaarta, nykytilaan johtaneita syitä ja tulevaisuuden näkymiä avaava pallomainen atlasvisualisointi.
 
-Aineisto pohjautuu Neon-tietokannan `atlas_editing`-skeemaan (38 artikkelia, 53 päätelmää ja 7 aikakautta).
+Aineisto pohjautuu Neonin artikkeli-, havainto- ja selitysrakenteisiin (38 artikkelia, 53 päätelmää ja 7 aikakautta).
 
 ## Teknologia
 
@@ -38,19 +38,19 @@ Vienti on vain luku -transaktio ja julkaisee vain SQL-tiedostossa luetellut julk
 
 `npm run test:pages` tarkistaa JSONin viitteet, koontilukujen vastaavuuden yksittäisiin kytkentöihin ja tunnusten puuttumisen aineistosta. Peruspolku on `/hyvinvointivaltion-atlas/`; repositorion nimen vaihtuessa workflow käyttää uutta nimeä. Mukautetulle verkkotunnukselle käytä `PAGES_BASE_PATH=/`.
 
-### Vaihtoehtoinen Atlas-pallo
+### Yhtenäinen Atlas-pallo
 
-Vasemman reunan **Näkymä → Atlas-pallo** näyttää saman aineiston pyöritettävänä kolmiulotteisena projektiona. Pituusaste perustuu aikakauden keskivuoteen (1850–2050), leveysaste järjestää päätelmät, kerros erottaa taustoittavat/suorat/vastanäyttökytkennät ja pisteen koko kertoo kytkentöjen määrän. Nämä eivät ole poikkeamien tai yhteiskunnallisten vaikutusten mittareita.
+Pituusaste perustuu aikakauteen (1850–2050), leveysaste järjestää päätelmät ja kerros erottaa taustoittavat, suorat ja vastanäyttökytkennät. Maaston korkeus kuvaa toimituksellisten artikkelikytkentöjen tiheyttä. Se ei mittaa yhteiskunnallisen ilmiön voimakkuutta tai kausaalista vaikutusta.
 
-Klikkaus valitsee päätelmän ja aikakauden sekä avaa niiden käsittelykortit. Saman päätelmän pisteet eri aikakausina korostuvat; muut himmenevät tai ne voi piilottaa. Katkoviivat yhdistävät viereisten aikakausien saman päätelmän pisteitä vain silloin, kun molemmissa on aineistoa. Ne eivät väitä kausaalista vaikutusta. Valinta säilyy näkymää vaihdettaessa.
+Tarinakatsaus ja aikakone tarjoavat historiallisen lukureitin. Palloa voi pyörittää vetämällä tai nuolinäppäimillä, lähentää rullalla tai nipistämällä sekä +/−-säätimillä. Valitsemalla Tutki selityksiä tai lähentämällä avataan valittuun kysymykseen liittyvä määritelty sanasto. Lähteistetyn esimerkkipolun painike käynnistää nykyisen selityspilotin.
 
-Palloa voi kiertää vetämällä tai nuolinäppäimillä. Zoomia säädetään liukusäätimellä tai +/−-näppäimillä. Esc tai **Näytä kokonaisuus** poistaa valinnan. Pisteet ovat valittavissa myös tekstivalikosta. Teemojen ja havainto–käsitekytkentöjen tuominen tähän projektioon edellyttää niiden lisäämistä yhteiseen JSON-vientiin; nykyinen pallonäkymä käyttää päätelmäaineistoa.
+Artikkelien vapaat käsitemerkinnät ja määritelty käsitesanasto erotetaan. Niiden välille piirretään yhteys vain nykyisen kirjauksen perusteella. Yksityiskohtaiset zoomaussäännöt on kuvattu alla.
 
 ### Yhteyksien perusteet ja tarkistustilat
 
 Päätelmien välinen kaari tarvitsee samalla aikakaudella vähintään yhden yhteisen artikkelin tai täsmälleen vastaavan kirjatun avainkäsitteen. Pelkkä esiintyminen samalla aikakaudella ei riitä. Käsitesanoista verrataan Unicode-normalisoitua, reunaväleistä siivottua ja pienaakkostettua tekstiä; synonyymejä ei päätellä eikä vapaita käsitesanoja esitetä vielä yhtenäistettyinä käsite-ID:inä. Yhteinen artikkeli ei välttämättä tarkoita yhteistä havaintoa tai tekstinäytettä. Kaari on asiayhteys, ei kausaalinen vaikutuspolku.
 
-Yhteyskorteissa näytetään peruste (artikkelinumerot ja/tai käsitesanat), ja niistä voi avata toisen päätelmän saman aikakauden käsittelyn. Kuvaajassa näytetään enintään 14 yhteyttä, mutta kaikki perusteet voi lukea luettelosta. Aikajana ei yhdistä aineistoaukkojen yli. Puuttuvat jaksot luetellaan erikseen ja ne riippuvat nykyisestä lajien ja kerrosten rajauksesta.
+Yhteyskorteissa näytetään peruste (artikkelinumerot ja/tai käsitesanat), ja niistä voi avata toisen päätelmän saman aikakauden käsittelyn. Kuvaajassa näytetään enintään 14 yhteyttä. Tietokenttä tarjoaa kirjatuista asiayhteyksistä etenemisvaihtoehtoja. Aikajana ei yhdistä aineistoaukkojen yli. Puuttuvat jaksot luetellaan erikseen ja ne riippuvat nykyisestä lajien ja kerrosten rajauksesta.
 
 Pallon ja käsittelypaneelin aikakausivalinta on yhteinen. Artikkelikorteissa näkyvät tarkistustila, rajaukset ja kirjatut käsitteet. Sivun alareunassa näkyvät JSON-viennin ajankohta ja tarkistusperiaate. Sekä palvelinversio että Pages-vienti käyttävät samaa nykyisiin revisioihin rajattua SQL-vientiä.
 
@@ -80,7 +80,7 @@ Lähdevarmennus, näytön soveltuvuus ja toimituksellinen hyväksyntä ovat eril
 
 Neoniin on viety neljä klusteria, 16 jäsenyyttä, 314 havaintojen lähdeviitettä, kolme väitettä, kaksi evidenssisuhdetta, kaksi mekanismia ja yksi kolmivaiheinen pilottipolku. Julkisessa snapshotissa on edelleen 284 havaintoa; 30 pidätetyn havainnon lähdeviitteitä ei viedä. Julkinen lähderekisteri sisältää vain näkyvien havaintojen lähteet. Tilastolähteiden nimet ovat aluksi perittyjä URL-tunnisteita; niitä ei ole bibliografisesti täydennetty eikä lähdearvoja tarkistettu uudelleen.
 
-`evidence.reasoning` on valinnainen, versionumeroitu laajennus. Vanha JSON pysyy luettavana. Havaintonäkymässä voi rajata klusterin, seurata pilotin vaiheita ja avata väitteiden perustelut. Pallon automaattista animaatiota tämä muutos ei vielä lisää; polkurakenne tarjoaa sille aineiston. Sanastoa ei yhdistetä automaattisesti pallon vapaatekstikäsitteisiin.
+`evidence.reasoning` on valinnainen, versionumeroitu laajennus. Vanha JSON pysyy luettavana. Havaintonäkymässä voi rajata klusterin, seurata pilotin vaiheita ja avata väitteiden perustelut. Pallon lähdepolku käyttää tätä rakennetta; alkuperäiset havainnot ja tulkintojen hyväksynnät säilyvät erillisinä. Sanastoa ei yhdistetä automaattisesti pallon vapaatekstikäsitteisiin.
 
 #### Hallittu käyttöönotto
 
@@ -96,16 +96,22 @@ Sisältömuutokset kasvattavat lähteen tai väitteen revisiota automaattisesti.
 
 ### Tasoittain avautuva pallonavigointi
 
-Oletusnäkymä **Tutki tasoittain** avaa nykyisen havaintosanaston kuudella tasolla: kokonaiskuva → ilmiöalue → avainkäsite → selitys → havainto → alkuperäislähde. **Kytkentäpallo** säilyttää aiemman pyöritettävän artikkeli–päätelmäverkon ja **Säteittäinen** aiemman rengasnäkymän.
+Kokonaiskuva, ilmiöalue, avainkäsite, selitys, havainto ja lähde ovat saman pallon tarkastelutasoja. Navigoinnin sisältösäännöt ovat `atlas.navigation.ts`:ssä ja niiden kytkentä pysyvään karttaan `atlas.investigation.ts`:ssä. `AtlasNavigator.tsx` on erillisen aiemman esityksen komponentti; päänäkymä käyttää suoraan samaa sisältölogiikkaa ilman toista palloa.
 
-Kohdetta valittaessa näytetään seuraavan tason olennainen tieto. Sijaintipolku näyttää aidosti vieraillut kohteet ja mahdollistaa paluun. Käsite voi kuulua useaan ilmiöalueeseen; navigointi ei pakota aineistoa yhdeksi puuksi. Valittu aikakausi ja kysymys säilyvät palattaessa ja näkymää vaihdettaessa. Paluu ylemmälle tasolle toimii myös Esc-näppäimellä. Pallon kohteet voi avata Enter- ja välilyöntinäppäimillä.
+### Kysymyslähtöinen zoomaus samalla pallopinnalla
 
-Käsitetasolla lukija voi valita kysymyksen: mistä tämä johtuu, mihin tämä vaikuttaa tai mihin tieto perustuu. Ehdotukset käyttävät vain kirjattuja, ajantasaisia kytkentöjä ja kertovat kohdistettaessa, miksi ne näytetään. Mekanismin suunta, ajallinen soveltuvuus ja tarkistustila vaikuttavat esitykseen; havaintomäärä ei mittaa vaikutuksen suuruutta. Aiheeseen liittyvää väitettä ei piirretä vaikutusnuolena. Vastanäyttöä ja rajauksia ei suodateta pois siksi, että ne eivät tue väitettä.
+`AtlasExperience` käyttää yhtä pysyvää `AtlasSphere`-instanssia. Zoomaus paljastaa ilmiöalueita, määriteltyjä käsitteitä, väitteiden perusteluja, havaintoja ja lähteitä saman maaston päällä. Tasojen välinen pieni hystereesi estää tiedon välkkymisen raja-arvojen lähellä. Loitontaminen rajaa näkyvän sijaintipolun mutta säilyttää syvän valinnan; takaisin lähentäminen palauttaa saman kohteen. Tavallinen tasonvaihto ei muuta kameran suuntaa eikä luo uutta palloa. Esimerkkipolun nimenomainen käynnistäminen kohdistaa tutkimuksen päätelmään ja aikakauteen.
 
-Aikakausi on tarkastelutasosta riippumaton valinta. Tarkan havaintojakson täytyy leikata valittua aikakautta. Epätarkkoja havaintoja ei sijoiteta arvioidun sijoitusjakson tai julkaisuvuoden perusteella; ne saa näkyviin erikseen merkittyinä. Ajallisesti avoin hypoteesi voi näkyä käsitteen yhteydessä, mutta se merkitään avoimeksi. Jos lukija vaihtaa aikakautta ollessaan jo havainto- tai väitetasolla, valittu kohde säilyy ja mahdollinen rajauksen ulkopuolisuus kerrotaan. Puuttuva yhteys näkyy aukkona.
+Älykkyys on selitettävää aineiston käyttöä, ei kielimallin arvausta. `atlas.investigation.ts` yhdistää valitun kysymyksen, aikakauden, ajantasaiset evidenssisuhteet ja nimenomaiset päätelmäsillat. Kirjattuja väitteiden suhteita voi kulkea asiayhteyksien löytämiseksi; kulku ei tarkoita kausaalisen näytön periytymistä. Määritelty sanasto ja artikkelien vapaat käsitemerkinnät pysyvät erillisinä.
 
-Ohjattu polku etenee käsin tai käyttäjän käynnistämänä viiden sekunnin askelin. Liikkeen voi poistaa käytöstä; laitteen reduced-motion-asetusta kunnioitetaan ja automaattinen toisto estyy. Aikarajauksen vaihtaminen ja käsin navigointi pysäyttävät toiston. Puhelimella näytetään kaksi suurennettua kohdetta kerrallaan, suuremmalla näytöllä enintään kuusi. Loput löytyvät sivutuksella, jonka kokonaismäärä on näkyvissä.
+Pallon lisämerkinnöillä on tietueen tunnisteesta deterministisesti määräytyvät paikalliset koordinaatit päätelmän aikakausikohdan ympärillä. Järjestys, zoom ja kysymys eivät siirrä samoja tietueita uusiin paikkoihin. Kirjattu mekanismi saa etusijan aiheeseen vain liittyvään väitteeseen nähden, ja rajaavat tai haastavat havainnot säilyvät näkyvyysjärjestyksessä. Merkintöjä karsitaan kuvaruudun koon, etupuolisuuden ja päällekkäisyyksien perusteella. Kaikki seuraavat perustelut ovat silti avattavissa saman tietokentän luettelosta.
 
-Navigointi on paikallinen ja sääntöpohjainen: se ei kutsu kielimallia tai tietokantaa selaimesta. Pallon alueet ovat käsitteellisiä, eivät maantieteellisiä tai mitattuja vaikutusalueita. Nykyiset neljä klusteria kattavat havaintosanaston; ne eivät vielä kata kaikkia 38 artikkelin aiheita. Vapaatekstikäsitteitä ei yhdistetä määriteltyyn sanastoon nimen samankaltaisuuden perusteella.
+Jos nykyistä päätelmäsiltaa, aikakauden artikkelikäsittelyä tai täsmällistä havaintojaksoa ei ole, kohdetta ei sijoiteta kronologiselle pinnalle. Se merkitään erilliseksi tietokentässä. Puuttuvaan kysymysketjun valintaan pysähdytään myös suurella zoomilla: sovellus ei valitse väitettä lukijan puolesta. Nykyisessä aineistossa lähteistetty polku kattaa rajatun pilotin; laajempi peitto edellyttää lisää tarkistettuja siltoja ja mekanismeja.
 
-`src/lib/atlas.navigation.ts` sisältää navigoinnin ja relevanssin säännöt, `AtlasNavigator.tsx` esityksen. `scripts/navigation.test.mjs` tarkistaa muun muassa vaikutussuunnat, aikarajaukset, revisioiden voimassaolon, todellisen paluupolun ja lähteeseen jäljittämisen. Tämä muutos käyttää olemassa olevaa JSON-rakennetta eikä edellytä Neon-migraatiota.
+Aikakone säilyttää valitun kysymyksen ja lähdepolun; aikarajauksen ulkopuolisuus näytetään myös lähdetasolla. Historiallisen tarinan uuden luvun valinta aloittaa uuden päätelmäkontekstin. Vanhat karttakohteen valinnat tyhjennetään ajan tai päätelmän vaihtuessa. Maaston tiheyden merkitys näkyy jatkuvasti selitteessä.
+
+Artikkeliperustelut näyttävät kaikki nykyisen aikakauden osumat, mukaan lukien vastanäytön ja tarkistustilan. Palvelinlukija käyttää jälleen samaa `export-atlas.sql`-kyselyä kuin julkinen JSON: artikkeli-, runkotiiviste- ja päätelmärevision ehdot sekä hylkäyssuodatukset ovat samat. Yhteys kulkee olemassa olevan Lovable-gatewayn kautta; selain lukee edelleen staattista snapshotia. Uusia tietokantatauluja, tunnuksia tai mallikutsuja ei tarvita.
+
+HUD:n kohdistuksen ja perustelutekstin päivitykset eivät käynnistä maaston uudelleenprojektiota: pysyvä pallo on muistettu komponentti ja sille välitetyt tapahtumat sekä tutkintataso vakautetaan. Kamera renderöityy normaalisti pyöritettäessä ja zoomattaessa.
+
+`npm run test:experience` tarkistaa rakennetun Pages-sovelluksen DOM-ympäristössä: kaikki artikkeliperustelut, kuusi tietotasoa, alkuperäislähteen avaamislinkin, saman pallon säilymisen, loitonnuksen/lähennyksen muistaman kontekstin ja muuttuneen aikarajauksen varoituksen. Aja sitä ennen `npm run build:pages`. Pages-työnkulku suorittaa tarkistuksen ennen julkaisuartifaktin lähettämistä. Testin jsdom-riippuvuus on vain kehityskäyttöön, eikä sitä sisällytetä selainpakettiin. DOM-testi ei korvaa oikean selaimen visuaalista tai kosketuseletestiä.

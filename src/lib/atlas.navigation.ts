@@ -144,7 +144,10 @@ export function sceneFor(bundle:EvidenceBundle,stop:Stop,intent:Intent,period:Wi
   if(!source||!ref){scene.summary='Nykyistä lähdeviitettä ei löydy.';return scene;}
   scene.title=source.title===source.url?'Alkuperäinen tilastolähde':source.title;scene.summary=ref.locator;
   scene.notes=[sourceCheck(source.verification),`Lähdeviitteen tarkistus: ${reviewLabel(ref.reviewStatus)}.`,source.checkedOn?`Tarkistuspäivä: ${source.checkedOn}`:'Tarkistuspäivää ei ole kirjattu.',source.version?`Lähdeversio: ${source.version}`:'', 'Lähteen luotettavuus ja sen merkitys väitteelle arvioidaan erikseen.'];
+  const observation=bundle.observations.find(o=>o.id===stop.observationId);
+  if(observation&&temporalStatus(observation,period)==='outside')scene.notes.unshift('Lähde liittyy valitun aikarajauksen ulkopuoliseen havaintoon. Aikarajausta ei vaihdeta automaattisesti.');
   if(/^https?:\/\//.test(source.url))scene.nodes=[{id:source.id,label:'Avaa alkuperäislähde',kind:'source',badge:source.publicationYear?`Julkaistu ${source.publicationYear}`:'Lähdepalvelu',reason:source.url,href:source.url}];
  }
  return scene;
 }
+

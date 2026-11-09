@@ -14,8 +14,9 @@
     "build:pages": "vite build --config vite.pages.config.ts",
     "preview:pages": "vite preview --config vite.pages.config.ts",
     "export:atlas": "node scripts/export-atlas.mjs",
-    "test:pages": "node --experimental-strip-types --test scripts/pages.test.mjs scripts/relationships.test.mjs scripts/navigation.test.mjs scripts/map-detail.test.mjs",
-    "migrate:reasoning": "node scripts/migrate-reasoning.mjs"
+    "test:pages": "node --experimental-strip-types --test scripts/pages.test.mjs scripts/relationships.test.mjs scripts/navigation.test.mjs scripts/map-detail.test.mjs scripts/investigation.test.mjs",
+    "migrate:reasoning": "node scripts/migrate-reasoning.mjs",
+    "test:experience": "node --test scripts/experience.test.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
@@ -42,11 +43,12 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
     "eslint": "^9.32.0",
+    "jsdom": "^26.1.0",
     "nitro": "3.0.260603-beta",
+    "pg": "8.16.3",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "8.1.5",
-    "pg": "8.16.3"
+    "vite": "8.1.5"
   }
 }
