@@ -61,3 +61,34 @@ Avainkäsitteittäin avattava havaintoluettelo käyttää samaa julkista JSONia 
 Vienti jättää pois julkaisukiellossa olevat ja julkaisemattomiksi merkityt tilastohavainnot sekä hylätyt kytkennät. Tutkimusten epätarkat ajoitukset ja kuukausitietojen viiteajat säilyvät. Artikkeliviitteissä näkyvät hyväksyntä ja revisioiden ajantasaisuus; viitettä ei tulkita päätelmän näytöksi. Lähdearvojen peritty tarkistustila säilyy, eikä vienti tee uutta lähdevarmennusta. Tyhjät käsitteet näkyvät havaintoaukkoina.
 
 Nykyinen havaintokerros: 13 käsitettä, 284 havaintoa, 519 kytkentää; 30 havaintoa pidätetty. Päivitä koko snapshot olemassa olevalla `export:atlas`-komennolla tai Pages-työnkulun refresh-valinnalla.
+
+
+### Selitysrakenne: lähteestä väitteeseen
+
+`atlas_reasoning` täydentää olemassa olevaa havaintokerrosta. Rakenne erottaa:
+
+- klusterit ja monijäseniset avainkäsitteet;
+- yhtenäisen lähderekisterin ja havaintokohtaisen lähdekohdan;
+- täsmälliset väitteet, hypoteesit, synteesit, arviointiperiaatteet ja skenaariot;
+- havainto → tukee / haastaa / rajaa / taustoittaa → väite -kytkennät;
+- väitteiden väliset perustelut ja oletukset;
+- käsitteiden väliset mekanismit, niiden ehdot ja näytön lajin;
+- erikseen perustellut yhteydet aiempiin päätelmiin;
+- järjestetyt, käsitteiden kautta etenevät selityspolut.
+
+Lähdevarmennus, näytön soveltuvuus ja toimituksellinen hyväksyntä ovat erillisiä. Kaikki pilotin uudet tulkinnat ovat `needs_review`; alkuperäisiä hyväksyntöjä ei muuteta. Pilotin yhteys päätelmään 25 on taustayhteys. Kustannussäästö jää hypoteesiksi, jota työhönpaluututkimus ei yksin osoita.
+
+Neoniin on viety neljä klusteria, 16 jäsenyyttä, 314 havaintojen lähdeviitettä, kolme väitettä, kaksi evidenssisuhdetta, kaksi mekanismia ja yksi kolmivaiheinen pilottipolku. Julkisessa snapshotissa on edelleen 284 havaintoa; 30 pidätetyn havainnon lähdeviitteitä ei viedä. Julkinen lähderekisteri sisältää vain näkyvien havaintojen lähteet. Tilastolähteiden nimet ovat aluksi perittyjä URL-tunnisteita; niitä ei ole bibliografisesti täydennetty eikä lähdearvoja tarkistettu uudelleen.
+
+`evidence.reasoning` on valinnainen, versionumeroitu laajennus. Vanha JSON pysyy luettavana. Havaintonäkymässä voi rajata klusterin, seurata pilotin vaiheita ja avata väitteiden perustelut. Pallon automaattista animaatiota tämä muutos ei vielä lisää; polkurakenne tarjoaa sille aineiston. Sanastoa ei yhdistetä automaattisesti pallon vapaatekstikäsitteisiin.
+
+#### Hallittu käyttöönotto
+
+1. Testaa migraatio tuotannosta luodulla Neon-haaralla.
+2. Aja `NEON_DATABASE_URL=… npm run migrate:reasoning` ensin testihaaralle ja sitten kohdehaaraan. Yhteys tarvitaan vain palvelimessa. Migraatio on lisäävä ja transaktionaalinen, tarkistussummat estävät jo ajetun migraation hiljaisen muuttamisen.
+3. Tarkista `database/verify-reasoning.sql`. `database/check-reasoning-constraints.sql` on tarkoitettu vain testihaaraan.
+4. Aja `npm run export:atlas`, `npm run test:pages` ja `npm run build:pages`.
+
+Sisältömuutokset kasvattavat lähteen tai väitteen revisiota automaattisesti. Kytkentöihin tallennetaan perustana oleva revisio ja havainnon lähdetietueen tiiviste. Vanhentuneet, hylätyt ja julkaisukiellossa olevaan havaintoon liittyvät evidenssikytkennät suodatetaan viennistä. Muuttuneisiin väitteisiin perustuvaa polkua ei viedä osittaisena. Vanha artikkelikytkentä ei muutu hyväksytyksi näytöksi.
+
+`export-reasoning.sql` on viennin kanoninen alikysely, joka on upotettu `export-atlas.sql`:ään, jotta palvelin ja Pages käyttävät samaa yhden kyselyn snapshotia. Testi tarkistaa niiden yhtäpitävyyden. Uusi sisältö ja siihen liittyvät kytkennät lisätään uutena siemen-/migraatioversiona; jo ajettuja tiedostoja ei muuteta.
