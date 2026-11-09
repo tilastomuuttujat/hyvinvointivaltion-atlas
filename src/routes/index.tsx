@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getAtlas } from "@/lib/atlas.static";
 import { AtlasExperience } from "@/components/AtlasExperience";
+import { AxisField } from "@/components/AxisField";
+import { useState } from "react";
 
 const atlasQuery = queryOptions({ queryKey: ["atlas"], queryFn: () => getAtlas(), staleTime: 5 * 60_000 });
 
@@ -28,6 +30,7 @@ export const Route = createFileRoute("/")({
 
 export function AtlasPage() {
   const { data } = useSuspenseQuery(atlasQuery);
+  const [view, setView] = useState<"sphere" | "axes">("sphere");
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-6 py-5 md:px-10">
@@ -44,7 +47,11 @@ export function AtlasPage() {
           <Stat n={data.cells.reduce((n, c) => n + c.direct, 0)} l="suoraa kytkentää" />
         </div>
       </header>
-      <AtlasExperience data={data} />
+      <nav className="view-switch" aria-label="Näkymä">
+        <button type="button" aria-current={view === "sphere" || undefined} onClick={() => setView("sphere")}>◐ Pallo</button>
+        <button type="button" aria-current={view === "axes" || undefined} onClick={() => setView("axes")}>⊹ Akselikenttä</button>
+      </nav>
+      {view === "sphere" ? <AtlasExperience data={data} /> : <AxisField data={data} />}
       <details className="border-t border-border">
         <summary className="cursor-pointer px-6 py-4 text-xs text-muted-foreground">Havaintoaineiston hakemisto</summary>
         <EvidenceExplorer bundle={data.evidence} />

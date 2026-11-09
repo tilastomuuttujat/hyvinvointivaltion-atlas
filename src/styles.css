@@ -294,3 +294,26 @@
 @keyframes comparison-reveal{from{opacity:.2;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(max-width:640px){.comparison-picker{padding:16px 12px}.comparison-picker h2{font-size:21px}.comparison-catalog{grid-template-columns:1fr;max-height:320px}.comparison-hud{width:auto;max-height:520px}.comparison-actions button,.comparison-picker-actions button{min-height:40px}.comparison-window{flex-wrap:wrap}.comparison-table-scroll th,.comparison-table-scroll td{font-size:10px}}
 @media(prefers-reduced-motion:reduce){.comparison-chapter{animation:none}}
+
+
+/* Axis field and view switch */
+.view-switch{display:flex;gap:4px;padding:10px 24px;border-bottom:1px solid var(--border)}
+.view-switch button{font-size:12px;padding:6px 14px;border:1px solid var(--border);border-radius:999px;color:var(--muted-foreground);background:none;cursor:pointer}
+.view-switch button[aria-current]{color:var(--primary-foreground);background:var(--primary);border-color:var(--primary)}
+.axis-field{position:relative;padding:16px 24px 24px;background:var(--space)}
+.axis-controls{display:flex;flex-wrap:wrap;gap:16px;align-items:end;margin-bottom:10px}
+.axis-controls label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted-foreground)}
+.axis-controls select{background:var(--card);color:var(--foreground);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:13px}
+.axis-zoom{display:flex;gap:4px;align-items:center;margin-left:auto;font-size:12px;color:var(--muted-foreground)}
+.axis-svg{width:100%;height:auto;touch-action:none;cursor:grab;user-select:none}.axis-svg:active{cursor:grabbing}
+.axis-grid{stroke:var(--sphere-grid);stroke-opacity:.12}.axis-tick{fill:var(--muted-foreground);font-size:11px}.axis-title{fill:var(--primary);font-size:12px}
+.axis-point{cursor:pointer;outline:none}.axis-ring{fill:none;stroke:var(--warning);stroke-width:1.5}
+.axis-label{fill:var(--foreground);font-size:11px;paint-order:stroke;stroke:var(--space);stroke-width:3px;pointer-events:none}
+.axis-hint{font-size:11px;color:var(--muted-foreground);margin-top:6px}
+.axis-selection{bottom:56px;right:32px}
+.axis-concept{fill:var(--warning);font-size:10px;cursor:pointer;paint-order:stroke;stroke:var(--space);stroke-width:3px}.axis-concept:hover,.axis-concept.is-on{fill:var(--primary);text-decoration:underline}
+.axis-concept-card{top:96px;bottom:auto;right:32px;height:auto;max-width:320px;max-height:70vh;overflow:auto}
+.axis-concept-card ul{margin:6px 0;padding-left:16px;font-size:12px}.axis-concept-card li button{text-align:left;color:var(--primary);background:none;border:0;padding:2px 0;cursor:pointer}
+.axis-kicker{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warning)}.axis-note{font-size:10px;color:var(--muted-foreground)}
+.axis-close{position:absolute;top:6px;right:10px;background:none;border:0;color:var(--muted-foreground);font-size:18px;cursor:pointer}
+@media(max-width:900px){.axis-field{padding:12px}.axis-zoom{margin-left:0}}

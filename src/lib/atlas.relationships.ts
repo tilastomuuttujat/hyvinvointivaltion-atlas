@@ -1,3 +1,4 @@
+export const normalizeConcept = (s: string) => s.normalize('NFC').trim().toLocaleLowerCase('fi').replace(/\s+/g, ' ');
 export type EvidenceRef = {
   c: number; p: string; articleNo: number; concepts: string[];
   relation: string; reviewStatus?: string;
