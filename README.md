@@ -92,3 +92,20 @@ Neoniin on viety neljä klusteria, 16 jäsenyyttä, 314 havaintojen lähdeviitet
 Sisältömuutokset kasvattavat lähteen tai väitteen revisiota automaattisesti. Kytkentöihin tallennetaan perustana oleva revisio ja havainnon lähdetietueen tiiviste. Vanhentuneet, hylätyt ja julkaisukiellossa olevaan havaintoon liittyvät evidenssikytkennät suodatetaan viennistä. Muuttuneisiin väitteisiin perustuvaa polkua ei viedä osittaisena. Vanha artikkelikytkentä ei muutu hyväksytyksi näytöksi.
 
 `export-reasoning.sql` on viennin kanoninen alikysely, joka on upotettu `export-atlas.sql`:ään, jotta palvelin ja Pages käyttävät samaa yhden kyselyn snapshotia. Testi tarkistaa niiden yhtäpitävyyden. Uusi sisältö ja siihen liittyvät kytkennät lisätään uutena siemen-/migraatioversiona; jo ajettuja tiedostoja ei muuteta.
+
+
+### Tasoittain avautuva pallonavigointi
+
+Oletusnäkymä **Tutki tasoittain** avaa nykyisen havaintosanaston kuudella tasolla: kokonaiskuva → ilmiöalue → avainkäsite → selitys → havainto → alkuperäislähde. **Kytkentäpallo** säilyttää aiemman pyöritettävän artikkeli–päätelmäverkon ja **Säteittäinen** aiemman rengasnäkymän.
+
+Kohdetta valittaessa näytetään seuraavan tason olennainen tieto. Sijaintipolku näyttää aidosti vieraillut kohteet ja mahdollistaa paluun. Käsite voi kuulua useaan ilmiöalueeseen; navigointi ei pakota aineistoa yhdeksi puuksi. Valittu aikakausi ja kysymys säilyvät palattaessa ja näkymää vaihdettaessa. Paluu ylemmälle tasolle toimii myös Esc-näppäimellä. Pallon kohteet voi avata Enter- ja välilyöntinäppäimillä.
+
+Käsitetasolla lukija voi valita kysymyksen: mistä tämä johtuu, mihin tämä vaikuttaa tai mihin tieto perustuu. Ehdotukset käyttävät vain kirjattuja, ajantasaisia kytkentöjä ja kertovat kohdistettaessa, miksi ne näytetään. Mekanismin suunta, ajallinen soveltuvuus ja tarkistustila vaikuttavat esitykseen; havaintomäärä ei mittaa vaikutuksen suuruutta. Aiheeseen liittyvää väitettä ei piirretä vaikutusnuolena. Vastanäyttöä ja rajauksia ei suodateta pois siksi, että ne eivät tue väitettä.
+
+Aikakausi on tarkastelutasosta riippumaton valinta. Tarkan havaintojakson täytyy leikata valittua aikakautta. Epätarkkoja havaintoja ei sijoiteta arvioidun sijoitusjakson tai julkaisuvuoden perusteella; ne saa näkyviin erikseen merkittyinä. Ajallisesti avoin hypoteesi voi näkyä käsitteen yhteydessä, mutta se merkitään avoimeksi. Jos lukija vaihtaa aikakautta ollessaan jo havainto- tai väitetasolla, valittu kohde säilyy ja mahdollinen rajauksen ulkopuolisuus kerrotaan. Puuttuva yhteys näkyy aukkona.
+
+Ohjattu polku etenee käsin tai käyttäjän käynnistämänä viiden sekunnin askelin. Liikkeen voi poistaa käytöstä; laitteen reduced-motion-asetusta kunnioitetaan ja automaattinen toisto estyy. Aikarajauksen vaihtaminen ja käsin navigointi pysäyttävät toiston. Puhelimella näytetään kaksi suurennettua kohdetta kerrallaan, suuremmalla näytöllä enintään kuusi. Loput löytyvät sivutuksella, jonka kokonaismäärä on näkyvissä.
+
+Navigointi on paikallinen ja sääntöpohjainen: se ei kutsu kielimallia tai tietokantaa selaimesta. Pallon alueet ovat käsitteellisiä, eivät maantieteellisiä tai mitattuja vaikutusalueita. Nykyiset neljä klusteria kattavat havaintosanaston; ne eivät vielä kata kaikkia 38 artikkelin aiheita. Vapaatekstikäsitteitä ei yhdistetä määriteltyyn sanastoon nimen samankaltaisuuden perusteella.
+
+`src/lib/atlas.navigation.ts` sisältää navigoinnin ja relevanssin säännöt, `AtlasNavigator.tsx` esityksen. `scripts/navigation.test.mjs` tarkistaa muun muassa vaikutussuunnat, aikarajaukset, revisioiden voimassaolon, todellisen paluupolun ja lähteeseen jäljittämisen. Tämä muutos käyttää olemassa olevaa JSON-rakennetta eikä edellytä Neon-migraatiota.

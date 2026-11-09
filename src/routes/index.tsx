@@ -1,3 +1,5 @@
+import { AtlasNavigator } from "@/components/AtlasNavigator";
+import { initialNavigation, type Navigation } from "@/lib/atlas.navigation";
 import { EvidenceExplorer } from "@/components/EvidenceExplorer";
 import { createFileRoute } from "@tanstack/react-router";
 import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
@@ -11,7 +13,7 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Atlas · Suomen hyvinvointivaltion kehityskaari 1850–2050" },
-      { name: "description", content: "Säteittäinen atlas: miten 38 artikkelia tukevat 53 päätelmää Suomen hyvinvointivaltion kehityksestä aikakausittain." },
+      { name: "description", content: "Tasoittain avautuva atlas: ilmiöalueet, avainkäsitteet, selitykset, havainnot ja niiden lähteet." },
       { property: "og:title", content: "Atlas · Suomen hyvinvointivaltion kehityskaari" },
       { property: "og:description", content: "Päätelmät, aikakaudet ja niiden näyttö yhdessä kuvaajassa — nykytilan syyt ja tulevaisuuden näkymät." },
       { property: "og:type", content: "website" },
@@ -52,7 +54,8 @@ export function AtlasPage() {
   const [hover, setHover] = useState<{ c: number; p: string } | null>(null);
   const [kinds, setKinds] = useState<Set<string>>(new Set(KINDS.map((k) => k.key)));
   const [showContext, setShowContext] = useState(true);
-  const [view, setView] = useState<"sphere" | "radial">("sphere");
+  const [view, setView] = useState<"navigator" | "sphere" | "radial">("navigator");
+  const [navigation,setNavigation] = useState<Navigation>(initialNavigation);
   const [period, setPeriod] = useState<string | null>(null);
 
   const model = useMemo(() => buildModel(data, showContext), [data, showContext]);
@@ -65,8 +68,8 @@ export function AtlasPage() {
           <p className="text-xs uppercase tracking-[0.25em] text-primary">Atlas · Suomen rakennemuutokset</p>
           <h1 className="mt-1 font-display text-3xl md:text-4xl">Hyvinvointivaltion kehityskaari 1850–2050</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Jokainen rengas on yksi aineiston päätelmä, jokainen sektori aikakausi. Mitä kirkkaampi solu, sitä useampi artikkeli
-            käsittelee päätelmää kyseisellä aikakaudella. Kuvaaja näyttää, missä kehityksen selitys on rakennettu — ei mitattua kehitystä.
+            Etene ilmiöalueesta käsitteisiin, selityksiin ja niiden lähteisiin. Aikakausi säilyy mukana tasoa vaihtaessa.
+            Kytkentäpallo ja säteittäinen näkymä näyttävät artikkelien yhteydet päätelmiin.
           </p>
         </div>
         <div className="flex gap-6 text-right">
@@ -77,8 +80,8 @@ export function AtlasPage() {
       </header>
       <EvidenceExplorer bundle={data.evidence} />
 
-      <main className="grid gap-0 lg:grid-cols-[260px_1fr_400px]">
-        <aside className="space-y-6 border-b border-border p-6 lg:border-b-0 lg:border-r">
+      <main className={view === "navigator" ? "grid grid-cols-1" : "grid gap-0 lg:grid-cols-[260px_1fr_400px]"}>
+        <aside className={view === "navigator" ? "hidden" : "space-y-6 border-b border-border p-6 lg:border-b-0 lg:border-r"}>
           <section>
             <h2 className="mb-3 text-xs uppercase tracking-widest text-muted-foreground">Päätelmän laji</h2>
             {KINDS.map((k) => (
@@ -107,16 +110,18 @@ export function AtlasPage() {
         </aside>
 
         <section className="relative flex items-start justify-center p-4 lg:sticky lg:top-0 lg:self-start">
-          <div className="w-full max-w-[860px]">
+          <div className={view === "navigator" ? "w-full max-w-[1200px]" : "w-full max-w-[860px]"}>
             <div className="mb-3 flex justify-center">
               <div className="inline-flex rounded-full border border-border bg-card p-1 text-xs" role="tablist" aria-label="Näkymä">
-                {([["sphere", "Atlas-pallo"], ["radial", "Säteittäinen"]] as const).map(([k, l]) => (
+                {([["navigator", "Tutki tasoittain"], ["sphere", "Kytkentäpallo"], ["radial", "Säteittäinen"]] as const).map(([k, l]) => (
                   <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)}
                     className={`rounded-full px-4 py-1.5 transition-colors ${view === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>{l}</button>
                 ))}
               </div>
             </div>
-            {view === "sphere" ? (
+            {view === "navigator" ? (
+              <AtlasNavigator data={data} navigation={navigation} onNavigate={setNavigation} period={period} onPeriod={setPeriod} onOpenConclusion={id=>{setSelected(id);setView("sphere")}}/>
+            ) : view === "sphere" ? (
               <AtlasSphere data={data} selected={selected} period={period} kinds={kinds} showContext={showContext}
                 onPick={(c, p) => { setSelected(c); setPeriod(p); }} onClear={() => { setSelected(null); setPeriod(null); }} />
             ) : (
@@ -127,12 +132,12 @@ export function AtlasPage() {
           {view === "radial" && hover && <HoverCard data={data} model={model} hover={hover} />}
         </section>
 
-        <aside className="border-t border-border p-6 lg:border-l lg:border-t-0">
+        <aside className={view === "navigator" ? "hidden" : "border-t border-border p-6 lg:border-l lg:border-t-0"}>
           {sel ? <ConclusionDetail key={sel.id} c={sel} data={data} model={model} period={period} onPeriod={setPeriod} onClose={() => { setSelected(null); setPeriod(null); }} /> : <Intro data={data} model={model} />}
         </aside>
       </main>
       <footer className="border-t border-border px-6 py-4 text-xs text-muted-foreground md:px-10">
-        Lähde: Neon-tietokanta, skeema atlas_editing · arvot ovat toimituksellisia kytkentöjä artikkelien ja päätelmien välillä; ne eivät todista syy-yhteyttä.
+        Lähde: Neonin artikkeli-, havainto- ja selitysaineisto. Toimitukselliset kytkennät eivät itsessään todista syy-yhteyttä.
         {data.generatedAt && <p className="mt-2">Aineistovienti: {new Date(data.generatedAt).toLocaleString("fi-FI")} · {data.reviewPolicy}</p>}
       </footer>
     </div>
@@ -415,4 +420,5 @@ function ConclusionDetail({ c, data, model, onClose, period, onPeriod }: { c: Co
     </div>
   );
 }
+
 

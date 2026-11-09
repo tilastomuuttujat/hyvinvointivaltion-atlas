@@ -1,0 +1,50 @@
+.semantic-atlas{width:100%;max-width:1200px;margin:auto;padding:clamp(.5rem,2vw,1.5rem);color:var(--foreground)}
+.semantic-atlas button,.semantic-atlas select{border:1px solid var(--border);border-radius:999px;padding:.5rem .85rem;background:var(--background);font-size:.8rem;cursor:pointer}
+.semantic-atlas button:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.semantic-atlas button:disabled{opacity:.4;cursor:default}
+.semantic-atlas :focus-visible{outline:2px solid var(--primary);outline-offset:4px}
+.semantic-toolbar{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;font-size:.8rem}
+.semantic-toolbar label{display:flex;align-items:center;gap:.65rem}.semantic-toolbar select{max-width:min(100%,340px)}
+.semantic-atlas input{accent-color:var(--primary)}
+.semantic-breadcrumbs{display:flex;flex-wrap:wrap;gap:.25rem;margin:1rem 0;font-size:.75rem;align-items:center;max-width:100%}
+.semantic-breadcrumbs>span{min-width:0;max-width:100%}.semantic-breadcrumbs button{max-width:100%;text-align:left;white-space:normal;border:0;padding:.2rem .35rem;border-radius:.25rem;color:var(--muted-foreground)}
+.semantic-breadcrumbs button[aria-current]{color:var(--foreground);font-weight:600}
+.semantic-depth{display:flex;gap:.35rem .85rem;flex-wrap:wrap;color:var(--muted-foreground);font-size:.68rem;letter-spacing:.03em}
+.semantic-depth [aria-current]{color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:.25rem}
+.semantic-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:1.1rem 0}
+.semantic-question{font-size:.72rem;color:var(--primary);text-transform:uppercase;letter-spacing:.11em;margin-bottom:.3rem}
+.semantic-heading h2{font-family:var(--font-display);font-size:clamp(1.35rem,2.4vw,2rem);line-height:1.22;max-width:760px;outline:none}
+.semantic-heading button{flex-shrink:0}
+.semantic-questions{display:flex;flex-wrap:wrap;gap:.45rem;margin:.75rem 0}
+.semantic-questions button[aria-pressed=true]{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
+.semantic-stage{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(250px,1fr);gap:clamp(.5rem,2vw,1.5rem);align-items:center;min-width:0}
+.semantic-stage[data-motion=true]{animation:semantic-arrive .4s ease-out both}
+.semantic-globe{width:100%;height:auto;overflow:visible;min-width:0;display:block}
+.semantic-node{cursor:pointer;outline:none;color:var(--primary)}.semantic-node .semantic-land{fill:var(--primary);fill-opacity:.13;stroke:var(--primary);stroke-opacity:.65;stroke-width:1.3}
+.semantic-node:nth-of-type(2n){color:var(--kind-principle)}.semantic-node:nth-of-type(2n) .semantic-land{fill:var(--kind-principle);stroke:var(--kind-principle)}
+.semantic-node .semantic-dot{fill:currentColor;stroke:var(--background);stroke-width:3}.semantic-hit{fill:transparent;stroke:transparent}
+.semantic-node:hover .semantic-hit,.semantic-node:focus .semantic-hit{stroke:var(--primary);stroke-opacity:.4}
+.semantic-node:hover .semantic-land,.semantic-node:focus .semantic-land{fill-opacity:.26;stroke-width:2.5}
+.semantic-node-label{fill:var(--foreground);font-size:15px;font-weight:500;pointer-events:none}
+.semantic-node-badge{fill:var(--muted-foreground);font-size:11.5px;pointer-events:none}
+.semantic-map-note{fill:var(--muted-foreground);font-size:11px}
+.semantic-caution{color:var(--warning)}.semantic-anchor{fill:var(--foreground);font-size:13px}
+.semantic-narration{font-size:.87rem;line-height:1.6;overflow-wrap:anywhere;min-width:0}
+.semantic-level-label{color:var(--primary);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.7rem}
+.semantic-summary{font-size:1rem;line-height:1.6}
+.semantic-hint{font-size:.75rem;color:var(--muted-foreground);margin:.75rem 0}
+.semantic-notes{border-top:1px solid var(--border);margin-top:1rem;padding-top:.75rem;color:var(--muted-foreground);font-size:.78rem}
+.semantic-notes p+p{margin-top:.6rem}
+.semantic-relevance{margin-top:.85rem;padding-left:.85rem;border-left:2px solid var(--primary);font-size:.8rem}
+.semantic-relevance h3{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem;color:var(--primary)}
+.semantic-relevance button{margin-top:.5rem}.semantic-source-link{display:inline-block;margin-top:1rem;text-decoration:underline;color:var(--primary)}
+.semantic-bridge{margin-top:1rem;white-space:normal;text-align:left}
+.semantic-pagination{display:flex;gap:1rem;align-items:center;justify-content:center;font-size:.75rem;padding:.5rem;flex-wrap:wrap}
+.semantic-undated{display:flex;align-items:flex-start;gap:.5rem;margin:.75rem 0;font-size:.75rem;color:var(--muted-foreground)}
+.semantic-guide{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.85rem;border-top:1px solid var(--border);padding-top:1rem;margin-top:1rem;font-size:.8rem}
+.semantic-guide-controls{display:flex;gap:.4rem;flex-wrap:wrap}
+@keyframes semantic-arrive{from{opacity:.3;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@media(max-width:760px){.semantic-stage{grid-template-columns:minmax(0,1fr)}.semantic-narration{padding:0 .5rem}.semantic-heading{align-items:flex-start}.semantic-heading button{font-size:.7rem;padding:.4rem .5rem}.semantic-depth{font-size:.62rem}.semantic-globe{margin:-.4rem 0}.semantic-guide-controls button{font-size:.72rem}}
+@media(prefers-reduced-motion:reduce){.semantic-stage[data-motion=true]{animation:none}.semantic-atlas *{scroll-behavior:auto!important}}
+
+.semantic-globe[data-compact=true] .semantic-node-label{font-size:23px}.semantic-globe[data-compact=true] .semantic-node-badge{font-size:17px}.semantic-globe[data-compact=true] .semantic-anchor{font-size:18px}.semantic-globe[data-compact=true] .semantic-map-note{font-size:14px}
