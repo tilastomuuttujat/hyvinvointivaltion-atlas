@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { SurfaceNode } from '@/lib/atlas.investigation';
+import { orderedNodes } from '@/lib/atlas.investigation';
+import type { Intent } from '@/lib/atlas.navigation';
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { AtlasData, Cell } from "@/lib/atlas.functions";
 import { relatedConnections, timelineSegments } from "../lib/atlas.relationships";
 import { heightField, contourSegments, contourFill } from "../lib/atlas.contours";
@@ -21,6 +24,11 @@ type Props = {
   onPick: (conclusion: number, period: string) => void; onClear: () => void;
   immersive?: boolean; onEra?: (period: string) => void; onLensChange?: (open: boolean) => void;
   scrubYear?: number;
+  investigation?: {nodes:SurfaceNode[];intent:Intent;depth:number;missingRoot:boolean};
+  onInvestigationPick?: (node:SurfaceNode,anchor:{x:number;y:number})=>void;
+  onInvestigationPreview?: (node:SurfaceNode)=>void;
+  zoomRequest?: {id:number;zoom:number;anchor?:{x:number;y:number};focus?:{c:number;p:string}};
+  onZoomChange?: (zoom:number)=>void;
   onMapDetail?: (detail: { c: number; p: string; label: string; articles: number[] }) => void;
 };
 
@@ -33,7 +41,7 @@ const STARS = Array.from({ length: 140 }, (_, i) => {
   return { x: q(r(1) * W), y: q(r(2) * H), s: q(0.3 + r(3) * 1.2), o: q(0.2 + r(4) * 0.7), d: q(2 + r(5) * 5) };
 });
 
-export function AtlasSphere({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear, onMapDetail }: Props) {
+function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear, onMapDetail, investigation, onInvestigationPick, onInvestigationPreview, zoomRequest, onZoomChange }: Props) {
   const [yaw, setYaw] = useState(-0.6), [pitch, setPitch] = useState(0.25), [zoom, setZoom] = useState(1);
   const svgRef = useRef<SVGSVGElement>(null);
   const camera = useRef<Camera>({ zoom: 1, x: 0, y: 0 });
@@ -57,6 +65,13 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
     el.addEventListener('wheel', wheel, { passive: false });
     return () => el.removeEventListener('wheel', wheel);
   }, []);
+  useEffect(()=>{onZoomChange?.(zoom)},[zoom,onZoomChange]);
+  useEffect(()=>{if(!zoomRequest)return;
+    if(zoomRequest.focus){target.current=-angleOf(zoomRequest.focus.p);setPitch(clampP(latOf(zoomRequest.focus.c)));}
+    applyZoom(zoomRequest.zoom,zoomRequest.anchor);
+  },[zoomRequest?.id]);
+  const [surfaceWidth,setSurfaceWidth]=useState(680);
+  useEffect(()=>{const el=svgRef.current;if(!el)return;const update=()=>setSurfaceWidth(el.getBoundingClientRect().width||680);update();if(typeof ResizeObserver==='undefined')return;const observer=new ResizeObserver(update);observer.observe(el);return()=>observer.disconnect()},[]);
   const [auto, setAuto] = useState(true);
   const [hideOthers, setHideOthers] = useState(false);
   const [layer, setLayer] = useState<"all" | Relation>("all");
@@ -265,6 +280,16 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
   useEffect(() => { if (focusYaw != null) { target.current = focusYaw; setAuto(false); } }, [focusYaw]);
   useEffect(() => { if (scrubPeriod && !immersive) onEra?.(scrubPeriod.id); }, [scrubPeriod?.id]);
 
+  const reasoningPlaces:{node:SurfaceNode;x:number;y:number;opacity:number}[]=[];
+  const reasonOccupied:{x:number;y:number}[]=[];
+  const surfaceBudget=surfaceWidth<640?4:8;
+  for(const node of orderedNodes(investigation?.nodes??[])){
+   const point=project(sph(latOf(node.c)+node.latOffset,angleOf(node.p)+node.angOffset,1.035));
+   if(point.z<.2||point.x<12||point.x>W-12||point.y<35||point.y>H-35)continue;
+   if(reasonOccupied.some(p=>Math.abs(p.x-point.x)<(surfaceWidth<640?240:150)&&Math.abs(p.y-point.y)<(surfaceWidth<640?90:45)))continue;
+   if(reasoningPlaces.length>=surfaceBudget)break;
+   reasoningPlaces.push({node,x:point.x,y:point.y,opacity:Math.min(1,.55+point.z*.45)});reasonOccupied.push(point);
+  }
   const lightX = CX - R * 0.38, lightY = CY - R * 0.42;
   const mapPlaces: { key:string; c:number; p:string; label:string; articles:number[]; x:number; y:number; kind:'conclusion'|'concept'|'article'; opacity:number }[] = [];
   const occupied: {x:number;y:number;width:number}[] = [];
@@ -386,7 +411,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
 
       <div className="relative">
       {immersive && <div className="map-zoom-controls" aria-label="Kartan zoomaus"><Button variant="outline" size="icon" aria-label="Lähennä karttaa" onClick={() => applyZoom(camera.current.zoom*1.25)}><Plus /></Button><Button variant="outline" size="icon" aria-label="Loitonna karttaa" onClick={() => applyZoom(camera.current.zoom/1.25)}><Minus /></Button></div>}
-      <svg ref={svgRef} data-zoom={zoom.toFixed(3)} data-detail={mapDetail(zoom)} viewBox={`0 0 ${W} ${H}`} className="h-auto w-full cursor-grab touch-none select-none rounded-xl bg-[var(--space)] outline-none focus-visible:ring-2 focus-visible:ring-primary active:cursor-grabbing" tabIndex={0}
+      <svg ref={svgRef} data-zoom={zoom.toFixed(3)} data-camera-x={offset.x.toFixed(3)} data-camera-y={offset.y.toFixed(3)} data-reasoning-depth={investigation?.depth} data-detail={mapDetail(zoom)} viewBox={`0 0 ${W} ${H}`} className="h-auto w-full cursor-grab touch-none select-none rounded-xl bg-[var(--space)] outline-none focus-visible:ring-2 focus-visible:ring-primary active:cursor-grabbing" tabIndex={0}
         aria-label="Pyöritettävä Atlas-pallo. Nuolinäppäimet kiertävät, plus ja miinus zoomaavat, välilyönti pysäyttää pyörityksen. Esc poistaa valinnan. Verkostonäkymä sulkeutuu vain Takaisin palloon -painikkeella."
         onKeyDown={(e) => {
           const k = e.key;
@@ -396,7 +421,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
           if (k === "+") applyZoom(camera.current.zoom * 1.15); if (k === "-") applyZoom(camera.current.zoom / 1.15);
           if (k === " ") setAuto((a) => !a); if (k === "Escape" && !lens) onClear();
         }}
-        onPointerDown={(e) => { if (e.button !== 0 || (e.target as Element).closest("[data-lens]")) return;
+        onPointerDown={(e) => { if (e.button !== 0 || (e.target as Element).closest("[data-lens], [data-investigation-source]")) return;
           pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
           if (pointers.current.size === 2) { clearPress(); drag.current = null; suppressClick.current = true; const [a, b] = [...pointers.current.values()]; if (a && b) pinch.current = { distance: Math.hypot(a.x-b.x,a.y-b.y), center: { x:(a.x+b.x)/2,y:(a.y+b.y)/2 } }; e.currentTarget.setPointerCapture(e.pointerId); return; }
           drag.current = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false }; vel.current = { y: 0, p: 0 }; target.current = null; suppressClick.current = false; e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -419,6 +444,9 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
           if (lensFired.current) return;
           if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
           if (d && !d.moved) {
+            const reasoningKey=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-investigation-place]')?.getAttribute('data-investigation-place');
+            const reasoningPlace=reasoningPlaces.find(p=>p.node.key===reasoningKey);
+            if(reasoningPlace){onInvestigationPick?.(reasoningPlace.node,{x:reasoningPlace.x,y:reasoningPlace.y});suppressClick.current=true;return;}
             const detailKey = document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-map-place]')?.getAttribute('data-map-place');
             const detail = mapPlaces.find(n => n.key === detailKey);
             if (detail) { onMapDetail?.({ c:detail.c,p:detail.p,label:detail.label,articles:detail.articles }); suppressClick.current = true; return; }
@@ -646,13 +674,23 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
         <ellipse cx={lightX + R * 0.1} cy={lightY + R * 0.02} rx={R * 0.22} ry={R * 0.11} transform={`rotate(-35 ${lightX + R * 0.1} ${lightY + R * 0.02})`} fill="var(--foreground)" opacity="0.08" pointerEvents="none" />
         </g>
 
-        <g data-map-labels>
+        <g data-map-labels visibility={investigation&&investigation.depth>0&&!investigation.missingRoot?"hidden":undefined}>
           {mapPlaces.map(place => <g key={place.key} data-map-place={place.key} role="button" tabIndex={0} aria-label={`${place.label} · ${place.kind === 'concept' ? 'kirjattu käsite' : place.kind === 'article' ? 'artikkeliviite' : 'päätelmä'}`} className={`map-place map-${place.kind}`} opacity={place.opacity}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onMapDetail?.({ c:place.c,p:place.p,label:place.label,articles:place.articles }); } }}>
             <title>{place.label} · {perMap.get(place.p)?.label} · artikkelit {place.articles.join(', ')}</title>
             <circle cx={place.x} cy={place.y} r={place.kind === 'conclusion' ? 3 : 2} />
             <text x={place.x > W/2 ? place.x-7 : place.x+7} y={place.y+4} textAnchor={place.x > W/2 ? 'end' : 'start'}>{place.label.length > 35 ? place.label.slice(0,34)+'…' : place.label}</text>
           </g>)}
+        </g>
+        <g data-investigation-labels aria-label="Valitun kysymyksen perustelut">
+         {reasoningPlaces.map(({node,x,y,opacity})=>{
+          const labelLimit=surfaceWidth<640?24:32;
+          const label=node.label.length>labelLimit?node.label.slice(0,labelLimit-1)+'…':node.label;
+          const badge=node.kind==='mechanism'?'Ehdotettu yhteys':node.relation==='limits'?'Rajaa väitettä':node.relation==='challenges'?'Haastaa väitteen':node.kind==='evidence'?'Havainto':node.kind==='source'?'Alkuperäislähde':node.kind==='statement'?'Väite':'Määritelty käsite';
+          const glyph=<><circle cx={x} cy={y} r={surfaceWidth<640?42:15} className="investigation-hit"/><circle cx={x} cy={y} r="5"/><text x={x>W/2?x-10:x+10} y={y-4} textAnchor={x>W/2?'end':'start'}>{label}</text><text x={x>W/2?x-10:x+10} y={y+12} textAnchor={x>W/2?'end':'start'} className="investigation-badge">{badge}</text></>;
+          return node.href?<a key={node.key} data-investigation-source href={node.href} target="_blank" rel="noreferrer" className="investigation-place" style={{opacity}} aria-label={node.label}>{glyph}</a>:
+           <g key={node.key} data-investigation-place={node.key} role="button" tabIndex={0} className={`investigation-place ${node.relation==='limits'||node.relation==='challenges'?'investigation-caution':''}`} opacity={opacity} aria-label={`${node.label} · ${badge}`} onFocus={()=>onInvestigationPreview?.(node)} onPointerEnter={()=>onInvestigationPreview?.(node)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();onInvestigationPick?.(node,{x,y})}}}><title>{node.reason}</title>{glyph}</g>;
+         })}
         </g>
         {hoverPoint && (() => {
           const c = conMap.get(hoverPoint.cell.c), per = perMap.get(hoverPoint.cell.p);
@@ -877,3 +915,7 @@ function Segments({ pts, path, strong }: { pts: { x: number; y: number; z: numbe
 }
 
 export type { Cell };
+
+
+// Contextual HUD updates do not reproject the terrain; camera changes still render normally.
+export const AtlasSphere=memo(AtlasSphereInner);

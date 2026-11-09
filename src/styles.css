@@ -236,3 +236,35 @@
 @media(max-width:640px){.map-selection{position:relative;bottom:auto;right:auto;width:auto;margin:12px}.map-zoom-controls{top:12px;right:12px}.map-place text{font-size:17px}.map-conclusion text{font-size:18px}.map-article text{font-size:16px}}
 @media(max-width:640px){.is-surface{min-height:720px;display:block;overflow:hidden}.is-surface .sphere-immersive>div.relative svg{height:530px}.surface-navigation{left:8px;right:8px;gap:6px}.surface-navigation nav{max-width:55%}.surface-navigation nav button{font-size:10px;max-width:145px;padding:4px}.surface-navigation>div{flex-wrap:wrap;justify-content:flex-end;max-width:45%}.surface-navigation>div button{font-size:10px}.surface-insight{left:12px;right:12px;bottom:12px;width:auto;max-height:190px}.surface-pages{bottom:214px;right:12px}.surface-label{font-size:15px}.surface-badge{font-size:11px}}
 @media(max-width:640px){.experience-hud{order:-1;max-height:220px;margin-top:12px}.experience-investigation{order:-1;margin-top:12px}.experience-hud .experience-claim{max-height:62px;overflow:auto}.experience-hud .experience-story-controls{margin-top:10px;padding-top:10px}.experience-hud h2{font-size:18px;margin-bottom:8px}.experience-hud .experience-eyebrow,.experience-hud .experience-chapter{margin-bottom:6px}.experience-hud .experience-caution{margin:8px 0}}
+
+
+/* Reasoning overlays share the persistent terrain and camera. */
+.investigation-status{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between;padding:8px 24px;font-size:11px;color:var(--muted-foreground);border-bottom:1px solid var(--border)}
+.investigation-hud{width:350px;max-height:calc(100% - 100px)}
+.investigation-breadcrumb{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+.investigation-breadcrumb button{font-size:10px;line-height:1.3;padding:3px 5px;border:1px solid var(--border);border-radius:4px;text-align:left;max-width:100%;overflow-wrap:anywhere}
+.investigation-breadcrumb [aria-current]{color:var(--primary);border-color:var(--primary)}
+.investigation-depths{display:flex;flex-wrap:wrap;gap:4px 8px;color:var(--muted-foreground);font-size:9px;margin-bottom:12px}
+.investigation-depths [aria-current]{color:var(--primary);text-decoration:underline}
+.investigation-questions{display:flex;gap:4px;flex-wrap:wrap;margin:10px 0}
+.investigation-questions button{font-size:10px;height:auto;padding:6px;white-space:normal}
+.investigation-summary{font-size:12px;line-height:1.55;margin:10px 0}
+.investigation-preview{font-size:11px;line-height:1.5;border-left:2px solid var(--primary);padding-left:8px;margin:12px 0}
+.investigation-notes{font-size:11px;line-height:1.5;color:var(--muted-foreground)}
+.investigation-notes p+p{margin-top:8px}
+.investigation-choices{margin:14px 0;border-top:1px solid var(--border)}
+.investigation-choices>div{padding:5px 0;border-bottom:1px solid var(--border)}
+.investigation-choices button{height:auto;white-space:normal;line-height:1.4;font-size:12px;padding:6px 0;width:100%;text-align:left;justify-content:space-between}
+.investigation-choices small{display:block;font-size:10px;color:var(--muted-foreground)}
+.investigation-choices a{font-size:12px;color:var(--primary);text-decoration:underline}
+.investigation-undated{display:flex;align-items:flex-start;gap:6px;font-size:10px;color:var(--muted-foreground);margin:10px 0}
+.investigation-place{cursor:pointer;outline:none;color:var(--primary)}
+.investigation-place circle{fill:currentColor;stroke:var(--space);stroke-width:2}
+.investigation-place .investigation-hit{fill:transparent;stroke:transparent;pointer-events:all}
+.investigation-place text{fill:var(--foreground);font-size:12px;font-weight:500;paint-order:stroke;stroke:var(--space);stroke-width:3px;stroke-linejoin:round}
+.investigation-place .investigation-badge{fill:var(--muted-foreground);font-size:9px;font-weight:400}
+.investigation-place:hover .investigation-hit,.investigation-place:focus .investigation-hit{stroke:var(--primary);stroke-width:1}
+.investigation-caution{color:var(--warning)}
+.article-evidence-item{padding:10px 0;border-bottom:1px solid var(--border)}
+.article-evidence-item h3{color:var(--primary);font-size:12px}
+@media(max-width:640px){.investigation-hud{max-height:460px;width:auto}.investigation-status{padding:8px 12px;font-size:10px}.investigation-place text{font-size:22px}.investigation-place .investigation-badge{font-size:14px}.investigation-choices button{min-height:40px}.investigation-hud .experience-claim{max-height:none;overflow:visible}}

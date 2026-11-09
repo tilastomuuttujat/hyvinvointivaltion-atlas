@@ -1,0 +1,52 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile,readdir} from 'node:fs/promises';
+import {JSDOM,VirtualConsole} from 'jsdom';
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function until(predicate,label){const deadline=Date.now()+10000;while(!predicate()){if(Date.now()>deadline)throw new Error(`Timed out: ${label}`);await pause(40)}}
+test('built experience preserves the sphere and follows the evidence all the way to its source',{timeout:60000},async()=>{
+ const snapshot=JSON.parse(await readFile(new URL('../public/data/atlas.json',import.meta.url),'utf8'));
+ const directory=new URL('../dist-pages/assets/',import.meta.url);
+ const entry=(await readdir(directory)).find(name=>/^index-.*\.js$/.test(name));
+ assert.ok(entry,'Run build:pages before test:experience');
+ const errors=[],requests=[],console=new VirtualConsole();console.on('jsdomError',error=>errors.push(error.message));
+ const dom=new JSDOM('<div id="root"></div>',{url:'https://example.org/hyvinvointivaltion-atlas/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:console});
+ const w=dom.window;
+ w.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){}});
+ w.requestAnimationFrame=()=>1;w.cancelAnimationFrame=()=>{};
+ w.fetch=async url=>{requests.push(String(url));return {ok:true,json:async()=>snapshot}};
+ try {
+  w.eval(await readFile(new URL(entry,directory),'utf8'));
+  await until(()=>w.document.querySelector('.atlas-experience'),'experience mount');
+  const scope=w.document.querySelector('.atlas-experience'),sphere=scope.querySelector('[data-testid="atlas-sphere"]'),svg=sphere.querySelector('svg[data-zoom]');
+  svg.getBoundingClientRect=()=>({left:0,top:0,width:680,height:600,right:680,bottom:600});
+  const click=element=>{assert.ok(element,'Missing clickable target');element.dispatchEvent(new w.MouseEvent('click',{bubbles:true}))};
+  const button=text=>[...scope.querySelectorAll('button')].find(b=>b.textContent===text);
+  const choose=label=>click([...scope.querySelectorAll('.investigation-choices button')].find(b=>b.textContent===label));
+  const expected=snapshot.treatments.filter(t=>t.conclusionId===1&&t.periodId==='p1'&&t.reviewStatus!=='rejected').length;
+  await until(()=>scope.querySelectorAll('.article-evidence-item').length===expected,'all article results');
+  assert.ok(expected>1);assert.equal(scope.querySelector('.article-evidence summary').textContent,`Artikkelien perustelut (${expected})`);
+  click(button('Aloita lähteistetty esimerkkipolku'));
+  await until(()=>svg.dataset.reasoningDepth==='2'&&button('Mihin tämä vaikuttaa?'),'concept layer');
+  const label=snapshot.evidence.concepts.find(c=>c.id==='sustained_return_to_work').label;
+  choose(label);await until(()=>svg.dataset.reasoningDepth==='3','explanation layer');
+  choose('Tukee: Tutkimustulos');await until(()=>svg.dataset.reasoningDepth==='4','observation layer');
+  assert.ok(scope.textContent.includes('8,0 prosenttiyksikköä'));
+  const observation=snapshot.evidence.observations.find(o=>o.id.includes('3664'));
+  choose(observation.title);await until(()=>svg.dataset.reasoningDepth==='5','source layer');
+  assert.ok([...scope.querySelectorAll('.investigation-choices a')].some(a=>a.href===observation.sourceUrl));
+  assert.equal(scope.querySelector('[aria-label="Sijainti selityspolulla"]').querySelectorAll('button').length,6);
+  const year=scope.querySelector('input[type="range"]').value;
+  svg.dispatchEvent(new w.WheelEvent('wheel',{deltaY:800,deltaMode:0,clientX:500,clientY:200,bubbles:true,cancelable:true}));
+  await until(()=>svg.dataset.reasoningDepth==='0','zoom out');
+  assert.equal(scope.querySelector('[aria-label="Sijainti selityspolulla"]').querySelectorAll('button').length,1);
+  svg.dispatchEvent(new w.WheelEvent('wheel',{deltaY:-800,deltaMode:0,clientX:500,clientY:200,bubbles:true,cancelable:true}));
+  await until(()=>svg.dataset.reasoningDepth==='5','restore source context');
+  assert.equal(scope.querySelector('[aria-label="Sijainti selityspolulla"]').querySelectorAll('button').length,6);
+  assert.equal(scope.querySelector('input[type="range"]').value,year);
+  assert.equal(scope.querySelector('[data-testid="atlas-sphere"]'),sphere);assert.equal(sphere.querySelector('svg[data-zoom]'),svg);
+  const range=scope.querySelector('input[type="range"]');Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype,'value').set.call(range,'2050');range.dispatchEvent(new w.Event('input',{bubbles:true}));range.dispatchEvent(new w.Event('change',{bubbles:true}));
+  await until(()=>scope.textContent.includes('Lähde liittyy valitun aikarajauksen ulkopuoliseen havaintoon.'),'temporal warning');
+  assert.deepEqual(errors,[]);assert.equal(requests.length,1);assert.ok(requests[0].endsWith('/data/atlas.json'));
+ } finally {dom.window.close()}
+});
