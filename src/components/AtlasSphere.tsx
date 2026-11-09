@@ -691,6 +691,119 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
       </div>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3 px-2 text-xs text-muted-foreground">
-        <label className="flex items-center gap-2">Zoom <input aria-label="Pallon zoom" className="accent-primary" type="ran
+        <label className="flex items-center gap-2">Zoom <input aria-label="Pallon zoom" className="accent-primary" type="range" min=".6" max="1.5" step=".05" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} /></label>
+        <label className="flex max-w-full items-center gap-2">Valitse piste
+          <select aria-label="Valitse pallon piste" className="min-w-0 max-w-[300px] rounded-md border border-border bg-card p-1.5 text-foreground" value=""
+            onChange={(e) => { const p = points.find((p) => p.id === e.target.value); if (p) pick(p.cell.c, p.cell.p); }}>
+            <option value="">Päätelmä · aikakausi · yhteystyyppi</option>
+            {points.map((p) => <option key={p.id} value={p.id}>{p.cell.c} · {perMap.get(p.cell.p)?.label} · {p.rel.label} ({p.cell[p.rel.key]})</option>)}
+          </select>
+        </label>
+      </div>
+      <div className="mx-2 mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded bg-primary shadow-[0_0_6px_var(--primary)]" />Aikajana 1850 → 2050</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-principle)" }} />Yhteinen artikkeli tai avainkäsite samalla aikakaudella</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-synth)" }} />Teemapolku</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 border-t border-dashed" style={{ borderColor: "var(--kind-hypo)" }} />Skenaarion takaisinmallinnus</span>
+        <span>Ontto piste = skenaario · koko = kytkentöjen määrä</span>
+      </div>
+      {selectedConclusion && (
+        <section className="mx-2 mt-4 rounded-xl border border-border bg-card/60 p-3 text-xs backdrop-blur" aria-label="Valinnan yhteydet ja aineistoaukot">
+          <h3 className="font-display text-sm text-foreground">Valinnan yhteydet ja aineistoaukot</h3>
+          <p className="mt-1 text-muted-foreground">
+            {gaps.length
+              ? <>Ei aineistoa jaksoilla: {gaps.map((g, i) => <span key={g.p.id}>{i ? ", " : ""}<span className="text-foreground">{g.p.label}</span></span>)}. Aikajanaa ei vedetä aukkojen yli.</>
+              : "Aineistoa on kaikilla jaksoilla."}
+          </p>
+          {related.length === 0
+            ? <p className="mt-2 text-muted-foreground">Ei aineistoperustaisia yhteyksiä muihin päätelmiin näillä rajauksilla.</p>
+            : (
+              <ul className="mt-2 max-h-56 space-y-1 overflow-auto pr-1">
+                {related.slice(0, 30).map((x) => (
+                  <li key={`${x.c}:${x.p}`}>
+                    <button onClick={() => pick(x.c, x.p)} className="w-full rounded-md px-2 py-1.5 text-left transition-colors hover:bg-secondary">
+                      <span className="text-muted-foreground">{perMap.get(x.p)?.label} · #{x.c}</span>{" "}
+                      <span className="text-foreground">{conMap.get(x.c)?.title}</span>
+                      <span className="block text-[11px] text-muted-foreground">
+                        {x.articles.length > 0 && <>Yhteiset art. {x.articles.join(", ")}</>}
+                        {x.articles.length > 0 && x.concepts.length > 0 && " · "}
+                        {x.concepts.length > 0 && <>Käsitteet: {x.concepts.join(", ")}</>}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+        </section>
+      )}
+      <p className="mx-2 mt-2 text-[11px] leading-relaxed text-muted-foreground/80">
+        Pituusaste = aikakausi, leveysaste = päätelmä, kerros = yhteystyyppi. Kaaret kuvaavat aineiston toimituksellisia kytkentöjä — ne eivät todista syy-yhteyttä.
+      </p>
+    </div>
+  );
+}
 
-... [truncated — file is 59316 bytes, showing first 51200]
+const clampP = (v: number) => Math.max(-1.3, Math.min(1.3, v));
+
+type MMProps = { center: number; concepts: { k: string; w: number }[]; outer: { c: number; concepts: Set<string>; arts: Set<number> }[];
+  title: (c: number) => string; hi: string | number | null; setHi: (v: string | number | null) => void; onPick: (c: number) => void };
+function MindMap({ center, concepts, outer, title, hi, setHi, onPick }: MMProps) {
+  const short = (t: string, n: number) => (t.length > n ? t.slice(0, n) + "…" : t);
+  const branches: { label: string; concept: boolean; kids: number[] }[] = concepts.map((k) => ({ label: k.k, concept: true, kids: outer.filter((o) => o.concepts.has(k.k)).map((o) => o.c).slice(0, 4) }));
+  const artOnly = outer.filter((o) => !o.concepts.size).map((o) => o.c);
+  if (artOnly.length) branches.push({ label: "Yhteiset artikkelit", concept: false, kids: artOnly.slice(0, 6) });
+  const sides: (typeof branches)[] = [[], []];
+  const load = [0, 0];
+  for (const b of [...branches].sort((x, y) => y.kids.length - x.kids.length)) { const i = load[0]! <= load[1]! ? 0 : 1; sides[i]!.push(b); load[i]! += Math.max(1, b.kids.length); }
+  const top = 90, bottom = H - 70;
+  return (
+    <g>
+      {sides.map((list, si) => {
+        const dir = si === 0 ? 1 : -1, bx = CX + dir * 130, kx = CX + dir * 195;
+        const slots = list.reduce((s, b) => s + Math.max(1, b.kids.length), 0) || 1;
+        const step = Math.min(34, (bottom - top) / slots);
+        let y = CY - (slots * step) / 2;
+        return list.map((b) => {
+          const n = Math.max(1, b.kids.length), by = y + (n * step) / 2;
+          const kidsY = b.kids.map((_, i) => y + step * (i + 0.5)); y += n * step;
+          const on = hi == null || hi === b.label || b.kids.some((k) => k === hi);
+          const col = b.concept ? "var(--kind-hypo)" : "var(--primary)";
+          const w = Math.min(150, b.label.length * 6 + 18);
+          return (
+            <g key={b.label} opacity={on ? 1 : 0.25}>
+              <path d={`M${CX + dir * 24},${CY} C${CX + dir * 80},${CY} ${bx - dir * 60},${by} ${bx - dir * w / 2},${by}`} fill="none" stroke={col} strokeWidth="2" strokeOpacity="0.6" />
+              {b.kids.map((k, i) => (
+                <g key={k} className="cursor-pointer" onPointerEnter={() => setHi(k)} onPointerLeave={() => setHi(null)} onClick={() => onPick(k)}>
+                  <title>{title(k)}</title>
+                  <path d={`M${bx + dir * w / 2},${by} C${bx + dir * (w / 2 + 30)},${by} ${kx - dir * 30},${kidsY[i]} ${kx - dir * 6},${kidsY[i]}`} fill="none" stroke={col} strokeOpacity="0.4" />
+                  <circle cx={kx} cy={kidsY[i]} r="4" fill="var(--card)" stroke="var(--foreground)" strokeOpacity="0.7" />
+                  <text x={kx + dir * 9} y={kidsY[i]! + 3.5} fontSize="9.5" textAnchor={dir > 0 ? "start" : "end"} fill="var(--foreground)" opacity="0.85">#{k} {short(title(k), 20)}</text>
+                </g>
+              ))}
+              <g onPointerEnter={() => setHi(b.label)} onPointerLeave={() => setHi(null)}>
+                <rect x={bx - w / 2} y={by - 11} width={w} height="22" rx="11" fill="var(--popover)" stroke={col} />
+                <text x={bx} y={by + 4} fontSize="10.5" textAnchor="middle" fill={col}>{short(b.label, 22)}</text>
+              </g>
+            </g>
+          );
+        });
+      })}
+      <g className="cursor-pointer" onClick={() => onPick(center)}>
+        <circle cx={CX} cy={CY} r="24" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5" filter="url(#glow)" />
+        <text x={CX} y={CY + 4} fontSize="12" textAnchor="middle" fill="var(--foreground)" fontWeight="600">#{center}</text>
+      </g>
+    </g>
+  );
+}
+
+function Segments({ pts, path, strong }: { pts: { x: number; y: number; z: number }[]; path: (p: { x: number; y: number }[]) => string; strong?: boolean }) {
+  const segs: { front: boolean; pts: typeof pts }[] = [];
+  for (const p of pts) {
+    const front = p.z >= 0, last = segs[segs.length - 1];
+    if (!last || last.front !== front) segs.push({ front, pts: last ? [last.pts[last.pts.length - 1]!, p] : [p] });
+    else last.pts.push(p);
+  }
+  return <>{segs.map((s, i) => <path key={i} d={path(s.pts)} stroke={strong ? "var(--primary)" : "var(--sphere-grid)"} strokeOpacity={s.front ? (strong ? 0.9 : 0.55) : 0.12} />)}</>;
+}
+
+export type { Cell };
