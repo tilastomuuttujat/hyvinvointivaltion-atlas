@@ -50,3 +50,52 @@ test('built experience preserves the sphere and follows the evidence all the way
   assert.deepEqual(errors,[]);assert.equal(requests.length,1);assert.ok(requests[0].endsWith('/data/atlas.json'));
  } finally {dom.window.close()}
 });
+
+test('reader can select conclusions, follow their comparison and inspect its basis on the same globe',{timeout:60000},async()=>{
+ const snapshot=JSON.parse(await readFile(new URL('../public/data/atlas.json',import.meta.url),'utf8'));
+ const directory=new URL('../dist-pages/assets/',import.meta.url),entry=(await readdir(directory)).find(name=>/^index-.*\.js$/.test(name));
+ assert.ok(entry,'Run build:pages before test:experience');
+ const errors=[],requests=[],console=new VirtualConsole();console.on('jsdomError',error=>errors.push(error.message));
+ const dom=new JSDOM('<div id="root"></div>',{url:'https://example.org/hyvinvointivaltion-atlas/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:console}),w=dom.window;
+ w.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){}});w.requestAnimationFrame=()=>1;w.cancelAnimationFrame=()=>{};
+ w.fetch=async url=>{requests.push(String(url));return {ok:true,json:async()=>snapshot}};
+ try{
+  w.eval(await readFile(new URL(entry,directory),'utf8'));await until(()=>w.document.querySelector('.atlas-experience'),'experience mount');
+  const scope=w.document.querySelector('.atlas-experience'),sphere=scope.querySelector('[data-testid="atlas-sphere"]'),svg=sphere.querySelector('svg[data-zoom]');
+  const button=text=>[...scope.querySelectorAll('button')].find(b=>b.textContent===text);
+  const click=e=>{assert.ok(e,'Missing button');e.click()};
+  click(button('Valitse vertailtavat päätelmät'));await until(()=>scope.querySelector('.comparison-picker'),'picker');
+  assert.equal(button('Näytä yhteydet ja erot').disabled,true);
+  for(const [i,id] of [1,2,25].entries()){
+   const input=scope.querySelector(`input[aria-label^="Päätelmä ${id}:"]`);assert.ok(input);input.click();
+   await until(()=>scope.querySelector('.comparison-picked').textContent.startsWith(`${i+1} / 3`),'checkbox selection');
+  }
+  assert.equal(scope.querySelector('input[aria-label^="Päätelmä 3:"]').disabled,true);
+  const search=scope.querySelector('input[type="search"]');Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype,'value').set.call(search,'ei-vastaavaa-aihetta-xyz');search.dispatchEvent(new w.Event('input',{bubbles:true}));
+  await until(()=>scope.querySelector('.comparison-catalog').children.length===0,'empty search');assert.ok(scope.querySelector('.comparison-picked').textContent.startsWith('3 / 3'));
+  click(button('Näytä yhteydet ja erot'));await until(()=>scope.querySelector('.comparison-narrative'),'comparison narrative');
+  assert.equal(scope.querySelectorAll('.comparison-legend>span').length,3);
+  assert.equal(button('Toista').disabled,true);
+  assert.ok(scope.textContent.includes('Yhteinen tausta on asiayhteys'));
+  const series=new Set([...svg.querySelectorAll('[data-sphere-point]')].map(n=>Number(n.getAttribute('data-sphere-point').split(':')[0])));assert.deepEqual([...series].sort((a,b)=>a-b),[1,2,25]);
+  assert.ok(svg.querySelectorAll('[data-comparison-series]').length>0);
+  for(const path of svg.querySelectorAll('[data-comparison-link] path'))assert.equal(path.getAttribute('marker-end'),null);
+  click(button('Jatka kertomusta →'));await until(()=>scope.querySelector('.comparison-table-scroll table'),'difference table');
+  assert.equal(scope.querySelectorAll('.comparison-table-scroll tbody tr').length,3);
+  click(button('Jatka kertomusta →'));await until(()=>scope.textContent.includes('Näille päätelmille ei löydy nykyistä kirjattua yhteisvaikutusketjua.'),'honest missing interaction');
+  click(button('Mihin tämä perustuu?'));await until(()=>scope.querySelectorAll('.comparison-basis details').length>0,'article basis');
+  assert.ok([...scope.querySelectorAll('.comparison-source a')].some(a=>a.href==='https://www.sjweh.fi/article/3664'));
+  const period=scope.querySelector('select[aria-label="Vertailun aikaväli"]');period.value='p6';period.dispatchEvent(new w.Event('change',{bubbles:true}));
+  await until(()=>scope.querySelector('.comparison-narrative .experience-eyebrow').textContent.includes('2010'),'comparison period');
+  assert.equal(scope.querySelectorAll('.comparison-legend>span').length,3);
+  assert.ok([...svg.querySelectorAll('[data-sphere-point]')].every(n=>n.getAttribute('data-sphere-point').split(':')[1]==='p6'));
+  assert.equal(scope.querySelector('[data-testid="atlas-sphere"]'),sphere);assert.equal(sphere.querySelector('svg[data-zoom]'),svg);
+  click(button('Muuta valintoja'));await until(()=>scope.querySelector('.comparison-picker'),'edit selection');
+  scope.querySelector('input[aria-label^="Päätelmä 2:"]').click();await until(()=>scope.querySelector('.comparison-picked').textContent.startsWith('2 / 3'),'remove one selection');
+  assert.equal(scope.querySelectorAll('.comparison-legend>span').length,3);
+  click(button('Näytä yhteydet ja erot'));await until(()=>scope.querySelectorAll('.comparison-legend>span').length===2,'apply new comparison');
+  assert.equal(scope.querySelector('select[aria-label="Vertailun aikaväli"]').value,'p6');
+  svg.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await until(()=>!scope.querySelector('.comparison-narrative'),'close comparison by keyboard');click(button('Palaa vertailuun'));await until(()=>scope.querySelectorAll('.comparison-legend>span').length===2,'resume comparison');
+  assert.deepEqual(errors,[]);assert.equal(requests.length,1);
+ }finally{dom.window.close()}
+});

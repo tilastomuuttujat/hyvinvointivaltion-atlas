@@ -1,3 +1,5 @@
+import {ConclusionPicker,ComparisonNarrative} from './ConclusionComparison';
+import {buildComparison} from '@/lib/atlas.comparison';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,6 +20,12 @@ export function AtlasExperience({ data }: { data: AtlasData }) {
  const [navigation,setNavigation]=useState<Navigation>(initialNavigation),[depth,setDepth]=useState(0),[zoom,setZoom]=useState(1),[manual,setManual]=useState(false);
  const [includeUndated,setIncludeUndated]=useState(false),[allAreas,setAllAreas]=useState(false),[preview,setPreview]=useState<NavNode|null>(null),[listLimit,setListLimit]=useState(8);
  const [zoomRequest,setZoomRequest]=useState<{id:number;zoom:number;anchor?:{x:number;y:number};focus?:{c:number;p:string}}>();
+ const [comparisonDraft,setComparisonDraft]=useState<number[]>([]),[comparisonIds,setComparisonIds]=useState<number[]>([]),[comparisonOn,setComparisonOn]=useState(false),[comparisonPicker,setComparisonPicker]=useState(false);
+ const [comparisonPhase,setComparisonPhase]=useState(0),[comparisonPeriod,setComparisonPeriod]=useState<string|null>(null),[comparisonFocus,setComparisonFocus]=useState<{c?:number;pair?:string;p:string}|null>(null);
+ const comparison=useMemo(()=>comparisonOn?buildComparison(data,comparisonIds,comparisonPeriod):null,[data,comparisonOn,comparisonIds,comparisonPeriod]);
+ const comparisonSurface=useMemo(()=>comparison?{ids:comparison.ids,phase:comparisonPhase,periodId:comparisonPeriod,links:comparison.links}:undefined,[comparison,comparisonPhase,comparisonPeriod]);
+ const closeComparison=useCallback(()=>setComparisonOn(false),[]);
+ const comparePick=useCallback((c:number,p:string)=>setComparisonFocus({c,p}),[]);
  const kinds=useMemo(()=>new Set(data.conclusions.map(c=>c.kind)),[data]);
  const era=data.periods.find(p=>p.id===period),chapter=story==null?undefined:ERA_STORIES[story];
  const top=data.cells.filter(c=>c.p===period).sort((a,b)=>b.articles-a.articles)[0];
@@ -40,9 +48,9 @@ export function AtlasExperience({ data }: { data: AtlasData }) {
  const chooseConclusion=useCallback((c:number,p:string)=>{const era=data.periods.find(x=>x.id===p);if(!era)return;setSelected(c);setNavigation(initialNavigation);setAllAreas(false);changeTime(p,era.end)},[data.periods,changeTime]);
  const chooseEra=useCallback((p:string)=>{const era=data.periods.find(x=>x.id===p);if(era)changeTime(p,era.start)},[data.periods,changeTime]);
  const clearConclusion=useCallback(()=>{setSelected(null);setStory(null);setMapFocus(null);setNavigation(initialNavigation)},[]);
- const investigationSurface=useMemo(()=>active&&prepared?{nodes:prepared.surfaces,intent:navigation.intent,depth,missingRoot:prepared.missingRoot}:undefined,[active,prepared,navigation.intent,depth]);
- const goStory=(index:number)=>{const p=data.periods[index],s=ERA_STORIES[index];if(!p||!s)return;setStory(index);setPeriod(p.id);setYear(p.start);setSelected(s.id);setMapFocus(null);setPreview(null);setNavigation(initialNavigation);setAllAreas(false)};
- const pilot=()=>{
+ const investigationSurface=useMemo(()=>!comparisonOn&&active&&prepared?{nodes:prepared.surfaces,intent:navigation.intent,depth,missingRoot:prepared.missingRoot}:undefined,[active,prepared,navigation.intent,depth,comparisonOn]);
+ const goStory=(index:number)=>{const p=data.periods[index],s=ERA_STORIES[index];if(!p||!s)return;if(comparisonOn){setComparisonPeriod(p.id);setComparisonFocus(null);return;}setStory(index);setPeriod(p.id);setYear(p.start);setSelected(s.id);setMapFocus(null);setPreview(null);setNavigation(initialNavigation);setAllAreas(false)};
+ const pilot=()=>{setComparisonOn(false);
   const path=paths[0];if(!path||!data.evidence)return;
   const statementId=path.steps.find(s=>data.evidence?.reasoning?.conclusionBridges.some(b=>b.statementId===s.statementId&&b.isCurrent&&b.reviewStatus!=='rejected'))?.statementId;
   const bridge=data.evidence.reasoning?.conclusionBridges.find(b=>b.statementId===statementId&&b.isCurrent&&b.reviewStatus!=='rejected');
@@ -51,20 +59,25 @@ export function AtlasExperience({ data }: { data: AtlasData }) {
   if(!bridge||!p)return;
   setSelected(bridge.conclusionId);changeTime(p.id,study!.start!);setManual(true);setAllAreas(false);setNavigation({intent:'effects',trail:conceptTrail(data.evidence,path.steps[0].conceptId)});requestZoom(zoomForStop({level:'concept',conceptId:path.steps[0].conceptId}),undefined,{c:bridge.conclusionId,p:p.id});
  };
+ const startComparison=()=>{if(comparisonDraft.length<2)return;setComparisonIds([...comparisonDraft]);setComparisonOn(true);setComparisonPhase(0);setComparisonFocus(null);setComparisonPicker(false)};
+ const changeComparisonPeriod=(p:string|null)=>{setComparisonPeriod(p);setComparisonFocus(null)};
+ const inspectComparison=(id:number)=>{const candidate=comparisonPeriod??comparisonFocus?.p??period;const p=data.cells.some(cell=>cell.c===id&&cell.p===candidate&&cell.direct+cell.context+cell.counter>0)?candidate!:comparison?.profiles.find(p=>p.conclusion.id===id)?.periodIds[0]??data.periods[0].id;setComparisonOn(false);setManual(false);chooseConclusion(id,p)};
  useEffect(()=>{setPreview(null);setListLimit(8)},[navigation,depth,period,includeUndated]);
  return <section className="atlas-experience" aria-label="Hyvinvointivaltion visuaalinen tutkimus">
-  <div className="experience-toolbar"><div className="flex flex-wrap items-center gap-2"><span className="flex items-center gap-2 text-sm text-primary"><BookOpen size={16}/>Tarinakatsaus</span><Button size="sm" variant="ghost" onClick={()=>{setManual(true);requestZoom(1.4)}}>Tutki selityksiä</Button>{paths.length>0&&<Button size="sm" variant="ghost" onClick={pilot}>Aloita lähteistetty esimerkkipolku</Button>}</div>
-   <label className="flex items-center gap-3 text-xs text-muted-foreground">Aikakone<input aria-label="Aikakone 1850–2050" className="w-40 accent-primary" type="range" min="1850" max="2050" value={year} onChange={e=>{const y=Number(e.target.value);changeTime(periodAt(data.periods,y)?.id??null,y)}}/><span className="w-8 text-primary tabular-nums">{year}</span></label>
+  <div className="experience-toolbar"><div className="flex flex-wrap items-center gap-2"><span className="flex items-center gap-2 text-sm text-primary"><BookOpen size={16}/>{comparison?"Vertaile päätelmiä":"Tarinakatsaus"}</span><Button size="sm" variant="default" aria-expanded={comparisonPicker} onClick={()=>setComparisonPicker(!comparisonPicker)}>Valitse vertailtavat päätelmät</Button><Button size="sm" variant="ghost" onClick={()=>{setComparisonOn(false);setManual(true);requestZoom(1.4)}}>Tutki selityksiä</Button>{paths.length>0&&<Button size="sm" variant="ghost" onClick={pilot}>Aloita lähteistetty esimerkkipolku</Button>}{!comparisonOn&&comparisonIds.length>1&&<Button size="sm" variant="ghost" onClick={()=>setComparisonOn(true)}>Palaa vertailuun</Button>}</div>
+   {comparison?<label className="comparison-window">Vertailun aikaväli<select value={comparisonPeriod??''} onChange={e=>changeComparisonPeriod(e.target.value||null)} aria-label="Vertailun aikaväli"><option value="">Koko aikajana 1850–2050</option>{data.periods.map(p=><option value={p.id} key={p.id}>{p.label}</option>)}</select></label>:<label className="flex items-center gap-3 text-xs text-muted-foreground">Aikakone<input aria-label="Aikakone 1850–2050" className="w-40 accent-primary" type="range" min="1850" max="2050" value={year} onChange={e=>{const y=Number(e.target.value);changeTime(periodAt(data.periods,y)?.id??null,y)}}/><span className="w-8 text-primary tabular-nums">{year}</span></label>}
   </div>
-  <div className="investigation-status"><span>Zoom {zoom.toFixed(2)}× · {prepared?.depthLabel??'Kokonaiskuva'}</span><span>Maaston korkeus kuvaa artikkelikytkentöjen tiheyttä, ei ilmiön voimakkuutta.</span></div>
+  {comparisonPicker&&<ConclusionPicker data={data} ids={comparisonDraft} onChange={setComparisonDraft} onStart={startComparison} onClose={()=>setComparisonPicker(false)}/>}
+  <div className="investigation-status"><span>Zoom {zoom.toFixed(2)}× · {comparison?'Päätelmien vertailu':prepared?.depthLabel??'Kokonaiskuva'}</span><span>Maaston korkeus kuvaa artikkelikytkentöjen tiheyttä, ei ilmiön voimakkuutta.</span></div>
   <div className="experience-field">
-   <AtlasSphere data={data} kinds={kinds} selected={selected} period={period} showContext immersive scrubYear={year} onMapDetail={setMapFocus}
+   <AtlasSphere data={data} kinds={kinds} selected={comparison?null:selected} period={comparison?comparisonPeriod:period} showContext immersive scrubYear={comparison?undefined:year} onMapDetail={setMapFocus}
     onEra={chooseEra} onLensChange={setLensOpen}
-    onPick={chooseConclusion} onClear={clearConclusion}
+    onPick={comparison?comparePick:chooseConclusion} onClear={comparison?closeComparison:clearConclusion} comparison={comparisonSurface} onComparisonFocus={setComparisonFocus}
     onZoomChange={reportZoom} zoomRequest={zoomRequest}
     investigation={investigationSurface}
     onInvestigationPick={pickSurface} onInvestigationPreview={setPreview}/>
-   {!lensOpen&&<article className={`experience-hud ${active?'investigation-hud':''}`} aria-label={active?'Valitun kysymyksen selitys':'Aikakauden oivallus'}>
+   {!lensOpen&&<article className={`experience-hud ${comparison?'comparison-hud':active?'investigation-hud':''}`} aria-label={comparison?'Päätelmien vertailu':active?'Valitun kysymyksen selitys':'Aikakauden oivallus'}>
+    {comparison?<ComparisonNarrative data={data} report={comparison} phase={comparisonPhase} onPhase={setComparisonPhase} onInspect={inspectComparison} onEdit={()=>setComparisonPicker(true)} onExit={closeComparison} onPeriod={changeComparisonPeriod} focus={comparisonFocus} editing={comparisonPicker}/>:<>
     <p className="experience-eyebrow">{era?.label??'1850–2050'} · {era&&era.start>=2026?'Mahdollinen tulevaisuus':'Historiallinen tarkastelu'}</p>
     {active&&prepared?<>
      <nav aria-label="Sijainti selityspolulla" className="investigation-breadcrumb">{prepared.trail.map((s,i)=><button type="button" key={JSON.stringify(s)} aria-current={i===prepared.trail.length-1?'page':undefined} onClick={()=>goBack(i)}>{stopLabel(s,data.evidence!)}</button>)}</nav>
@@ -94,9 +107,11 @@ export function AtlasExperience({ data }: { data: AtlasData }) {
      {!treatmentsLoading&&!treatmentsError&&shown.length===0&&<p>Aineistoaukko: tälle jaksolle ei ole kirjattua artikkeliperustelua.</p>}
      {shown.map((t,i)=><section key={`${t.articleNo}:${t.periodId}:${t.relation}:${i}`} className="article-evidence-item"><h3>Artikkeli {t.articleNo}: {t.articleTitle}</h3><p>{t.treatment}</p><p>{t.evidence}</p><p>{t.limitations}</p><p>Tarkistus: {t.reviewStatus==='accepted'?'hyväksytty':'odottaa tarkistusta'} · {t.relation==='counterevidence'?'vastanäyttö':t.relation==='context'?'taustoittava':'suora kytkentä'}</p></section>)}
     </details>
+    </>}
    </article>}
-   {!lensOpen&&mapFocus&&!active&&<article className="map-selection" aria-label="Kartan kirjattu käsite"><div className="flex items-start justify-between gap-3"><h3>{mapFocus.label}</h3><Button size="icon" variant="ghost" aria-label="Sulje käsitetieto" onClick={()=>setMapFocus(null)}><X/></Button></div><p>{data.periods.find(p=>p.id===mapFocus.p)?.label} · {data.conclusions.find(c=>c.id===mapFocus.c)?.title}</p><p className="text-primary">Kirjatut artikkelit: {mapFocus.articles.join(', ')}</p><p>Artikkeliaineiston käsitemerkintä · eri sanasto kuin määritellyt avainkäsitteet</p></article>}
+   {!comparison&&!lensOpen&&mapFocus&&!active&&<article className="map-selection" aria-label="Kartan kirjattu käsite"><div className="flex items-start justify-between gap-3"><h3>{mapFocus.label}</h3><Button size="icon" variant="ghost" aria-label="Sulje käsitetieto" onClick={()=>setMapFocus(null)}><X/></Button></div><p>{data.periods.find(p=>p.id===mapFocus.p)?.label} · {data.conclusions.find(c=>c.id===mapFocus.c)?.title}</p><p className="text-primary">Kirjatut artikkelit: {mapFocus.articles.join(', ')}</p><p>Artikkeliaineiston käsitemerkintä · eri sanasto kuin määritellyt avainkäsitteet</p></article>}
   </div>
   <nav className="experience-eras" aria-label="Historialliset murrokset">{data.periods.map((p,i)=><Button key={p.id} variant="ghost" aria-current={period===p.id?'step':undefined} onClick={()=>goStory(i)}><span>{p.label}</span><span>{ERA_STORIES[i]?.title}</span></Button>)}</nav>
  </section>;
 }
+
