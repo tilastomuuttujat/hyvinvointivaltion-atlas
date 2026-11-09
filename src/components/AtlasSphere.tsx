@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AtlasData, Cell } from "@/lib/atlas.functions";
 import { relatedConnections, timelineSegments } from "../lib/atlas.relationships";
-import { heightField, contourSegments } from "../lib/atlas.contours";
+import { heightField, contourSegments, contourFill } from "../lib/atlas.contours";
 import { STORYLINES, storylineStops, backcast, futurePeriods, periodAt } from "../lib/atlas.storylines";
+import { mapDetail, recordedMapDetails } from '@/lib/atlas.map-detail';
+import { Button } from '@/components/ui/button';
+import { Plus, Minus } from 'lucide-react';
+import { zoomCamera, wheelZoom, type Camera } from '@/lib/atlas.camera';
 
 type Relation = "direct" | "context" | "counter";
 const RELATIONS: { key: Relation; label: string; radius: number; color: string }[] = [
@@ -17,6 +21,7 @@ type Props = {
   onPick: (conclusion: number, period: string) => void; onClear: () => void;
   immersive?: boolean; onEra?: (period: string) => void; onLensChange?: (open: boolean) => void;
   scrubYear?: number;
+  onMapDetail?: (detail: { c: number; p: string; label: string; articles: number[] }) => void;
 };
 
 const W = 680, H = 600, CX = 340, CY = 300, BASE = 215;
@@ -28,8 +33,30 @@ const STARS = Array.from({ length: 140 }, (_, i) => {
   return { x: q(r(1) * W), y: q(r(2) * H), s: q(0.3 + r(3) * 1.2), o: q(0.2 + r(4) * 0.7), d: q(2 + r(5) * 5) };
 });
 
-export function AtlasSphere({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear }: Props) {
+export function AtlasSphere({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear, onMapDetail }: Props) {
   const [yaw, setYaw] = useState(-0.6), [pitch, setPitch] = useState(0.25), [zoom, setZoom] = useState(1);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const camera = useRef<Camera>({ zoom: 1, x: 0, y: 0 });
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ distance: number; center: { x: number; y: number } } | null>(null);
+  const applyZoom = (next: number, anchor = { x: CX, y: CY }) => {
+    const current = camera.current;
+    const c = zoomCamera(current, next, { x: anchor.x - CX, y: anchor.y - CY });
+    camera.current = c; setZoom(c.zoom); setOffset({ x: c.x, y: c.y });
+    setAuto(false);
+  };
+  useEffect(() => {
+    const el = svgRef.current; if (!el) return;
+    const wheel = (e: WheelEvent) => {
+      if ((e.target as Element).closest('[data-lens]')) return;
+      e.preventDefault();
+      const box = el.getBoundingClientRect();
+      applyZoom(wheelZoom(camera.current.zoom, e.deltaY, e.deltaMode), { x: (e.clientX - box.left) * W / box.width, y: (e.clientY - box.top) * H / box.height });
+    };
+    el.addEventListener('wheel', wheel, { passive: false });
+    return () => el.removeEventListener('wheel', wheel);
+  }, []);
   const [auto, setAuto] = useState(true);
   const [hideOthers, setHideOthers] = useState(false);
   const [layer, setLayer] = useState<"all" | Relation>("all");
@@ -90,7 +117,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
     const xx = x * Math.cos(yaw) + z * Math.sin(yaw), zz = -x * Math.sin(yaw) + z * Math.cos(yaw);
     const yy = y * Math.cos(pitch) - zz * Math.sin(pitch), depth = y * Math.sin(pitch) + zz * Math.cos(pitch);
     const s = (R * 3.8) / (3.8 - depth);
-    return { x: CX + xx * s, y: CY - yy * s, z: depth };
+    return { x: CX + offset.x + xx * s, y: CY + offset.y - yy * s, z: depth };
   }
   const path = (ps: { x: number; y: number }[]) => ps.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join("");
 
@@ -146,14 +173,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
     const vals = f.h.flat().filter((v) => v > f.max * 0.01).sort((a, b) => a - b);
     const q = (t: number) => vals[Math.floor(t * (vals.length - 1))] ?? f.max;
     const levels = [0.3, 0.5, 0.66, 0.8, 0.9, 0.96].map(q);
-    // Land raster: grid cells above sea level, tinted by elevation band
-    const land: { la0: number; la1: number; an0: number; an1: number; band: number }[] = [];
-    for (let i = 0; i < f.lats.length - 1; i++) for (let j = 0; j < f.angs.length - 1; j++) {
-      const v = (f.h[i]![j]! + f.h[i]![j + 1]! + f.h[i + 1]![j]! + f.h[i + 1]![j + 1]!) / 4;
-      let band = -1; levels.forEach((lv, k) => { if (v >= lv) band = k; });
-      if (band >= 0) land.push({ la0: f.lats[i]!, la1: f.lats[i + 1]!, an0: f.angs[j]!, an1: f.angs[j + 1]!, band });
-    }
-    return { land, lines: levels.map((lv, i) => ({ i, segs: contourSegments(f, lv) })) };
+    return { fills: levels.map((lv) => contourFill(f, lv)), lines: levels.map((lv, i) => ({ i, segs: contourSegments(f, lv) })) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, kinds, order]);
   const summits = useMemo(() => {
@@ -246,6 +266,29 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
   useEffect(() => { if (scrubPeriod && !immersive) onEra?.(scrubPeriod.id); }, [scrubPeriod?.id]);
 
   const lightX = CX - R * 0.38, lightY = CY - R * 0.42;
+  const mapPlaces: { key:string; c:number; p:string; label:string; articles:number[]; x:number; y:number; kind:'conclusion'|'concept'|'article'; opacity:number }[] = [];
+  const occupied: {x:number;y:number;width:number}[] = [];
+  const candidates = [...cells].filter(c => inFocus(c.c,c.p)).sort((a,b) => Number(b.c === selected)-Number(a.c === selected) || b.articles-a.articles || a.c-b.c);
+  const reveal = (start:number) => Math.max(0,Math.min(1,(zoom-start)/.2));
+  for (const cell of candidates) {
+    const detail = recordedMapDetails(data.evidenceIndex ?? [],cell.c,cell.p);
+    const add = (label:string,kind:'conclusion'|'concept'|'article',lat:number,ang:number,articles:number[],opacity:number,key:string) => {
+      if(opacity <= 0) return;
+      const p = project(sph(lat,ang,1.015));
+      if(p.z < .25 || p.x < 8 || p.x > W-100 || p.y < 18 || p.y > H-20) return;
+      const width = Math.min(280,label.length*8)+10;
+      const left = p.x > W/2 ? p.x-width : p.x;
+      if(occupied.some(o => Math.abs(o.y-p.y)<26 && left < o.x+o.width && left+width > o.x)) return;
+      occupied.push({x:left,y:p.y,width});
+      mapPlaces.push({key,c:cell.c,p:cell.p,label,articles,x:p.x,y:p.y,kind,opacity});
+    };
+    const lat = latOf(cell.c), ang = angleOf(cell.p);
+    // These offsets are fixed in globe coordinates: zoom never rearranges the map.
+    add(conMap.get(cell.c)?.title ?? '', 'conclusion',lat,ang,detail.articles,reveal(1.25),`${cell.c}:${cell.p}:title`);
+    detail.concepts.forEach((concept,i) => add(concept.label,'concept',lat+(i+1)*.055,ang+.055,concept.articles,reveal(1.75),`${cell.c}:${cell.p}:concept:${i}`));
+    detail.articles.forEach((article,i) => add(`Artikkeli ${article}`,'article',lat-(i+1)*.05,ang-.045,[article],reveal(2.4),`${cell.c}:${cell.p}:article:${article}`));
+  }
+
 
   return (
     <div className={`w-full ${immersive ? 'sphere-immersive' : ''}`} data-testid="atlas-sphere">
@@ -267,7 +310,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
           {auto ? "❚❚ Pysäytä pyöritys" : "▶ Pyöritä"}
         </button>
         <label className="flex items-center gap-2 text-muted-foreground"><input type="checkbox" className="accent-primary" checked={hideOthers} onChange={(e) => setHideOthers(e.target.checked)} />Vain liittyvät pisteet</label>
-        <button className="rounded-full border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground" onClick={() => { setYaw(-0.6); setPitch(0.25); setZoom(1); vel.current = { y: 0, p: 0 }; }}>Palauta asento</button>
+        <button className="rounded-full border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground" onClick={() => { setYaw(-0.6); setPitch(0.25); camera.current = {zoom:1,x:0,y:0}; setZoom(1); setOffset({x:0,y:0}); vel.current = { y: 0, p: 0 }; }}>Palauta asento</button>
         <button className="rounded-full border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-40" onClick={onClear} disabled={selected === null}>Näytä kokonaisuus</button>
       </div>
 
@@ -342,22 +385,27 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
       </p>
 
       <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full cursor-grab touch-none select-none rounded-xl bg-[var(--space)] outline-none focus-visible:ring-2 focus-visible:ring-primary active:cursor-grabbing" tabIndex={0}
+      {immersive && <div className="map-zoom-controls" aria-label="Kartan zoomaus"><Button variant="outline" size="icon" aria-label="Lähennä karttaa" onClick={() => applyZoom(camera.current.zoom*1.25)}><Plus /></Button><Button variant="outline" size="icon" aria-label="Loitonna karttaa" onClick={() => applyZoom(camera.current.zoom/1.25)}><Minus /></Button></div>}
+      <svg ref={svgRef} data-zoom={zoom.toFixed(3)} data-detail={mapDetail(zoom)} viewBox={`0 0 ${W} ${H}`} className="h-auto w-full cursor-grab touch-none select-none rounded-xl bg-[var(--space)] outline-none focus-visible:ring-2 focus-visible:ring-primary active:cursor-grabbing" tabIndex={0}
         aria-label="Pyöritettävä Atlas-pallo. Nuolinäppäimet kiertävät, plus ja miinus zoomaavat, välilyönti pysäyttää pyörityksen. Esc poistaa valinnan. Verkostonäkymä sulkeutuu vain Takaisin palloon -painikkeella."
-        onWheel={(e) => setZoom((v) => Math.max(0.6, Math.min(1.5, v - e.deltaY * 0.001)))}
         onKeyDown={(e) => {
           const k = e.key;
           if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "+", "-", "Escape", " "].includes(k)) e.preventDefault();
           if (k === "ArrowLeft") steer(-0.12, 0); if (k === "ArrowRight") steer(0.12, 0);
           if (k === "ArrowUp") steer(0, 0.1); if (k === "ArrowDown") steer(0, -0.1);
-          if (k === "+") setZoom((v) => Math.min(1.5, v + 0.1)); if (k === "-") setZoom((v) => Math.max(0.6, v - 0.1));
+          if (k === "+") applyZoom(camera.current.zoom * 1.15); if (k === "-") applyZoom(camera.current.zoom / 1.15);
           if (k === " ") setAuto((a) => !a); if (k === "Escape" && !lens) onClear();
         }}
-        onPointerDown={(e) => { if (e.button !== 0 || (e.target as Element).closest("[data-lens]")) return; drag.current = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false }; vel.current = { y: 0, p: 0 }; target.current = null; suppressClick.current = false; e.currentTarget.setPointerCapture?.(e.pointerId);
+        onPointerDown={(e) => { if (e.button !== 0 || (e.target as Element).closest("[data-lens]")) return;
+          pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (pointers.current.size === 2) { clearPress(); drag.current = null; suppressClick.current = true; const [a, b] = [...pointers.current.values()]; if (a && b) pinch.current = { distance: Math.hypot(a.x-b.x,a.y-b.y), center: { x:(a.x+b.x)/2,y:(a.y+b.y)/2 } }; e.currentTarget.setPointerCapture(e.pointerId); return; }
+          drag.current = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false }; vel.current = { y: 0, p: 0 }; target.current = null; suppressClick.current = false; e.currentTarget.setPointerCapture?.(e.pointerId);
           lensFired.current = false; clearPress();
           const hit = nearestAt(e.currentTarget, e.clientX, e.clientY);
           if (hit) pressTimer.current = setTimeout(() => { lensFired.current = true; suppressClick.current = true; setAuto(false); setLensHover(null); setLensTrail([]); setLens({ c: hit.cell.c, p: hit.cell.p, x: hit.x, y: hit.y, rel: hit.rel.label, relColor: hit.rel.color, count: hit.cell[hit.rel.key] }); target.current = -angleOf(hit.cell.p); }, 550); }}
         onPointerMove={(e) => {
+          if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x:e.clientX,y:e.clientY });
+          if (pinch.current) { const [a,b] = [...pointers.current.values()]; if (a && b) { const distance = Math.hypot(a.x-b.x,a.y-b.y); const box = e.currentTarget.getBoundingClientRect(); const center = { x:(a.x+b.x)/2,y:(a.y+b.y)/2 }; applyZoom(camera.current.zoom * distance / Math.max(1,pinch.current.distance), { x:(center.x-box.left)*W/box.width,y:(center.y-box.top)*H/box.height }); pinch.current = {distance,center}; } return; }
           const d = drag.current; if (!d) return;
           if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 5) { d.moved = true; clearPress(); }
           if (d.moved) { const dy = (e.clientX - d.x) * 0.008, dp = (e.clientY - d.y) * 0.008; steer(dy, dp); vel.current = { y: dy, p: dp }; }
@@ -365,16 +413,21 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
         }}
         onPointerUp={(e) => {
           clearPress();
+          pointers.current.delete(e.pointerId);
+          if (pinch.current) { if (pointers.current.size === 0) pinch.current = null; drag.current = null; suppressClick.current = true; return; }
           const d = drag.current; suppressClick.current = !!d?.moved || lensFired.current; drag.current = null;
           if (lensFired.current) return;
           if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
           if (d && !d.moved) {
+            const detailKey = document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-map-place]')?.getAttribute('data-map-place');
+            const detail = mapPlaces.find(n => n.key === detailKey);
+            if (detail) { onMapDetail?.({ c:detail.c,p:detail.p,label:detail.label,articles:detail.articles }); suppressClick.current = true; return; }
             const box = e.currentTarget.getBoundingClientRect(), x = ((e.clientX - box.left) * W) / box.width, y = ((e.clientY - box.top) * H) / box.height;
             const near = visible.filter((p) => p.z > -0.2).map((p) => ({ p, d: Math.hypot(p.x - x, p.y - y) })).filter((v) => v.d < 12).sort((a, b) => a.d - b.d || b.p.z - a.p.z)[0];
             if (near) { pick(near.p.cell.c, near.p.cell.p); suppressClick.current = true; }
           }
         }}
-        onPointerCancel={() => { clearPress(); drag.current = null; suppressClick.current = true; }}
+        onPointerCancel={(e) => { pointers.current.delete(e.pointerId); pinch.current = null; clearPress(); drag.current = null; suppressClick.current = true; }}
         onPointerLeave={() => setHover(null)}>
         <title>Atlas-pallo: aikakaudet, päätelmät ja kytkentöjen laji</title>
         <defs>
@@ -411,9 +464,11 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
         </g>
 
         {/* Sphere body with lighting */}
+        <g transform={`translate(${offset.x} ${offset.y})`}>
         <circle cx={CX} cy={CY} r={R * 1.3} fill="url(#sph-rim)" pointerEvents="none" />
         <ellipse cx={CX} cy={CY + R * 1.08} rx={R * 0.8} ry={R * 0.08} fill="var(--primary)" opacity="0.08" filter="url(#glow-strong)" pointerEvents="none" />
         <circle cx={CX} cy={CY} r={R * 0.98} fill="url(#sph-body)" pointerEvents="none" />
+        </g>
 
         {/* Graticule: back half faint, front half brighter */}
         <g fill="none" strokeWidth="0.7" pointerEvents="none">
@@ -431,15 +486,18 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
         {/* Contour topography: thin elevation lines, higher = more supporting articles */}
         {topo && (
           <g fill="none" pointerEvents="none" strokeLinecap="round">
-            {[0, 1, 2, 3, 4, 5].map((band) => {
+            {contours.fills.map((polys, band) => {
+              // Each elevation level is filled exactly up to its own contour line, so colour follows the outlines
               let d = "";
-              for (const q of contours.land) {
-                if (q.band !== band) continue;
-                const c = [project(sph(q.la0, q.an0, 0.972)), project(sph(q.la0, q.an1, 0.972)), project(sph(q.la1, q.an1, 0.972)), project(sph(q.la1, q.an0, 0.972))];
+              const r = 0.972 + band * 0.006;
+              for (const poly of polys) {
+                const c = poly.map(([la, an]) => project(sph(la, an, r)));
                 if (c.every((p) => p.z < 0)) continue;
                 d += `M${c.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join("L")}Z`;
               }
-              return <path key={`l${band}`} d={d} fill={band >= 4 ? "var(--kind-hypo)" : "var(--primary)"} fillOpacity={0.18 + band * 0.08} stroke="none" />;
+              const col = band >= 4 ? "var(--kind-hypo)" : "var(--primary)";
+              // Opaque per-cell pieces composited in a translucent group: no seams or double-tinted overlaps
+              return <g key={`l${band}`} opacity={band === 0 ? 0.16 : 0.09}><path d={d} fill={col} stroke={col} strokeWidth={0.6} strokeLinejoin="round" /></g>;
             })}
             {contours.lines.map(({ i, segs }) => {
               let d = "";
@@ -480,6 +538,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
           );
         })}
 
+        <g>
         {/* Points (back to front) */}
         {visible.map((p) => {
           const active = selected === null || p.cell.c === selected;
@@ -580,10 +639,21 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
           );
         })}
 
+        </g>
         {/* Specular gloss on top */}
+        <g transform={`translate(${offset.x} ${offset.y})`}>
         <circle cx={CX} cy={CY} r={R * 0.98} fill="url(#sph-spec)" pointerEvents="none" />
         <ellipse cx={lightX + R * 0.1} cy={lightY + R * 0.02} rx={R * 0.22} ry={R * 0.11} transform={`rotate(-35 ${lightX + R * 0.1} ${lightY + R * 0.02})`} fill="var(--foreground)" opacity="0.08" pointerEvents="none" />
+        </g>
 
+        <g data-map-labels>
+          {mapPlaces.map(place => <g key={place.key} data-map-place={place.key} role="button" tabIndex={0} aria-label={`${place.label} · ${place.kind === 'concept' ? 'kirjattu käsite' : place.kind === 'article' ? 'artikkeliviite' : 'päätelmä'}`} className={`map-place map-${place.kind}`} opacity={place.opacity}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onMapDetail?.({ c:place.c,p:place.p,label:place.label,articles:place.articles }); } }}>
+            <title>{place.label} · {perMap.get(place.p)?.label} · artikkelit {place.articles.join(', ')}</title>
+            <circle cx={place.x} cy={place.y} r={place.kind === 'conclusion' ? 3 : 2} />
+            <text x={place.x > W/2 ? place.x-7 : place.x+7} y={place.y+4} textAnchor={place.x > W/2 ? 'end' : 'start'}>{place.label.length > 35 ? place.label.slice(0,34)+'…' : place.label}</text>
+          </g>)}
+        </g>
         {hoverPoint && (() => {
           const c = conMap.get(hoverPoint.cell.c), per = perMap.get(hoverPoint.cell.p);
           const bx = Math.min(W - 300, Math.max(10, hoverPoint.x + 14)), by = Math.max(10, hoverPoint.y - 62);
@@ -626,184 +696,6 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
               {opos.filter((o) => o.arts.size).map((o) => (
                 <line key={"a" + o.c} x1={CX} y1={CY} x2={o.x} y2={o.y} stroke="var(--primary)" strokeWidth={1 + Math.min(3, o.arts.size)} strokeOpacity={lit(o.c) ? 0.35 : 0.05} strokeDasharray="4 7" className="atlas-flow" pointerEvents="none" />
               ))}
-              {concepts.map((k) => { const p = cpos.get(k.k)!; const on = lit(k.k);
-                return <line key={"c" + k.k} x1={CX} y1={CY} x2={p.x} y2={p.y} stroke="var(--primary)" strokeWidth={1 + k.w} strokeOpacity={on ? 0.7 : 0.1} className="atlas-flow" strokeDasharray="6 5" pointerEvents="none" />; })}
-              {opos.map((o) => { const on = lit(o.c) || [...o.concepts].some((k) => hi === k);
-                return (
-                  <g key={o.c} className="cursor-pointer" opacity={hi == null || on ? 1 : 0.25} onPointerEnter={() => setLensHover(o.c)} onPointerLeave={() => setLensHover(null)}
-                    onClick={() => lensGo(o.c)}>
-                    <title>{conMap.get(o.c)?.title}</title>
-                    <circle cx={o.x} cy={o.y} r={6 + Math.min(6, (o.concepts.size + o.arts.size) * 1.4)} fill="var(--card)" stroke="var(--foreground)" strokeOpacity="0.6" />
-                    <text x={o.x} y={o.y + 3.5} fontSize="9" textAnchor="middle" fill="var(--foreground)">{o.c}</text>
-                    <text x={o.x} y={o.y + (o.y > CY ? 26 : -16)} fontSize="9.5" textAnchor="middle" fill="var(--muted-foreground)">{short(conMap.get(o.c)?.title ?? "", 26)}</text>
-                  </g>
-                ); })}
-              {concepts.map((k) => { const p = cpos.get(k.k)!; const on = lit(k.k);
-                const w = Math.min(150, k.k.length * 6 + 18);
-                return (
-                  <g key={"n" + k.k} opacity={on ? 1 : 0.3} onPointerEnter={() => setLensHover(k.k)} onPointerLeave={() => setLensHover(null)} className="cursor-default">
-                    <rect x={p.x - w / 2} y={p.y - 11} width={w} height="22" rx="11" fill="var(--popover)" stroke="var(--kind-hypo)" strokeWidth={1 + k.w * 0.5} filter={hi === k.k ? "url(#glow)" : undefined} />
-                    <text x={p.x} y={p.y + 4} fontSize="10.5" textAnchor="middle" fill="var(--kind-hypo)">{short(k.k, 22)}</text>
-                  </g>
-                ); })}
-              <g className="cursor-pointer" onClick={() => lensGo(lens.c)}>
-                <circle cx={CX} cy={CY} r="30" fill="var(--primary)" opacity="0.18" className="atlas-pulse" pointerEvents="none" />
-                <circle cx={CX} cy={CY} r="24" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5" filter="url(#glow)" />
-                <text x={CX} y={CY + 4} fontSize="12" textAnchor="middle" fill="var(--foreground)" fontWeight="600">#{lens.c}</text>
-              </g>
-              </>}
-              <text x="20" y="30" fontSize="13" fill="var(--foreground)" className="font-display">{short(c0?.title ?? "", 52)}</text>
-              <text x="20" y="66" fontSize="10.5" fill="var(--muted-foreground)">Painettu kohta: <tspan fill={lens.relColor}>●</tspan> {per?.label} · {lens.rel} · {lens.count} kytkentää — merkitty pallolle sykkivällä renkaalla</text>
-              <g fontSize="10.5">
-                {(["network", "mindmap"] as const).map((m, i) => (
-                  <g key={m} className="cursor-pointer" onClick={() => { setLensMode(m); setLensHover(null); }}>
-                    <rect x={W - 196 + i * 92} y="16" width="88" height="24" rx="12" fill={lensMode === m ? "var(--primary)" : "var(--card)"} stroke="var(--border)" />
-                    <text x={W - 152 + i * 92} y="32" textAnchor="middle" fill={lensMode === m ? "var(--primary-foreground)" : "var(--muted-foreground)"}>{m === "network" ? "Verkosto" : "Mielikartta"}</text>
-                  </g>
-                ))}
-              </g>
-              <g fontSize="11" className="cursor-pointer">
-                <g onClick={() => setLens(null)} className="cursor-pointer transition-opacity hover:opacity-80">
-                  <title>Sulje verkostonäkymä ja palaa pallonäkymään</title>
-                  <rect x={W - 196} y="48" width="180" height="26" rx="13" fill="var(--card)" stroke="var(--primary)" strokeWidth="1.5" />
-                  <text x={W - 106} y="65" textAnchor="middle" fill="var(--primary)" fontWeight="600">◐ Takaisin palloon</text>
-                </g>
-                {lensTrail.length > 0 && (
-                  <g onClick={lensBack}>
-                    <rect x={W - 196} y="80" width="180" height="24" rx="12" fill="var(--card)" stroke="var(--border)" />
-                    <text x={W - 106} y="96" textAnchor="middle" fill="var(--muted-foreground)">‹ Edellinen (#{lensTrail[lensTrail.length - 1]})</text>
-                  </g>
-                )}
-              </g>
-              {lensTrail.length > 0 && <text x="20" y="84" fontSize="10" fill="var(--muted-foreground)">Polku: {[...lensTrail, lens.c].slice(-6).map((c) => `#${c}`).join(" → ")}</text>}
-              <text x="20" y="48" fontSize="10.5" fill="var(--muted-foreground)">{lensMode === "network" ? "Käsiteverkko" : "Mielikartta"} · {per?.label} · {lensGraph.articles} artikkelia · {concepts.length} käsitettä · {outer.length} kytkettyä päätelmää</text>
-              {!concepts.length && !outer.length && <text x={CX} y={CY + 60} fontSize="11" textAnchor="middle" fill="var(--muted-foreground)">Tälle aikakaudelle ei ole kirjattu käsitelinkkejä</text>}
-              <g fontSize="10" fill="var(--muted-foreground)">
-                <rect x="20" y={H - 52} width="18" height="10" rx="5" fill="none" stroke="var(--kind-hypo)" /><text x="44" y={H - 43}>avainkäsite</text>
-                <circle cx="124" cy={H - 47} r="5" fill="var(--card)" stroke="var(--foreground)" /><text x="134" y={H - 43}>päätelmä, jolla sama käsite</text>
-                <line x1="290" y1={H - 47} x2="312" y2={H - 47} stroke="var(--primary)" strokeDasharray="4 4" /><text x="318" y={H - 43}>yhteinen artikkeli</text>
-                <text x="20" y={H - 22}>Vie osoitin käsitteen päälle korostaaksesi sen yhteydet · klikkaa päätelmää siirtyäksesi siihen · paluu vain ◐ Takaisin palloon -painikkeella</text>
-              </g>
-            </g>
-          );
-        })()}
-      </svg>
-      </div>
+              {concepts.map((k) => { const
 
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3 px-2 text-xs text-muted-foreground">
-        <label className="flex items-center gap-2">Zoom <input aria-label="Pallon zoom" className="accent-primary" type="range" min=".6" max="1.5" step=".05" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} /></label>
-        <label className="flex max-w-full items-center gap-2">Valitse piste
-          <select aria-label="Valitse pallon piste" className="min-w-0 max-w-[300px] rounded-md border border-border bg-card p-1.5 text-foreground" value=""
-            onChange={(e) => { const p = points.find((p) => p.id === e.target.value); if (p) pick(p.cell.c, p.cell.p); }}>
-            <option value="">Päätelmä · aikakausi · yhteystyyppi</option>
-            {points.map((p) => <option key={p.id} value={p.id}>{p.cell.c} · {perMap.get(p.cell.p)?.label} · {p.rel.label} ({p.cell[p.rel.key]})</option>)}
-          </select>
-        </label>
-      </div>
-      <div className="mx-2 mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded bg-primary shadow-[0_0_6px_var(--primary)]" />Aikajana 1850 → 2050</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-principle)" }} />Yhteinen artikkeli tai avainkäsite samalla aikakaudella</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-synth)" }} />Teemapolku</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 border-t border-dashed" style={{ borderColor: "var(--kind-hypo)" }} />Skenaarion takaisinmallinnus</span>
-        <span>Ontto piste = skenaario · koko = kytkentöjen määrä</span>
-      </div>
-      {selectedConclusion && (
-        <section className="mx-2 mt-4 rounded-xl border border-border bg-card/60 p-3 text-xs backdrop-blur" aria-label="Valinnan yhteydet ja aineistoaukot">
-          <h3 className="font-display text-sm text-foreground">Valinnan yhteydet ja aineistoaukot</h3>
-          <p className="mt-1 text-muted-foreground">
-            {gaps.length
-              ? <>Ei aineistoa jaksoilla: {gaps.map((g, i) => <span key={g.p.id}>{i ? ", " : ""}<span className="text-foreground">{g.p.label}</span></span>)}. Aikajanaa ei vedetä aukkojen yli.</>
-              : "Aineistoa on kaikilla jaksoilla."}
-          </p>
-          {related.length === 0
-            ? <p className="mt-2 text-muted-foreground">Ei aineistoperustaisia yhteyksiä muihin päätelmiin näillä rajauksilla.</p>
-            : (
-              <ul className="mt-2 max-h-56 space-y-1 overflow-auto pr-1">
-                {related.slice(0, 30).map((x) => (
-                  <li key={`${x.c}:${x.p}`}>
-                    <button onClick={() => pick(x.c, x.p)} className="w-full rounded-md px-2 py-1.5 text-left transition-colors hover:bg-secondary">
-                      <span className="text-muted-foreground">{perMap.get(x.p)?.label} · #{x.c}</span>{" "}
-                      <span className="text-foreground">{conMap.get(x.c)?.title}</span>
-                      <span className="block text-[11px] text-muted-foreground">
-                        {x.articles.length > 0 && <>Yhteiset art. {x.articles.join(", ")}</>}
-                        {x.articles.length > 0 && x.concepts.length > 0 && " · "}
-                        {x.concepts.length > 0 && <>Käsitteet: {x.concepts.join(", ")}</>}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-        </section>
-      )}
-      <p className="mx-2 mt-2 text-[11px] leading-relaxed text-muted-foreground/80">
-        Pituusaste = aikakausi, leveysaste = päätelmä, kerros = yhteystyyppi. Kaaret kuvaavat aineiston toimituksellisia kytkentöjä — ne eivät todista syy-yhteyttä.
-      </p>
-    </div>
-  );
-}
-
-const clampP = (v: number) => Math.max(-1.3, Math.min(1.3, v));
-
-type MMProps = { center: number; concepts: { k: string; w: number }[]; outer: { c: number; concepts: Set<string>; arts: Set<number> }[];
-  title: (c: number) => string; hi: string | number | null; setHi: (v: string | number | null) => void; onPick: (c: number) => void };
-function MindMap({ center, concepts, outer, title, hi, setHi, onPick }: MMProps) {
-  const short = (t: string, n: number) => (t.length > n ? t.slice(0, n) + "…" : t);
-  const branches: { label: string; concept: boolean; kids: number[] }[] = concepts.map((k) => ({ label: k.k, concept: true, kids: outer.filter((o) => o.concepts.has(k.k)).map((o) => o.c).slice(0, 4) }));
-  const artOnly = outer.filter((o) => !o.concepts.size).map((o) => o.c);
-  if (artOnly.length) branches.push({ label: "Yhteiset artikkelit", concept: false, kids: artOnly.slice(0, 6) });
-  const sides: (typeof branches)[] = [[], []];
-  const load = [0, 0];
-  for (const b of [...branches].sort((x, y) => y.kids.length - x.kids.length)) { const i = load[0]! <= load[1]! ? 0 : 1; sides[i]!.push(b); load[i]! += Math.max(1, b.kids.length); }
-  const top = 90, bottom = H - 70;
-  return (
-    <g>
-      {sides.map((list, si) => {
-        const dir = si === 0 ? 1 : -1, bx = CX + dir * 130, kx = CX + dir * 195;
-        const slots = list.reduce((s, b) => s + Math.max(1, b.kids.length), 0) || 1;
-        const step = Math.min(34, (bottom - top) / slots);
-        let y = CY - (slots * step) / 2;
-        return list.map((b) => {
-          const n = Math.max(1, b.kids.length), by = y + (n * step) / 2;
-          const kidsY = b.kids.map((_, i) => y + step * (i + 0.5)); y += n * step;
-          const on = hi == null || hi === b.label || b.kids.some((k) => k === hi);
-          const col = b.concept ? "var(--kind-hypo)" : "var(--primary)";
-          const w = Math.min(150, b.label.length * 6 + 18);
-          return (
-            <g key={b.label} opacity={on ? 1 : 0.25}>
-              <path d={`M${CX + dir * 24},${CY} C${CX + dir * 80},${CY} ${bx - dir * 60},${by} ${bx - dir * w / 2},${by}`} fill="none" stroke={col} strokeWidth="2" strokeOpacity="0.6" />
-              {b.kids.map((k, i) => (
-                <g key={k} className="cursor-pointer" onPointerEnter={() => setHi(k)} onPointerLeave={() => setHi(null)} onClick={() => onPick(k)}>
-                  <title>{title(k)}</title>
-                  <path d={`M${bx + dir * w / 2},${by} C${bx + dir * (w / 2 + 30)},${by} ${kx - dir * 30},${kidsY[i]} ${kx - dir * 6},${kidsY[i]}`} fill="none" stroke={col} strokeOpacity="0.4" />
-                  <circle cx={kx} cy={kidsY[i]} r="4" fill="var(--card)" stroke="var(--foreground)" strokeOpacity="0.7" />
-                  <text x={kx + dir * 9} y={kidsY[i]! + 3.5} fontSize="9.5" textAnchor={dir > 0 ? "start" : "end"} fill="var(--foreground)" opacity="0.85">#{k} {short(title(k), 20)}</text>
-                </g>
-              ))}
-              <g onPointerEnter={() => setHi(b.label)} onPointerLeave={() => setHi(null)}>
-                <rect x={bx - w / 2} y={by - 11} width={w} height="22" rx="11" fill="var(--popover)" stroke={col} />
-                <text x={bx} y={by + 4} fontSize="10.5" textAnchor="middle" fill={col}>{short(b.label, 22)}</text>
-              </g>
-            </g>
-          );
-        });
-      })}
-      <g className="cursor-pointer" onClick={() => onPick(center)}>
-        <circle cx={CX} cy={CY} r="24" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5" filter="url(#glow)" />
-        <text x={CX} y={CY + 4} fontSize="12" textAnchor="middle" fill="var(--foreground)" fontWeight="600">#{center}</text>
-      </g>
-    </g>
-  );
-}
-
-function Segments({ pts, path, strong }: { pts: { x: number; y: number; z: number }[]; path: (p: { x: number; y: number }[]) => string; strong?: boolean }) {
-  const segs: { front: boolean; pts: typeof pts }[] = [];
-  for (const p of pts) {
-    const front = p.z >= 0, last = segs[segs.length - 1];
-    if (!last || last.front !== front) segs.push({ front, pts: last ? [last.pts[last.pts.length - 1]!, p] : [p] });
-    else last.pts.push(p);
-  }
-  return <>{segs.map((s, i) => <path key={i} d={path(s.pts)} stroke={strong ? "var(--primary)" : "var(--sphere-grid)"} strokeOpacity={s.front ? (strong ? 0.9 : 0.55) : 0.12} />)}</>;
-}
-
-export type { Cell };
+... [truncated — file is 65487 bytes, showing first 51200]

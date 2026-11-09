@@ -23,7 +23,7 @@ export function heightField(peaks: Peak[], nLat = 40, nAng = 80, sigma = 0.22): 
   return { lats, angs, h, max };
 }
 
-/** Marching squares: line segments where the field crosses . */
+/** Marching squares: line segments where the field crosses `level`. */
 export function contourSegments(f: Field, level: number): Seg[] {
   const out: Seg[] = [];
   const { lats, angs, h } = f;
@@ -38,6 +38,31 @@ export function contourSegments(f: Field, level: number): Seg[] {
     if ((v0 >= level) !== (v3 >= level)) e.push([lerp(la0, la1, v0, v3), an0]);
     if (e.length >= 2) out.push([e[0]!, e[1]!]);
     if (e.length === 4) out.push([e[2]!, e[3]!]);
+  }
+  return out;
+}
+
+/** Filled region where the field is ≥ `level`, clipped per cell along the same interpolated edges as contourSegments. */
+export function contourFill(f: Field, level: number): [number, number][][] {
+  const out: [number, number][][] = [];
+  const { lats, angs, h } = f;
+  const t = (va: number, vb: number) => (level - va) / (vb - va || 1e-9);
+  for (let i = 0; i < lats.length - 1; i++) for (let j = 0; j < angs.length - 1; j++) {
+    const la0 = lats[i]!, la1 = lats[i + 1]!, an0 = angs[j]!, an1 = angs[j + 1]!;
+    const cs: [number, number, number][] = [
+      [la0, an0, h[i]![j]!], [la0, an1, h[i]![j + 1]!], [la1, an1, h[i + 1]![j + 1]!], [la1, an0, h[i + 1]![j]!],
+    ];
+    if (cs.every((c) => c[2] < level)) continue;
+    const poly: [number, number][] = [];
+    for (let k = 0; k < 4; k++) {
+      const a = cs[k]!, b = cs[(k + 1) % 4]!;
+      if (a[2] >= level) poly.push([a[0], a[1]]);
+      if ((a[2] >= level) !== (b[2] >= level)) {
+        const s = t(a[2], b[2]);
+        poly.push([a[0] + s * (b[0] - a[0]), a[1] + s * (b[1] - a[1])]);
+      }
+    }
+    if (poly.length >= 3) out.push(poly);
   }
   return out;
 }
