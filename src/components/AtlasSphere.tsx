@@ -15,6 +15,8 @@ type Props = {
   data: AtlasData; selected: number | null; period: string | null;
   kinds: Set<string>; showContext: boolean;
   onPick: (conclusion: number, period: string) => void; onClear: () => void;
+  immersive?: boolean; onEra?: (period: string) => void; onLensChange?: (open: boolean) => void;
+  scrubYear?: number;
 };
 
 const W = 680, H = 600, CX = 340, CY = 300, BASE = 215;
@@ -26,7 +28,7 @@ const STARS = Array.from({ length: 140 }, (_, i) => {
   return { x: q(r(1) * W), y: q(r(2) * H), s: q(0.3 + r(3) * 1.2), o: q(0.2 + r(4) * 0.7), d: q(2 + r(5) * 5) };
 });
 
-export function AtlasSphere({ data, selected, period, kinds, showContext, onPick, onClear }: Props) {
+export function AtlasSphere({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear }: Props) {
   const [yaw, setYaw] = useState(-0.6), [pitch, setPitch] = useState(0.25), [zoom, setZoom] = useState(1);
   const [auto, setAuto] = useState(true);
   const [hideOthers, setHideOthers] = useState(false);
@@ -47,6 +49,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
   const vel = useRef({ y: 0, p: 0 });
   const target = useRef<number | null>(null);
   const suppressClick = useRef(false);
+  useEffect(() => { onLensChange?.(lens != null); }, [lens, onLensChange]);
 
   // Smooth rotation loop: auto-spin, drag inertia, and easing to the selected point
   useEffect(() => {
@@ -175,7 +178,8 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
   const scenarioOptions = useMemo(() => data.conclusions.filter((c) => data.cells.some((x) => x.c === c.id && futureIds.has(x.p) && x.direct + x.context + x.counter > 0)), [data, futureIds]);
   const back = useMemo(() => (scenario != null ? backcast(data.periods, data.cells, data.evidenceIndex ?? [], scenario) : []), [scenario, data]);
   const backSet = useMemo(() => new Set(back.map((b) => `${b.c}:${b.p}`)), [back]);
-  const scrubPeriod = year != null ? periodAt(data.periods, year) : undefined;
+  const effectiveYear = scrubYear ?? year;
+  const scrubPeriod = effectiveYear != null ? periodAt(data.periods, effectiveYear) : undefined;
   const storySet = useMemo(() => new Set(story?.conclusions ?? []), [story]);
   const inFocus = (c: number, pid: string) => {
     if (story && !storySet.has(c)) return false;
@@ -237,13 +241,14 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
     onPick(c, p);
     target.current = -angleOf(p); // rotate chosen era to the front
   };
-  const focusYaw = selected != null && period ? -angleOf(period) : null;
-  useEffect(() => { if (focusYaw != null) target.current = focusYaw; }, [focusYaw]);
+  const focusYaw = period ? -angleOf(period) : null;
+  useEffect(() => { if (focusYaw != null) { target.current = focusYaw; setAuto(false); } }, [focusYaw]);
+  useEffect(() => { if (scrubPeriod && !immersive) onEra?.(scrubPeriod.id); }, [scrubPeriod?.id]);
 
   const lightX = CX - R * 0.38, lightY = CY - R * 0.42;
 
   return (
-    <div className="w-full" data-testid="atlas-sphere">
+    <div className={`w-full ${immersive ? 'sphere-immersive' : ''}`} data-testid="atlas-sphere">
       <div className="flex flex-wrap items-center gap-2 px-2 text-xs">
         <div className="flex overflow-hidden rounded-full border border-border bg-card/60 backdrop-blur" role="group" aria-label="Pallon kerros">
           {(["all", ...rels.map((r) => r.key)] as const).filter((v, i, a) => a.indexOf(v) === i).map((k) => {
@@ -499,7 +504,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
         })}
 
         {/* Causal arcs: shared-era evidence to other conclusions */}
-        {selected != null && causal.map((k, i) => {
+        {selected != null && causal.filter(k => !scrubPeriod || (perMap.get(k.p)?.start ?? 0) <= scrubPeriod.start).map((k, i) => {
           const a = location(selected, k.p, 0.97), b = location(k.c, k.p, 0.97);
           const pts = liftArc(a, b, 0.14);
           const front = pts[14]!.z > -0.15;
@@ -514,7 +519,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
         })}
 
         {/* Timeline arcs across eras for the selected conclusion */}
-        {selected != null && segments.map(([prev, t], i) => {
+        {selected != null && segments.filter(([, t]) => !scrubPeriod || t.p.start <= scrubPeriod.start).map(([prev, t], i) => {
           const a = location(selected, prev.p.id, 1.02), b = location(selected, t.p.id, 1.02);
           const pts = liftArc(a, b, 0.07 + 0.12 * ((prev.v + t.v) / (2 * tlMax)));
           const fut = t.p.start >= 2026;
@@ -528,7 +533,7 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
             </g>
           );
         })}
-        {selected != null && timeline.map((t) => {
+        {selected != null && timeline.filter(t => !scrubPeriod || t.p.start <= scrubPeriod.start).map((t) => {
           const v = project(location(selected, t.p.id, 1.02));
           const front = v.z > -0.2;
           const on = t.p.id === period;
@@ -686,119 +691,6 @@ export function AtlasSphere({ data, selected, period, kinds, showContext, onPick
       </div>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3 px-2 text-xs text-muted-foreground">
-        <label className="flex items-center gap-2">Zoom <input aria-label="Pallon zoom" className="accent-primary" type="range" min=".6" max="1.5" step=".05" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} /></label>
-        <label className="flex max-w-full items-center gap-2">Valitse piste
-          <select aria-label="Valitse pallon piste" className="min-w-0 max-w-[300px] rounded-md border border-border bg-card p-1.5 text-foreground" value=""
-            onChange={(e) => { const p = points.find((p) => p.id === e.target.value); if (p) pick(p.cell.c, p.cell.p); }}>
-            <option value="">Päätelmä · aikakausi · yhteystyyppi</option>
-            {points.map((p) => <option key={p.id} value={p.id}>{p.cell.c} · {perMap.get(p.cell.p)?.label} · {p.rel.label} ({p.cell[p.rel.key]})</option>)}
-          </select>
-        </label>
-      </div>
-      <div className="mx-2 mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded bg-primary shadow-[0_0_6px_var(--primary)]" />Aikajana 1850 → 2050</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-principle)" }} />Yhteinen artikkeli tai avainkäsite samalla aikakaudella</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded" style={{ background: "var(--kind-synth)" }} />Teemapolku</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 border-t border-dashed" style={{ borderColor: "var(--kind-hypo)" }} />Skenaarion takaisinmallinnus</span>
-        <span>Ontto piste = skenaario · koko = kytkentöjen määrä</span>
-      </div>
-      {selectedConclusion && (
-        <section className="mx-2 mt-4 rounded-xl border border-border bg-card/60 p-3 text-xs backdrop-blur" aria-label="Valinnan yhteydet ja aineistoaukot">
-          <h3 className="font-display text-sm text-foreground">Valinnan yhteydet ja aineistoaukot</h3>
-          <p className="mt-1 text-muted-foreground">
-            {gaps.length
-              ? <>Ei aineistoa jaksoilla: {gaps.map((g, i) => <span key={g.p.id}>{i ? ", " : ""}<span className="text-foreground">{g.p.label}</span></span>)}. Aikajanaa ei vedetä aukkojen yli.</>
-              : "Aineistoa on kaikilla jaksoilla."}
-          </p>
-          {related.length === 0
-            ? <p className="mt-2 text-muted-foreground">Ei aineistoperustaisia yhteyksiä muihin päätelmiin näillä rajauksilla.</p>
-            : (
-              <ul className="mt-2 max-h-56 space-y-1 overflow-auto pr-1">
-                {related.slice(0, 30).map((x) => (
-                  <li key={`${x.c}:${x.p}`}>
-                    <button onClick={() => pick(x.c, x.p)} className="w-full rounded-md px-2 py-1.5 text-left transition-colors hover:bg-secondary">
-                      <span className="text-muted-foreground">{perMap.get(x.p)?.label} · #{x.c}</span>{" "}
-                      <span className="text-foreground">{conMap.get(x.c)?.title}</span>
-                      <span className="block text-[11px] text-muted-foreground">
-                        {x.articles.length > 0 && <>Yhteiset art. {x.articles.join(", ")}</>}
-                        {x.articles.length > 0 && x.concepts.length > 0 && " · "}
-                        {x.concepts.length > 0 && <>Käsitteet: {x.concepts.join(", ")}</>}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-        </section>
-      )}
-      <p className="mx-2 mt-2 text-[11px] leading-relaxed text-muted-foreground/80">
-        Pituusaste = aikakausi, leveysaste = päätelmä, kerros = yhteystyyppi. Kaaret kuvaavat aineiston toimituksellisia kytkentöjä — ne eivät todista syy-yhteyttä.
-      </p>
-    </div>
-  );
-}
+        <label className="flex items-center gap-2">Zoom <input aria-label="Pallon zoom" className="accent-primary" type="ran
 
-const clampP = (v: number) => Math.max(-1.3, Math.min(1.3, v));
-
-type MMProps = { center: number; concepts: { k: string; w: number }[]; outer: { c: number; concepts: Set<string>; arts: Set<number> }[];
-  title: (c: number) => string; hi: string | number | null; setHi: (v: string | number | null) => void; onPick: (c: number) => void };
-function MindMap({ center, concepts, outer, title, hi, setHi, onPick }: MMProps) {
-  const short = (t: string, n: number) => (t.length > n ? t.slice(0, n) + "…" : t);
-  const branches: { label: string; concept: boolean; kids: number[] }[] = concepts.map((k) => ({ label: k.k, concept: true, kids: outer.filter((o) => o.concepts.has(k.k)).map((o) => o.c).slice(0, 4) }));
-  const artOnly = outer.filter((o) => !o.concepts.size).map((o) => o.c);
-  if (artOnly.length) branches.push({ label: "Yhteiset artikkelit", concept: false, kids: artOnly.slice(0, 6) });
-  const sides: (typeof branches)[] = [[], []];
-  const load = [0, 0];
-  for (const b of [...branches].sort((x, y) => y.kids.length - x.kids.length)) { const i = load[0]! <= load[1]! ? 0 : 1; sides[i]!.push(b); load[i]! += Math.max(1, b.kids.length); }
-  const top = 90, bottom = H - 70;
-  return (
-    <g>
-      {sides.map((list, si) => {
-        const dir = si === 0 ? 1 : -1, bx = CX + dir * 130, kx = CX + dir * 195;
-        const slots = list.reduce((s, b) => s + Math.max(1, b.kids.length), 0) || 1;
-        const step = Math.min(34, (bottom - top) / slots);
-        let y = CY - (slots * step) / 2;
-        return list.map((b) => {
-          const n = Math.max(1, b.kids.length), by = y + (n * step) / 2;
-          const kidsY = b.kids.map((_, i) => y + step * (i + 0.5)); y += n * step;
-          const on = hi == null || hi === b.label || b.kids.some((k) => k === hi);
-          const col = b.concept ? "var(--kind-hypo)" : "var(--primary)";
-          const w = Math.min(150, b.label.length * 6 + 18);
-          return (
-            <g key={b.label} opacity={on ? 1 : 0.25}>
-              <path d={`M${CX + dir * 24},${CY} C${CX + dir * 80},${CY} ${bx - dir * 60},${by} ${bx - dir * w / 2},${by}`} fill="none" stroke={col} strokeWidth="2" strokeOpacity="0.6" />
-              {b.kids.map((k, i) => (
-                <g key={k} className="cursor-pointer" onPointerEnter={() => setHi(k)} onPointerLeave={() => setHi(null)} onClick={() => onPick(k)}>
-                  <title>{title(k)}</title>
-                  <path d={`M${bx + dir * w / 2},${by} C${bx + dir * (w / 2 + 30)},${by} ${kx - dir * 30},${kidsY[i]} ${kx - dir * 6},${kidsY[i]}`} fill="none" stroke={col} strokeOpacity="0.4" />
-                  <circle cx={kx} cy={kidsY[i]} r="4" fill="var(--card)" stroke="var(--foreground)" strokeOpacity="0.7" />
-                  <text x={kx + dir * 9} y={kidsY[i]! + 3.5} fontSize="9.5" textAnchor={dir > 0 ? "start" : "end"} fill="var(--foreground)" opacity="0.85">#{k} {short(title(k), 20)}</text>
-                </g>
-              ))}
-              <g onPointerEnter={() => setHi(b.label)} onPointerLeave={() => setHi(null)}>
-                <rect x={bx - w / 2} y={by - 11} width={w} height="22" rx="11" fill="var(--popover)" stroke={col} />
-                <text x={bx} y={by + 4} fontSize="10.5" textAnchor="middle" fill={col}>{short(b.label, 22)}</text>
-              </g>
-            </g>
-          );
-        });
-      })}
-      <g className="cursor-pointer" onClick={() => onPick(center)}>
-        <circle cx={CX} cy={CY} r="24" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5" filter="url(#glow)" />
-        <text x={CX} y={CY + 4} fontSize="12" textAnchor="middle" fill="var(--foreground)" fontWeight="600">#{center}</text>
-      </g>
-    </g>
-  );
-}
-
-function Segments({ pts, path, strong }: { pts: { x: number; y: number; z: number }[]; path: (p: { x: number; y: number }[]) => string; strong?: boolean }) {
-  const segs: { front: boolean; pts: typeof pts }[] = [];
-  for (const p of pts) {
-    const front = p.z >= 0, last = segs[segs.length - 1];
-    if (!last || last.front !== front) segs.push({ front, pts: last ? [last.pts[last.pts.length - 1]!, p] : [p] });
-    else last.pts.push(p);
-  }
-  return <>{segs.map((s, i) => <path key={i} d={path(s.pts)} stroke={strong ? "var(--primary)" : "var(--sphere-grid)"} strokeOpacity={s.front ? (strong ? 0.9 : 0.55) : 0.12} />)}</>;
-}
-
-export type { Cell };
+... [truncated — file is 59316 bytes, showing first 51200]

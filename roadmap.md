@@ -1,0 +1,4 @@
+- [x] Lens: network & mind map navigable (click node re-centres), history + "Takaisin palloon" button
+- [x] Import supplied static Atlas files without database or server changes.
+- [x] Integrate layered investigation and contextual insights with the globe.
+- [x] Add an in-scene chronological story overview and verify desktop/mobile flows.
