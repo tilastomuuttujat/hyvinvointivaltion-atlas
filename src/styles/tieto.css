@@ -1,0 +1,33 @@
+/* Tieto-visualisointi */
+:root { --flow-ok: oklch(0.85 0.13 175); --flow-bad: oklch(0.72 0.17 40); }
+.tv { max-width: 1240px; margin: auto; padding: 32px 28px 60px; color: var(--foreground); background: radial-gradient(ellipse at 50% 30%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 60%); }
+.tv-eyebrow, .tv-label { text-transform: uppercase; letter-spacing: .16em; font-size: 11px; font-weight: 700; color: var(--muted-foreground); }
+.tv h1 { font-family: Fraunces, Georgia, serif; font-size: clamp(36px, 6vw, 76px); line-height: 1.02; margin: 18px 0; }
+.tv h1 em { font-style: normal; color: var(--flow-bad); }
+.tv-intro { max-width: 720px; font-size: 18px; color: var(--muted-foreground); }
+.tv-eras { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 28px 0 18px; }
+.tv-eras button { padding: 10px 4px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--foreground); font-size: 14px; cursor: pointer; }
+.tv-eras button small { display: block; font-size: 10px; opacity: .75; }
+.tv-eras button[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); box-shadow: 0 0 24px color-mix(in oklab, var(--primary) 50%, transparent); }
+.tv-stage { display: grid; grid-template-columns: 1.8fr 1fr; gap: 28px; align-items: start; }
+.tv-flow { position: relative; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: oklch(0.12 0.03 250); }
+.tv-overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tv-src { fill: var(--muted-foreground); font-size: 14px; }
+.tv-gate { cursor: pointer; outline: none; }
+.tv-gate-line { stroke: var(--flow-ok); opacity: .45; transition: stroke-width .6s; }
+.tv-gate.on .tv-gate-line, .tv-gate:focus .tv-gate-line { opacity: 1; filter: drop-shadow(0 0 8px var(--flow-ok)); }
+.tv-num { fill: var(--muted-foreground); font-size: 12px; }
+.tv-gname { fill: var(--foreground); font-family: Fraunces, Georgia, serif; font-size: 19px; }
+.tv-gate.on .tv-gname { fill: var(--flow-ok); }
+.tv-leak { fill: var(--flow-bad); font-size: 13px; }
+.tv-big { fill: var(--flow-ok); font-family: Fraunces, Georgia, serif; font-size: 34px; }
+.tv aside h2 { font-family: Fraunces, Georgia, serif; font-size: 30px; line-height: 1.15; margin: 8px 0 12px; }
+.tv-thesis { font-family: Fraunces, Georgia, serif; font-size: 21px; color: var(--flow-ok); }
+.tv aside h3 { font-size: 17px; margin-top: 22px; } .tv aside h3 span { color: var(--muted-foreground); font-weight: 400; }
+.tv-note { font-size: 12px; color: var(--muted-foreground); margin-top: 16px; }
+.tv-quote { font-family: Fraunces, Georgia, serif; font-size: clamp(22px, 3vw, 32px); border-left: 4px solid var(--flow-bad); padding-left: 22px; margin: 48px 0; max-width: 900px; }
+.tv-article { border-top: 1px solid var(--border); padding-top: 20px; max-width: 760px; font-size: 17px; line-height: 1.65; }
+.tv-article summary { cursor: pointer; font-weight: 700; color: var(--primary); }
+.tv-article h2, .tv-article h3 { font-family: Fraunces, Georgia, serif; margin: 28px 0 10px; } .tv-article h2 { font-size: 30px; } .tv-article h3 { font-size: 23px; }
+.tv-article p { margin: 12px 0; } .tv-article a { color: var(--primary); }
+@media (max-width: 800px) { .tv-eras { grid-template-columns: repeat(3, 1fr); } .tv-stage { grid-template-columns: 1fr; } .tv { padding: 20px 14px; } }
