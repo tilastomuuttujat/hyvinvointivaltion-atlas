@@ -106,7 +106,7 @@ export function ThemeSystem() {
         const z = zoomStarCamera(c, c.zoom * Math.hypot(a0.x - a1.x, a0.y - a1.y) / distance, oldMid);
         return { ...z, x: z.x + mid.x - oldMid.x, y: z.y + mid.y - oldMid.y };
       });
-    } else if (e.shiftKey || camera.zoom > 1.6) setCamera(c => ({ ...c, x: c.x + next.x - previous.x, y: c.y + next.y - previous.y }));
+    } else if (e.shiftKey) setCamera(c => ({ ...c, x: c.x + next.x - previous.x, y: c.y + next.y - previous.y }));
     else { setSpinning(false); setOrbit(o => ({ yaw: o.yaw - (next.x - previous.x) * 0.0035 / camera.zoom, pitch: Math.max(-1.3, Math.min(1.3, o.pitch + (next.y - previous.y) * 0.0035 / camera.zoom)) })); }
   };
   const pickDetail = (i: number, d: Detail) => { if (moved.current) return; const changed = selected !== i; setSelected(i); setDetail(d); setShared(null); if (changed) { setSpinning(false); const loc = layouts[i]; if (loc) animateOrbit(facingOrbit(loc.base)); } };
