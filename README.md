@@ -160,3 +160,10 @@ Teemaverkossa ja solmuverkossa käsitteen valinta vihjaa heti seuraavat pisteet:
 Seuraavan pisteen klikkaus jatkaa polkua. Valitut pisteet numeroidaan tutkimisjärjestyksessä, valitut mekanismit vahvistuvat yhtenäisiksi viivoiksi ja vaihtoehtoiset jatkot jäävät kevyiksi katkoviivoiksi. Nuoli säilyttää kirjatun vaikutussuunnan myös taaksepäin tutkittaessa. Aiemman valitun pisteen klikkaus tai Edellinen palauttaa polkua ja mahdollistaa uuden haaran. Muu piste aloittaa uuden polun. Tyhjennä polku poistaa korostukset.
 
 Jatkoja ei päätellä teemajäsenyydestä tai samankaltaisuudesta. Nykyiset hylkäämättömät mekanismit ja väitteet sekä puuttuvat jatkot säilyttävät aineistonsa tilan. Vihje ei vahvista syy-yhteyttä. Pitkät perustelut ja lähteet ovat edelleen käyttäjän erikseen avaamassa tietolaatikossa. Polku on näkymän istuntotilaa, eikä sitä tallenneta tietokantaan.
+
+
+### Virtaavat jatkoviivat ja oma polkuyhteenveto
+
+Ensimmäisestä käsitevalinnasta lähtien kirjatut jatkot näkyvät kaarevina, vaikutussuuntaan virtaavina viivoina. Jokaisella avoimella jatkolla on kuvaajassa mekanismin nimi ja lyhyt kuvaus ennen valintaa. Kuljettu polku pysyy vahvempana; liikkeen vähennysasetus pysäyttää virtauksen.
+
+Oma polku -painike avaa erillisen liukuvan yhteenvedon. Se näyttää aloituksen, valitut vaiheet, kunkin yhteyden selityksen, kirjatun vaikutussuunnan ja mahdollisen taaksepäin tutkimisen. Ehdot, rajat ja suorat havaintolähteet ovat yhteyden omassa lisätiedossa. Paneeli päivittyy etenemisen ja palaamisen mukana, mutta ei avaudu itsestään. Alkuperäinen tietolaatikko ja polkuyhteenveto avataan vuorotellen, jotta ne eivät peitä toisiaan.

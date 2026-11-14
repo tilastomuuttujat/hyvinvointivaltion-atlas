@@ -1,4 +1,9 @@
-import { GraphExplore, GraphPointHint, useGraphExplore } from "./GraphExplore";
+import {
+  GraphExplore,
+  GraphFlow,
+  GraphPointHint,
+  useGraphExplore,
+} from "./GraphExplore";
 import type { AtlasData } from "@/lib/atlas.functions";
 import { ThemeSelectionDetails } from "./ThemeSelectionDetails";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
@@ -510,6 +515,15 @@ export function ThemeSystem({
                           markerEnd="url(#ts-arrow)"
                         />
                         <path d={d} className="ts-causal-pulse" />
+                        {edge.kind === "mechanism" && (
+                          <GraphFlow
+                            exploration={exploration}
+                            id={t.mechanisms[edge.ref]?.id ?? ""}
+                            from={a}
+                            to={b}
+                            marker="ts-arrow"
+                          />
+                        )}
                         <path
                           d={d}
                           className="ts-hit"
@@ -671,6 +685,7 @@ export function ThemeSystem({
           </g>
         </svg>
         <GraphExplore
+          onOpenSummary={() => setPanelOpen(false)}
           data={data}
           exploration={exploration}
           onPick={(id) => {
@@ -754,7 +769,10 @@ export function ThemeSystem({
             type="button"
             className="ts-drawer-open"
             aria-label="Avaa tietolaatikko"
-            onClick={() => setPanelOpen(true)}
+            onClick={() => {
+              setPanelOpen(true);
+              exploration.setSummaryOpen(false);
+            }}
           >
             ◂ Tiedot
           </button>
