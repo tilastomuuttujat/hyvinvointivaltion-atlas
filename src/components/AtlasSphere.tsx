@@ -4,6 +4,7 @@ import { orderedNodes } from '@/lib/atlas.investigation';
 import type { Intent } from '@/lib/atlas.navigation';
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { AtlasData, Cell } from "@/lib/atlas.functions";
+import { CATALOG } from "../lib/teema.system";
 import { relatedConnections, timelineSegments } from "../lib/atlas.relationships";
 import { heightField, contourSegments, contourFill } from "../lib/atlas.contours";
 import { STORYLINES, storylineStops, backcast, futurePeriods, periodAt } from "../lib/atlas.storylines";
@@ -25,13 +26,13 @@ type Props = {
   onPick: (conclusion: number, period: string) => void; onClear: () => void;
   paused?:boolean;
   immersive?: boolean; onEra?: (period: string) => void; onLensChange?: (open: boolean) => void;
-  scrubYear?: number;
-  investigation?: {nodes:SurfaceNode[];intent:Intent;depth:number;missingRoot:boolean};
+  scrubYear?: number | undefined;
+  investigation?: {nodes:SurfaceNode[];intent:Intent;depth:number;missingRoot:boolean} | undefined;
   onInvestigationPick?: (node:SurfaceNode,anchor:{x:number;y:number})=>void;
   onInvestigationPreview?: (node:SurfaceNode)=>void;
-  zoomRequest?: {id:number;zoom:number;anchor?:{x:number;y:number};focus?:{c:number;p:string}};
+  zoomRequest?: {id:number;zoom:number;anchor?:{x:number;y:number}|undefined;focus?:{c:number;p:string}|undefined} | undefined;
   onZoomChange?: (zoom:number)=>void;
-  comparison?: {ids:number[];phase:number;periodId:string|null;links:ComparisonLink[]};
+  comparison?: {ids:number[];phase:number;periodId:string|null;links:ComparisonLink[]} | undefined;
   onComparisonFocus?: (focus:{c?:number;pair?:string;p:string})=>void;
   onMapDetail?: (detail: { c: number; p: string; label: string; articles: number[] }) => void;
 };
@@ -189,6 +190,16 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
 
   // Topography: each conclusion×era is a hill whose height = number of supporting articles
   const [topo, setTopo] = useState(true);
+  const [themeIdx, setThemeIdx] = useState<number | null>(null);
+  // Theme constellation on the globe: explicit catalogue membership only (each conclusion at its best-evidenced era), not causal claims.
+  const themeChain = useMemo(() => {
+    const t = themeIdx == null ? null : CATALOG.themes[themeIdx];
+    if (!t) return [];
+    return t.conclusions.map((c) => {
+      const best = data.cells.filter((x) => x.c === c.id).sort((a, b) => (b.direct + b.context) - (a.direct + a.context))[0];
+      return best ? { c: c.id, p: best.p, t: c.t } : null;
+    }).filter((x): x is { c: number; p: string; t: string } => !!x);
+  }, [themeIdx, data]);
   const contours = useMemo(() => {
     const peaks = cells.filter((c) => c.articles > 0).map((c) => ({ lat: latOf(c.c), ang: angleOf(c.p), w: c.articles }));
     const f = heightField(peaks, 56, 112, 0.11);
@@ -236,6 +247,7 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
     c, segs: timelineSegments(data.periods.map((p) => { const x = data.cells.find((y) => y.c === c && y.p === p.id); return { p, hasData: !!x && x.direct + x.context + x.counter > 0 }; })),
   })) : []), [story, data]);
   const rotateTo = (pid: string | null | undefined) => { if (pid) { target.current = -angleOf(pid); setAuto(false); } };
+  useEffect(() => { rotateTo(themeChain[0]?.p); }, [themeChain]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { rotateTo(stop); }, [stop]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { rotateTo(scrubPeriod?.id); }, [scrubPeriod?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (scenario != null) rotateTo([...futureIds][0]); }, [scenario]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -324,6 +336,10 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
   }
 
 
+  const themeSelect = <select aria-label="Teeman tähtikuvio pallolla" value={themeIdx ?? ""} onChange={(e) => setThemeIdx(e.target.value === "" ? null : Number(e.target.value))} className="map-theme-select rounded-full border border-border bg-background px-2 py-0.5">
+          <option value="">Teema pallolla…</option>
+          {CATALOG.themes.map((t, i) => <option key={t.id} value={i}>{t.label.split(",")[0]} · {t.mechanisms.length} mek.</option>)}
+        </select>;
   return (
     <div className={`w-full ${immersive ? 'sphere-immersive' : ''}`} data-testid="atlas-sphere">
       <div className="flex flex-wrap items-center gap-2 px-2 text-xs">
@@ -409,6 +425,7 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
 
       <div className="mx-2 mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <button aria-pressed={topo} onClick={() => setTopo((x) => !x)} className={`rounded-full border px-2.5 py-0.5 ${topo ? "border-primary text-primary" : "border-border"}`}>Korkeuskäyrät</button>
+        {!immersive && themeSelect}
         {topo && <span>Lue palloa kuin karttaa: lähekkäiset, aineiston tukemat päätelmät muodostavat saaria ja mantereita; tumma meri on vähäisen aineiston aluetta. Mitä tiheämmät ja kirkkaammat käyrät, sitä useampi artikkeli tukee sitä. ▲ = alueen korkein huippu. Pituuspiirit ovat aikakausia, leveysvyöhykkeet päätelmätyyppejä.</span>}
       </div>
 
@@ -419,7 +436,7 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
       </p>
 
       <div className="relative">
-      {immersive && <div className="map-zoom-controls" aria-label="Kartan zoomaus"><Button variant="outline" size="icon" aria-label="Lähennä karttaa" onClick={() => applyZoom(camera.current.zoom*1.25)}><Plus /></Button><Button variant="outline" size="icon" aria-label="Loitonna karttaa" onClick={() => applyZoom(camera.current.zoom/1.25)}><Minus /></Button></div>}
+      {immersive && <div className="map-zoom-controls" aria-label="Kartan zoomaus"><Button variant="outline" size="icon" aria-label="Lähennä karttaa" onClick={() => applyZoom(camera.current.zoom*1.25)}><Plus /></Button><Button variant="outline" size="icon" aria-label="Loitonna karttaa" onClick={() => applyZoom(camera.current.zoom/1.25)}><Minus /></Button>{themeSelect}</div>}
       <svg ref={svgRef} data-zoom={zoom.toFixed(3)} data-camera-x={offset.x.toFixed(3)} data-camera-y={offset.y.toFixed(3)} data-reasoning-depth={investigation?.depth} data-detail={mapDetail(zoom)} viewBox={`0 0 ${W} ${H}`} className="h-auto w-full cursor-grab touch-none select-none rounded-xl bg-[var(--space)] outline-none focus-visible:ring-2 focus-visible:ring-primary active:cursor-grabbing" tabIndex={0}
         aria-label="Pyöritettävä Atlas-pallo. Nuolinäppäimet kiertävät, plus ja miinus zoomaavat, välilyönti pysäyttää pyörityksen. Esc poistaa valinnan. Verkostonäkymä sulkeutuu vain Takaisin palloon -painikkeella."
         onKeyDown={(e) => {
@@ -610,7 +627,7 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
         {/* Recorded co-occurrence is undirected context, never an effect arrow. */}
         {comparison?.phase===0&&comparison.links.slice(0,24).map(link=>{
          const pts=liftArc(location(link.left,link.periodId,1.015),location(link.right,link.periodId,1.015),.10);
-         if(pts[14].z<-.15)return null;
+         if(pts[14]!.z<-.15)return null;
          const basis=`${link.articles.length?'Yhteiset artikkelit '+link.articles.join(', '):''}${link.articles.length&&link.concepts.length?' · ':''}${link.concepts.join('; ')}. Asiayhteys, ei syy-yhteys.`;
          return <g key={link.key} data-comparison-link={link.key} role="button" tabIndex={0} aria-label={basis} className="comparison-map-link" onFocus={()=>onComparisonFocus?.({pair:link.key,p:link.periodId})} onClick={e=>{e.stopPropagation();if(!suppressClick.current)onComparisonFocus?.({pair:link.key,p:link.periodId})}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();onComparisonFocus?.({pair:link.key,p:link.periodId})}}}><title>{basis}</title><path d={path(pts)} fill="none" stroke="var(--foreground)" strokeOpacity=".5" strokeWidth="1.6" strokeDasharray="4 5"/><path d={path(pts)} fill="none" stroke="transparent" strokeWidth="16"/></g>;
         })}
@@ -618,6 +635,18 @@ function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, 
          const pts=liftArc(location(row.c,a,1.02),location(row.c,b,1.02),.08),future=(perMap.get(b)?.start??0)>=2026;
          return <path key={`compare:${row.c}:${a}:${b}`} data-comparison-timeline={`${row.c}:${a}:${b}`} d={path(pts)} fill="none" stroke={comparisonColor(row.c)} strokeOpacity={comparison?.phase===1 ? .85 : .4} strokeWidth="2" strokeDasharray={future?'3 6':undefined} pointerEvents="none"/>;
         }))}
+        {/* Theme constellation: catalogue membership arcs lifted above the terrain */}
+        {themeChain.slice(1).map((b, i) => {
+          const a = themeChain[i]!;
+          const pts = liftArc(location(a.c, a.p, 1.0), location(b.c, b.p, 1.0), 0.22);
+          const front = pts[14]!.z > -0.15;
+          return <g key={`th${i}`} pointerEvents="none" opacity={front ? 1 : 0.4}>
+            <path d={path(pts)} fill="none" stroke="var(--kind-synth)" strokeWidth={5} opacity={0.45} filter="url(#glow-strong)" />
+            <path d={path(pts)} fill="none" stroke="var(--kind-synth)" strokeWidth={1.6} opacity={0.8} />
+            <path d={path(pts)} fill="none" stroke="var(--foreground)" strokeWidth={2.2} strokeDasharray="1 12" strokeLinecap="round" className="atlas-flow" style={{ animationDelay: `${i * -0.3}s` }} />
+          </g>;
+        })}
+        {themeChain.map((n) => { const v = project(location(n.c, n.p, 1.0)); return v.z > -0.1 ? <g key={`thn${n.c}`} pointerEvents="none"><circle cx={v.x} cy={v.y} r={5} fill="var(--kind-synth)" filter="url(#glow)" /><text x={v.x + 7} y={v.y - 6} fontSize={9} fill="var(--foreground)">P{n.c}</text><title>{n.t}</title></g> : null; })}
         {/* Causal arcs: shared-era evidence to other conclusions */}
         {selected != null && causal.filter(k => !scrubPeriod || (perMap.get(k.p)?.start ?? 0) <= scrubPeriod.start).map((k, i) => {
           const a = location(selected, k.p, 0.97), b = location(k.c, k.p, 0.97);

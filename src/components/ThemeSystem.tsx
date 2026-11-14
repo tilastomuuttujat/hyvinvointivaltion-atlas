@@ -2,21 +2,22 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { Minus, Plus, Scan, X, ChevronRight, Maximize, Minimize } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CATALOG, buildFlow, themeBridges } from "@/lib/teema.system";
-import { STAR_OVERVIEW, zoomStarCamera, type StarCamera } from "@/lib/teema.camera";
+import { STAR_OVERVIEW, zoomStarCamera, spherePositions, rotate, perspective, facingOrbit, type StarCamera, type Orbit } from "@/lib/teema.camera";
 import "@/styles/teema-system.css";
 
 const W = 2600, H = 2200, CX = W / 2, CY = H / 2;
 const ink = (i: number) => `var(--constellation-${i % 8 + 1})`;
 const stars = Array.from({ length: 210 }, (_, i) => ({ x: (i * 619 + 43) % W, y: (i * 421 + 87) % H, r: i % 9 === 0 ? 1.8 : 0.8 }));
+const RADIUS = 1000;
+const positions = spherePositions(CATALOG.themes.length, RADIUS);
 const layouts = CATALOG.themes.map((theme, i) => {
-  const a = i * Math.PI * 2 / CATALOG.themes.length - Math.PI / 2;
-  const x = CX + Math.cos(a) * 950, y = CY + Math.sin(a) * 820;
+  const base = positions[i]!;
   const flow = buildFlow(theme, 390, 235);
   const ordered = [...flow.nodes].sort((a, b) => a.rank - b.rank || a.y - b.y);
   const spread = ordered.map((n, j) => ({ ...n, x: 35 + (j % 4) * 110, y: 40 + Math.floor(j / 4) * 82 }));
   // Unconnected recorded concepts stay unconnected, rather than inventing edges.
   const nodes = flow.nodes.length ? spread : theme.concepts.map((c, j) => ({ key: c.t, label: c.t, rank: 0, x: 50 + (j % 3) * 145, y: 65 + Math.floor(j / 3) * 65 }));
-  return { x, y, nodes, edges: flow.edges };
+  return { base, nodes, edges: flow.edges };
 });
 
 type Detail = { kind: "mechanism" | "path" | "concept" | "conclusion" | "insight"; index: number; label?: string };
@@ -28,6 +29,29 @@ export function ThemeSystem() {
   const [shared, setShared] = useState<string[] | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [orbit, setOrbit] = useState<Orbit>({ yaw: 0.3, pitch: -0.18 });
+  const [spinning, setSpinning] = useState(true);
+  const tween = useRef<number | null>(null);
+  useEffect(() => {
+    if (!spinning) return;
+    let raf = 0, last = performance.now();
+    const tick = (t: number) => { const dt = Math.min(t - last, 50); last = t; setOrbit(o => ({ ...o, yaw: o.yaw + dt * 0.00006 })); raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [spinning]);
+  const animateOrbit = (to: Orbit) => {
+    if (tween.current) cancelAnimationFrame(tween.current);
+    const from = orbit, start = performance.now();
+    let dy = (to.yaw - from.yaw) % (Math.PI * 2); if (dy > Math.PI) dy -= Math.PI * 2; if (dy < -Math.PI) dy += Math.PI * 2;
+    const step = (t: number) => {
+      const k = Math.min(1, (t - start) / 700), e = 1 - Math.pow(1 - k, 3);
+      setOrbit({ yaw: from.yaw + dy * e, pitch: from.pitch + (to.pitch - from.pitch) * e });
+      if (k < 1) tween.current = requestAnimationFrame(step);
+    };
+    tween.current = requestAnimationFrame(step);
+  };
+  const proj = layouts.map(l => { const r = rotate(l.base, orbit), k = perspective(r.z); return { x: CX + r.x * k, y: CY + r.y * k, s: k, z: r.z, front: (1 - r.z / RADIUS) / 2 }; });
+  const drawOrder = proj.map((_, i) => i).sort((a, b) => (proj[b]?.z ?? 0) - (proj[a]?.z ?? 0));
   useEffect(() => {
     if (!expanded) return;
     const previous = document.body.style.overflow;
@@ -51,10 +75,12 @@ export function ThemeSystem() {
   const selectTheme = (i: number) => {
     if (moved.current) return;
     const location = layouts[i]; if (!location) return;
-    setSelected(i); setDetail(null); setShared(null);
-    setCamera({ zoom: 2.7, x: CX - location.x * 2.7, y: CY - (location.y + 40) * 2.7 });
+    setSelected(i); setDetail(null); setShared(null); setSpinning(false);
+    animateOrbit(facingOrbit(location.base));
+    const k = perspective(-RADIUS);
+    setCamera({ zoom: 2.4, x: CX - CX * 2.4, y: CY - (CY + 40 * k) * 2.4 });
   };
-  const overview = () => { setCamera(STAR_OVERVIEW); setSelected(null); setDetail(null); setShared(null); };
+  const overview = () => { setCamera(STAR_OVERVIEW); setSpinning(true); setSelected(null); setDetail(null); setShared(null); };
   const pointerDown = (e: PointerEvent<SVGSVGElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     const point = localPoint(e.clientX, e.clientY);
@@ -78,7 +104,8 @@ export function ThemeSystem() {
         const z = zoomStarCamera(c, c.zoom * Math.hypot(a0.x - a1.x, a0.y - a1.y) / distance, oldMid);
         return { ...z, x: z.x + mid.x - oldMid.x, y: z.y + mid.y - oldMid.y };
       });
-    } else setCamera(c => ({ ...c, x: c.x + next.x - previous.x, y: c.y + next.y - previous.y }));
+    } else if (e.shiftKey || camera.zoom > 1.6) setCamera(c => ({ ...c, x: c.x + next.x - previous.x, y: c.y + next.y - previous.y }));
+    else { setSpinning(false); setOrbit(o => ({ yaw: o.yaw - (next.x - previous.x) * 0.0035 / camera.zoom, pitch: Math.max(-1.3, Math.min(1.3, o.pitch + (next.y - previous.y) * 0.0035 / camera.zoom)) })); }
   };
   const pickDetail = (i: number, d: Detail) => { if (moved.current) return; setSelected(i); setDetail(d); setShared(null); };
   const mechanism = detail?.kind === "mechanism" ? theme?.mechanisms[detail.index] : null;
@@ -99,23 +126,24 @@ export function ThemeSystem() {
         <defs><filter id="ts-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4" /></filter><marker id="ts-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10" fill="none" stroke="context-stroke" strokeWidth="1.5" /></marker></defs>
         <g className="ts-world" transform={`translate(${camera.x} ${camera.y}) scale(${camera.zoom})`} data-zoom={camera.zoom}>
           <g className="ts-dust" aria-hidden="true">{stars.map((s, i) => <circle key={i} cx={s.x} cy={s.y} r={s.r} opacity={0.15 + i % 5 * 0.1} />)}</g>
-          {layouts.map((l, i) => <path key={i} className={`ts-spoke${focus === i ? " active" : ""}`} d={`M${CX} ${CY}L${l.x} ${l.y}`} />)}
+          {proj.map((l, i) => <path key={i} className={`ts-spoke${focus === i ? " active" : ""}`} d={`M${CX} ${CY}L${l.x} ${l.y}`} opacity={0.25 + l.front * 0.75} />)}
           {bridges.map((b, k) => {
-            const a = layouts[b.a], z = layouts[b.b]; if (!a || !z) return null;
+            const a = proj[b.a], z = proj[b.b]; if (!a || !z) return null;
             const d = `M${a.x} ${a.y}Q${CX} ${CY} ${z.x} ${z.y}`;
             return <g key={k} className={`ts-link${focus === b.a || focus === b.b ? " active" : ""}`}>
               <path d={d} className="ts-link-line" /><path d={d} className="ts-hit" role="button" tabIndex={0} aria-label={`Käsitteet: ${CATALOG.themes[b.a]?.label} ja ${CATALOG.themes[b.b]?.label}`} onClick={() => { if (!moved.current) { setShared(b.shared); setDetail(null); } }} onKeyDown={e => { if (e.key === "Enter") setShared(b.shared); }} />
             </g>;
           })}
-          <g className="ts-sun" role="button" tabIndex={0} aria-label="Koko tähtikuvio" onClick={() => { if (!moved.current) overview(); }} onKeyDown={e => { if (e.key === "Enter") overview(); }}>
+          <g className="ts-sun" opacity={selected === null ? 1 : 0.12} role="button" tabIndex={0} aria-label="Koko tähtikuvio" onClick={() => { if (!moved.current) overview(); }} onKeyDown={e => { if (e.key === "Enter") overview(); }}>
             <circle cx={CX} cy={CY} r="19" className="ts-sun-glow" filter="url(#ts-glow)" /><path d={`M${CX - 60} ${CY}H${CX + 60}M${CX} ${CY - 60}V${CY + 60}`} className="ts-sun-rays" /><circle cx={CX} cy={CY} r="9" />
             <text x={CX} y={CY + 94} textAnchor="middle" className="ts-sun-title">Hyvinvointivaltio</text><text x={CX} y={CY + 126} textAnchor="middle" className="ts-sun-sub">1850–2050</text>
           </g>
-          {layouts.map((l, i) => {
+          {drawOrder.map(i => {
+            const l = layouts[i]!, p = proj[i]!;
             const t = CATALOG.themes[i]; if (!t) return null;
             const active = selected === i;
             const at = new Map(l.nodes.map(n => [n.key, n]));
-            return <g key={t.id} className={`ts-constellation${active ? " selected" : ""}${camera.zoom > 1.65 ? " near" : ""}`} color={ink(i)} transform={`translate(${l.x - 195} ${l.y})`} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
+            return <g key={t.id} className={`ts-constellation${active ? " selected" : ""}${camera.zoom > 1.65 ? " near" : ""}`} color={ink(i)} transform={`translate(${p.x} ${p.y}) scale(${p.s * 0.9}) translate(-195 0)`} opacity={active ? 1 : 0.3 + p.front * 0.7} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
               <g role="button" tabIndex={0} aria-label={t.label} className="ts-theme" onClick={() => selectTheme(i)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTheme(i); } }}>
                 <rect x="-20" y="-68" width="430" height="74" fill="transparent" />
                 <circle cx="195" cy="-45" r="11" filter="url(#ts-glow)" className="ts-theme-glow" /><circle cx="195" cy="-45" r="5" />

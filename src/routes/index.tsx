@@ -1,5 +1,7 @@
 import { ThemeSystem } from "@/components/ThemeSystem";
+import { OrganicNodeGraph } from "@/components/OrganicNodeGraph";
 import { ConceptMap } from "@/components/ConceptMap";
+import { ThemeConceptMap } from "@/components/ThemeConceptMap";
 import { EvidenceExplorer } from "@/components/EvidenceExplorer";
 import { createFileRoute } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
@@ -33,8 +35,8 @@ export const Route = createFileRoute("/")({
 
 export function AtlasPage() {
   const { data } = useSuspenseQuery(atlasQuery);
-  const [view, setView] = useState<"sphere" | "radial" | "axes" | "routes" | "themes">("sphere");
-  const [visited,setVisited]=useState<Set<string>>(new Set(["sphere"]));
+  const [view, setView] = useState<"sphere" | "radial" | "axes" | "concepts" | "routes" | "themes" | "network">("sphere");
+  const [visited, setVisited] = useState<Set<string>>(new Set(["sphere"]));
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-6 py-5 md:px-10">
@@ -52,15 +54,17 @@ export function AtlasPage() {
         </div>
       </header>
       <nav className="view-switch" aria-label="Näkymä">
-        {([["sphere", "◐ Pallo"], ["radial", "◎ Säteittäinen"], ["axes", "⊹ Akselikenttä"], ["routes", "⌁ Reittikartta"], ["themes", "☊ Teemaverkko"]] as const).map(([k, l]) => (
-          <button key={k} type="button" aria-current={view === k || undefined} onClick={() => {setView(k);setVisited(previous=>new Set([...previous,k]))}}>{l}</button>
+        {([["sphere", "◐ Pallo"], ["radial", "◎ Säteittäinen"], ["axes", "⊹ Akselikenttä"], ["concepts", "❖ Käsitekartta"], ["routes", "⌁ Reittikartta"], ["themes", "☊ Teemaverkko"], ["network", "☍ Solmuverkko"]] as const).map(([k, l]) => (
+          <button key={k} type="button" aria-current={view === k || undefined} onClick={() => { setView(k); setVisited(previous => new Set([...previous, k])) }}>{l}</button>
         ))}
       </nav>
-      <div hidden={view!=="sphere"}><AtlasExperience data={data} active={view==="sphere"}/></div>
-      {visited.has("radial")&&<div hidden={view!=="radial"}><RadialAtlas data={data}/></div>}
-      {visited.has("axes")&&<div hidden={view!=="axes"}><AxisField data={data} active={view==="axes"}/></div>}
-      {visited.has("routes")&&<div hidden={view!=="routes"}><ConceptMap data={data} layout="routes" active={view==="routes"}/></div>}
+      <div hidden={view !== "sphere"}><AtlasExperience data={data} active={view === "sphere"} /></div>
+      {visited.has("radial") && <div hidden={view !== "radial"}><RadialAtlas data={data} /></div>}
+      {visited.has("axes") && <div hidden={view !== "axes"}><AxisField data={data} active={view === "axes"} /></div>}
+      {visited.has("concepts") && <div hidden={view !== "concepts"}><ThemeConceptMap data={data} /></div>}
+      {visited.has("routes") && <div hidden={view !== "routes"}><ConceptMap data={data} layout="routes" active={view === "routes"} /></div>}
       {visited.has("themes") && <div hidden={view !== "themes"}><ThemeSystem /></div>}
+      {visited.has("network") && <div hidden={view !== "network"}><OrganicNodeGraph active={view === "network"} /></div>}
       <details className="border-t border-border">
         <summary className="cursor-pointer px-6 py-4 text-xs text-muted-foreground">Havaintoaineiston hakemisto</summary>
         <EvidenceExplorer bundle={data.evidence} />
@@ -76,4 +80,3 @@ export function AtlasPage() {
 function Stat({ n, l }: { n: number; l: string }) {
   return <div><div className="font-display text-3xl text-primary">{n}</div><div className="text-xs text-muted-foreground">{l}</div></div>;
 }
-
