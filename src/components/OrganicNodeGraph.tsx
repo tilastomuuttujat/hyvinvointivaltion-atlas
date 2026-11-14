@@ -257,7 +257,6 @@ export function OrganicNodeGraph({
                   if (ev.key === "Enter" || ev.key === " ") {
                     ev.preventDefault();
                     setSel(i);
-                    setPanelOpen(true);
                   }
                 }}
                 key={n.id}
@@ -267,7 +266,6 @@ export function OrganicNodeGraph({
                   ev.stopPropagation();
                   if (!moved.current) {
                     setSel(i);
-                    setPanelOpen(true);
                   }
                 }}
               >

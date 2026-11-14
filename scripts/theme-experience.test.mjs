@@ -63,6 +63,18 @@ test(
       ].map((n) => n.getAttribute("aria-label"));
       for (const c of snapshot.evidence.concepts)
         assert.ok(labels.includes(c.label), `Missing ${c.id}`);
+      const themeView = w.document.querySelector(".ts");
+      const themeNode = themeView.querySelector('.ts-star[aria-label="Työn mukauttaminen"]');
+      themeNode.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+      await until(() => themeView.querySelector('.ts-drawer-open'));
+      assert.equal(themeView.querySelector('.ts-drawer').getAttribute('aria-hidden'), 'true');
+      themeView.querySelector('.ts-drawer-open').click();
+      await until(() => themeView.querySelector('.ts-drawer.open'));
+      themeView.querySelector('.ts-drawer-close').click();
+      await until(() => !themeView.querySelector('.ts-drawer.open'));
+      themeNode.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await pause(80);
+      assert.equal(themeView.querySelector('.ts-drawer').getAttribute('aria-hidden'), 'true');
       choose("☍ Solmuverkko");
       await until(() => w.document.querySelector(".organic-graph"));
       const graph = w.document.querySelector(".organic-graph");
@@ -76,6 +88,17 @@ test(
         new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
       );
       await until(() => graph.querySelector(".theme-selection-details"));
+      assert.equal(graph.querySelector('aside').getAttribute('aria-hidden'), 'true');
+      graph.querySelector('[aria-label="Avaa tietolaatikko"]').click();
+      await until(() => (graph.querySelector('aside').getAttribute('aria-hidden') === 'false'));
+      node.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+      await pause(80);
+      assert.equal(graph.querySelector('aside').getAttribute('aria-hidden'), 'false');
+      graph.querySelector('[aria-label="Sulje tietolaatikko"]').click();
+      await until(() => !(graph.querySelector('aside').getAttribute('aria-hidden') === 'false'));
+      node.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+      await pause(80);
+      assert.equal(graph.querySelector('aside').getAttribute('aria-hidden'), 'true');
       assert.ok(graph.textContent.includes("Tulkinnan rajat"));
       assert.ok(
         [...graph.querySelectorAll("a")].some(

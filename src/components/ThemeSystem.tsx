@@ -157,7 +157,6 @@ export function ThemeSystem({
     const location = layouts[i];
     if (!location) return;
     setSelected(i);
-    setPanelOpen(true);
     setDetail(null);
     setShared(null);
     setSpinning(false);
@@ -233,7 +232,6 @@ export function ThemeSystem({
     if (moved.current) return;
     const changed = selected !== i;
     setSelected(i);
-    setPanelOpen(true);
     setDetail(d);
     setShared(null);
     if (changed) {
@@ -354,7 +352,6 @@ export function ThemeSystem({
                     onClick={() => {
                       if (!moved.current) {
                         setShared(b.shared);
-                        setPanelOpen(true);
                         setDetail(null);
                       }
                     }}
