@@ -300,7 +300,12 @@ export function OrganicNodeGraph({
             const dim = exploration.current
               ? n.kind !== "concept" || !exploration.lit(n.id.slice(2))
               : near && !near.has(i);
-            const op = dim ? 0.12 : depthAlpha(p.z);
+            const onPath =
+              !!exploration.current &&
+              n.kind === "concept" &&
+              exploration.lit(n.id.slice(2));
+            // Path endpoints stay fully visible even on the far side, so flows never end in empty space.
+            const op = dim ? 0.12 : onPath ? 1 : depthAlpha(p.z);
             const showLabel =
               n.kind === "theme" ||
               (n.kind === "concept" &&
@@ -361,7 +366,7 @@ export function OrganicNodeGraph({
                 <circle
                   cx={p.x}
                   cy={p.y}
-                  r={Math.max(r, 2)}
+                  r={onPath ? Math.max(r, 5) : Math.max(r, 2)}
                   fill={
                     n.kind === "conclusion" ? "var(--foreground)" : color(i)
                   }
@@ -414,6 +419,8 @@ export function OrganicNodeGraph({
             aria-label="Avaa tietolaatikko"
             onClick={() => {
               setPanelOpen(true);
+              exploration.setNextOpen(false);
+              exploration.setSummaryOpen(false);
               exploration.setSummaryOpen(false);
             }}
             className="absolute right-0 top-1/2 -translate-y-1/2 rounded-l-lg border border-r-0 border-border bg-card/95 px-1.5 py-4 text-xs shadow-lg backdrop-blur transition-colors hover:bg-accent"

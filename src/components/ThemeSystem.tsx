@@ -242,7 +242,22 @@ export function ThemeSystem({
     const changed = selected !== i;
     const id =
       d.kind === "concept"
-        ? catalog.themes[i]?.concepts.find((c) => c.t === d.label)?.id
+        ? (() => {
+            const th = catalog.themes[i];
+            const key = (d.label ?? "").trim().toLowerCase();
+            const c = th?.concepts.find((c) => c.t.trim().toLowerCase() === key);
+            if (c) return c.id;
+            const m = th?.mechanisms.find(
+              (m) =>
+                m.from.trim().toLowerCase() === key ||
+                m.to.trim().toLowerCase() === key,
+            );
+            return m
+              ? m.from.trim().toLowerCase() === key
+                ? m.fromId
+                : m.toId
+              : undefined;
+          })()
         : undefined;
     if (id) exploration.pick(id);
     else exploration.clear();
@@ -426,6 +441,20 @@ export function ThemeSystem({
               if (!t) return null;
               const active = selected === i;
               const at = new Map(l.nodes.map((n) => [n.key, n]));
+              const conceptIdOf = (label: string) => {
+                const key = label.trim().toLowerCase();
+                const c = t.concepts.find(
+                  (c) => c.t.trim().toLowerCase() === key,
+                );
+                if (c) return c.id;
+                for (const m of t.mechanisms) {
+                  if (m.from.trim().toLowerCase() === key && m.fromId)
+                    return m.fromId;
+                  if (m.to.trim().toLowerCase() === key && m.toId)
+                    return m.toId;
+                }
+                return "";
+              };
               return (
                 <g
                   key={t.id}
@@ -436,7 +465,13 @@ export function ThemeSystem({
                     !t.concepts.some((c) => exploration.lit(c.id))
                   }
                   transform={`translate(${p.x} ${p.y}) scale(${p.s * 0.9}) translate(-195 0)`}
-                  opacity={active ? 1 : 0.3 + p.front * 0.7}
+                  opacity={
+                    active ||
+                    (!!exploration.current &&
+                      t.concepts.some((c) => exploration.candidate(c.id)))
+                      ? 1
+                      : 0.3 + p.front * 0.7
+                  }
                   onMouseEnter={() => setHovered(i)}
                   onMouseLeave={() => setHovered(null)}
                 >
@@ -568,16 +603,16 @@ export function ThemeSystem({
                         data-path-active={
                           selected === i &&
                           exploration.current ===
-                            t.concepts.find((c) => c.t === n.label)?.id
+                            conceptIdOf(n.label)
                         }
                         data-path-dim={
                           !!exploration.current &&
                           !exploration.lit(
-                            t.concepts.find((c) => c.t === n.label)?.id ?? "",
+                            conceptIdOf(n.label),
                           )
                         }
                         data-path-candidate={exploration.candidate(
-                          t.concepts.find((c) => c.t === n.label)?.id ?? "",
+                          conceptIdOf(n.label),
                         )}
                         className={`ts-star${litEdge ? " lit" : ""}`}
                         onClick={() =>
@@ -598,7 +633,7 @@ export function ThemeSystem({
                       >
                         <GraphPointHint
                           exploration={exploration}
-                          id={t.concepts.find((c) => c.t === n.label)?.id ?? ""}
+                          id={conceptIdOf(n.label)}
                           x={n.x}
                           y={n.y}
                           r={7}
@@ -682,6 +717,58 @@ export function ThemeSystem({
                 </g>
               );
             })}
+            {exploration.current &&
+              (() => {
+                // Recorded mechanisms whose next point sits in another star pattern: draw them across the sky.
+                const world = new Map<string, { x: number; y: number; f: number; i: number }[]>();
+                drawOrder.forEach((i) => {
+                  const t = catalog.themes[i],
+                    l = layouts[i],
+                    p = proj[i];
+                  if (!t || !l || !p) return;
+                  for (const n of l.nodes) {
+                    const key = n.label.trim().toLowerCase();
+                    const id =
+                      t.concepts.find((c) => c.t.trim().toLowerCase() === key)?.id ??
+                      t.mechanisms.find((m) => m.from.trim().toLowerCase() === key)?.fromId ??
+                      t.mechanisms.find((m) => m.to.trim().toLowerCase() === key)?.toId;
+                    if (!id) continue;
+                    const k = p.s * 0.9;
+                    world.set(id, [
+                      ...(world.get(id) ?? []),
+                      { x: p.x + (n.x - 195) * k, y: p.y + n.y * k, f: p.front, i },
+                    ]);
+                  }
+                });
+                const local = (i: number | null, mid: string) =>
+                  i !== null &&
+                  !!catalog.themes[i]?.mechanisms.some((m) => m.id === mid);
+                const best = (id: string, prefer: number | null) => {
+                  const all = world.get(id) ?? [];
+                  return (
+                    all.find((w) => w.i === prefer) ??
+                    [...all].sort((a, b) => b.f - a.f)[0]
+                  );
+                };
+                return exploration.options
+                  .filter((o) => !local(selected, o.mechanism.id))
+                  .map((o) => {
+                    const here = best(exploration.current!, selected),
+                      there = best(o.target.id, null);
+                    if (!here || !there) return null;
+                    const fromIsHere = o.mechanism.from === exploration.current;
+                    return (
+                      <GraphFlow
+                        key={o.mechanism.id}
+                        exploration={exploration}
+                        id={o.mechanism.id}
+                        from={fromIsHere ? here : there}
+                        to={fromIsHere ? there : here}
+                        marker="ts-arrow"
+                      />
+                    );
+                  });
+              })()}
           </g>
         </svg>
         <GraphExplore
@@ -771,6 +858,8 @@ export function ThemeSystem({
             aria-label="Avaa tietolaatikko"
             onClick={() => {
               setPanelOpen(true);
+              exploration.setNextOpen(false);
+              exploration.setSummaryOpen(false);
               exploration.setSummaryOpen(false);
             }}
           >

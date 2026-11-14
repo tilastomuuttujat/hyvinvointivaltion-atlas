@@ -1,11 +1,13 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { AtlasData } from "@/lib/atlas.functions";
 import { exploreOptions } from "@/lib/atlas.explore";
+import { catalogueFor } from "@/lib/teema.system";
 import "@/styles/graph-explore.css";
 
 export function useGraphExplore(data: AtlasData) {
   const [steps, setSteps] = useState<{ id: string; via?: string }[]>([]);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [nextOpen, setNextOpen] = useState(false);
   const current = steps.at(-1)?.id;
   // Reveal adjacent recorded directions immediately, without a question dialog.
   const options = current ? exploreOptions(data, current, "how") : [];
@@ -29,6 +31,8 @@ export function useGraphExplore(data: AtlasData) {
     steps,
     summaryOpen,
     setSummaryOpen,
+    nextOpen,
+    setNextOpen,
     describe: (id: string) =>
       data.evidence?.reasoning?.mechanisms.find(
         (m) => m.id === id && m.isCurrent && m.reviewStatus !== "rejected",
@@ -41,6 +45,7 @@ export function useGraphExplore(data: AtlasData) {
     clear: () => {
       setSteps([]);
       setSummaryOpen(false);
+      setNextOpen(false);
     },
     lit: (id: string) =>
       !current || steps.some((s) => s.id === id) || candidate(id),
@@ -69,12 +74,21 @@ export function GraphPointHint({
   const next = e.candidate(id);
   const incoming = choices.some((o) => o.incoming),
     outgoing = choices.some((o) => !o.incoming);
+  const causal = choices.some(
+    (o) =>
+      o.mechanism.basis === "causal" &&
+      o.mechanism.reviewStatus === "accepted",
+  );
+  const nature = causal ? "kausaaliseksi arvioitu" : "selitysehdotus";
   const hint =
     incoming && outgoing
       ? "← Tausta / seuraus →"
       : incoming
         ? "← Mahdollinen taustatekijä"
         : "Mahdollinen seuraus →";
+  // Once the reader has picked a first step, keep the guidance visible on the
+  // map itself: ring, direction arrow and the nature of the connection.
+  const guiding = next && e.steps.length > 0;
   return (
     <>
       {choices.length > 0 && (
@@ -89,17 +103,22 @@ export function GraphPointHint({
       )}
       {next && (
         <>
-          <circle className="graph-next-ring" cx={x} cy={y} r={r + 5} />
+          <circle
+            className={`graph-next-ring${guiding ? " guide" : ""}`}
+            cx={x}
+            cy={y}
+            r={r + 5}
+          />
           <text className="graph-next-mark" x={x + r + 8} y={y + 4}>
             {incoming && outgoing ? "↔" : incoming ? "←" : "→"}
           </text>
           <text
-            className="graph-point-hint"
+            className={`graph-point-hint${guiding ? " guide" : ""}`}
             x={x}
             y={y + r + 19}
             textAnchor="middle"
           >
-            {hint}
+            {guiding ? `${hint} · ${nature}` : hint}
           </text>
         </>
       )}
@@ -141,15 +160,145 @@ export function GraphExplore({
   onOpenSummary: () => void;
 }) {
   const summaryId = useId();
+  const nextId = useId();
   if (!e.current) return null;
   const previous = e.steps.at(-2);
+  const conceptLabel = (id: string) =>
+    data.evidence?.concepts.find((c) => c.id === id)?.label ?? id;
+  const themeOf = (mid: string) =>
+    catalogueFor(data).themes.find((t) => t.mechanisms.some((m) => m.id === mid))
+      ?.label;
+  const choices = e.options.filter(
+    (o) => !e.steps.some((s) => s.id === o.target.id),
+  );
+  const short = (t?: string, n = 140) =>
+    !t ? "" : t.length > n ? t.slice(0, n).trimEnd() + "…" : t;
   return (
     <>
+      <button
+        type="button"
+        className="graph-next-open"
+        hidden={e.nextOpen || e.summaryOpen}
+        aria-expanded={e.nextOpen}
+        aria-controls={nextId}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => {
+          e.setNextOpen(!e.nextOpen);
+          if (!e.nextOpen) {
+            e.setSummaryOpen(false);
+            onOpenSummary();
+          }
+        }}
+      >
+        Seuraava askel {e.nextOpen ? "▸" : "◂"}
+      </button>
+      <section
+        id={nextId}
+        className={`graph-next${e.nextOpen ? " open" : ""}`}
+        aria-label="Valitse seuraava askel"
+        aria-hidden={!e.nextOpen}
+        inert={!e.nextOpen}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            e.setNextOpen(false);
+          }
+        }}
+      >
+        <header className="graph-next-bar">
+          <button
+            type="button"
+            aria-label="Piilota etenemissuunnat"
+            onClick={() => e.setNextOpen(false)}
+          >
+            ▸
+          </button>
+        </header>
+        <p className="graph-next-head">
+          <span>Askel {e.steps.length}</span>
+          <strong>{conceptLabel(e.current)}</strong>
+        </p>
+        {choices.length === 0 ? (
+          <p className="graph-next-empty">
+            Tästä pisteestä ei ole kirjattua jatkoa. Palaa edelliseen tai
+            valitse toinen aloituspiste.
+          </p>
+        ) : (
+          <>
+            <p className="graph-next-lead">
+              {choices.length} kirjattua etenemissuuntaa – valitse seuraava
+              askel:
+            </p>
+            <ul>
+              {choices.map((o) => {
+                const theme = themeOf(o.mechanism.id);
+                return (
+                  <li key={o.mechanism.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        e.pick(o.target.id);
+                        onPick(o.target.id);
+                      }}
+                    >
+                      <span
+                        className={`graph-next-dir ${o.incoming ? "back" : "fwd"}`}
+                      >
+                        {o.incoming
+                          ? "← Taustatekijä: mikä johtaa tähän"
+                          : "Seuraus: mihin tämä vaikuttaa →"}
+                      </span>
+                      <span className="graph-next-target">
+                        {o.incoming
+                          ? `${o.target.label} → ${conceptLabel(e.current!)}`
+                          : `${conceptLabel(e.current!)} → ${o.target.label}`}
+                      </span>
+                      <span className="graph-next-mech">
+                        {o.mechanism.label}
+                        {o.mechanism.basis === "causal" &&
+                        o.mechanism.reviewStatus === "accepted"
+                          ? " · kausaaliseksi arvioitu"
+                          : " · selitysehdotus"}
+                      </span>
+                      <span className="graph-next-why">
+                        {short(o.mechanism.explanation)}
+                      </span>
+                      <span className="graph-next-where">
+                        <em>Esiintyy tyypillisesti, kun:</em>{" "}
+                        {short(o.mechanism.conditions, 160) ||
+                          "tilannetta ei ole kirjattu."}
+                        {theme && <> · Teema: {theme}</>}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </section>
       <nav className="graph-trail" aria-label="Oma tutkimuspolku">
         <span aria-live="polite">
           {e.steps.length}{" "}
           {e.steps.length === 1 ? "valittu piste" : "valittua pistettä"} ·
           vihjeet ovat kirjattuja selitysehdotuksia
+          {e.current &&
+            (() => {
+              const next = new Set(
+                e.options
+                  .map((o) => o.target.id)
+                  .filter((id) => e.candidate(id)),
+              ).size;
+              return next === 0 ? (
+                <strong className="graph-trail-end">
+                  {" "}
+                  · Tästä pisteestä ei ole kirjattuja jatkoaskelia – palaa
+                  edelliseen tai aloita alusta
+                </strong>
+              ) : (
+                ` · ${next} ${next === 1 ? "jatkoaskel näkyy" : "jatkoaskelta näkyy"} virtaavina viivoina ja sykkivinä renkaina`
+              );
+            })()}
         </span>
         {previous && (
           <button
@@ -170,11 +319,15 @@ export function GraphExplore({
       <button
         type="button"
         className="graph-summary-open"
+        hidden={e.nextOpen || e.summaryOpen}
         aria-expanded={e.summaryOpen}
         aria-controls={summaryId}
         onClick={() => {
           e.setSummaryOpen(!e.summaryOpen);
-          if (!e.summaryOpen) onOpenSummary();
+          if (!e.summaryOpen) {
+            e.setNextOpen(false);
+            onOpenSummary();
+          }
         }}
       >
         Oma polku ({e.steps.length}) {e.summaryOpen ? "▸" : "◂"}
