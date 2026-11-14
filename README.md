@@ -140,3 +140,14 @@ Akselikenttä avautuu nyt klusteroituna käsitekarttana. Lähentäminen avaa alu
 Valikon Reittikartta esittää saman käsitteistön aluekaistoina ja kirjatut mekanismit reitteinä. Sivupaneelissa voi seurata olemassa olevaa selityspolkua vaiheittain tai toistaa sen; vähennetty liike estää automaattisen toiston. Aikarajaus ei sijoita ajoittamattomia havaintoja keinotekoisesti kauteen. Avoimet ajoitukset ja näyttöaukot kerrotaan lukijalle.
 
 Kartta käyttää julkisen JSON-viennin määriteltyjä käsiteklustereita, jäsenyyksiä ja nykyisiä, hylkäämättömiä mekanismeja. Nykyinen sanasto sisältää neljä klusteria ja 13 käsitettä; se ei vielä kata koko artikkelisarjaa. Useaan klusteriin kuuluva käsite näkyy kerran, muut jäsenyydet kerrotaan sisältöpaneelissa. Sijainnit ja reittien pituudet ovat navigointia, eivät vaikutusten suuruuksia. Katkoviiva ja tarkastustila erottavat ehdotetun vaikutussuunnan hyväksytystä kausaaliväitteestä. Kartan sijainti ja valinnat säilyvät näkymää vaihdettaessa; piilotetun pallon pyöritys ja kartan reittitoisto pysähtyvät.
+
+# Yhteinen teemaluettelo ja aineistoversio
+
+Kaikki visualisoinnit käyttävät julkisen `data/atlas.json`-viennin `themeCatalog`-osiota. Siinä on sama 12 teeman toimituksellinen luokitus sekä päätelmät, oivallukset, käsitteet, mekanismit, polut ja tutkimuskonteksti lähteineen. `src/content/teemaluettelo.json` sisältää pysyviin tunnisteisiin perustuvan toimituksellisen sijoittelun ja vanhojen vientien varanäkymän.
+
+`npm run export:atlas` päivittää sekä havaintoaineiston että teemaluettelon samalla toistettavan lukemisen transaktiolla. Sisällöt ja lähteet haetaan tunnisteilla; nimet eivät muodosta uusia evidenssikytkentöjä. Jos uudelta käsitteeltä tai päätelmältä puuttuu toimituksellinen teemamääritys, vienti keskeytyy ja aiempi julkaisu säilyy. Lisää tällöin tarkoituksellinen teemamääritys ennen uutta vientiä.
+
+Kirjatut mekanismit ovat suunnattuja selitysehdotuksia, eivät automaattisesti kausaalisesti vahvistettuja vaikutuksia. Ilman mekanismia olevat käsitteet näkyvät edelleen teemajäseninä. Valintapaneeli erottaa suorat havaintokytkennät toimituksellisesta tutkimuskontekstista ja näyttää puuttuvan näytön, menetelmän, ehdot ja rajaukset. Julkaisupidot säilyvät viennissä.
+
+Testit: `npm run test:pages`, `npm run build:pages`, `npm run test:experience`. Navigoinnin vanhan pilotin regressiot käyttävät kiinteää `scripts/fixtures/pilot-atlas.json`-aineistoa; `scripts/catalogue.test.mjs` tarkistaa nykyisen julkisen aineiston kattavuuden, lähteet, suunnat ja havaintoviittausten eheyden.
+

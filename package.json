@@ -14,9 +14,9 @@
     "build:pages": "vite build --config vite.pages.config.ts",
     "preview:pages": "vite preview --config vite.pages.config.ts",
     "export:atlas": "node scripts/export-atlas.mjs",
-    "test:pages": "node --experimental-strip-types --test scripts/pages.test.mjs scripts/relationships.test.mjs scripts/navigation.test.mjs scripts/map-detail.test.mjs scripts/investigation.test.mjs scripts/comparison.test.mjs scripts/concept-map.test.mjs",
+    "test:pages": "node --experimental-strip-types --test scripts/pages.test.mjs scripts/relationships.test.mjs scripts/navigation.test.mjs scripts/map-detail.test.mjs scripts/investigation.test.mjs scripts/comparison.test.mjs scripts/concept-map.test.mjs scripts/catalogue.test.mjs scripts/teema.test.mjs",
     "migrate:reasoning": "node scripts/migrate-reasoning.mjs",
-    "test:experience": "node --test scripts/experience.test.mjs scripts/tieto.test.mjs"
+    "test:experience": "node --test scripts/experience.test.mjs scripts/tieto.test.mjs scripts/theme-experience.test.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",

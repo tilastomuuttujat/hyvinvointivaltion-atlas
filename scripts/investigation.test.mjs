@@ -1,9 +1,10 @@
+// Fixed pilot fixture isolates navigation behaviour from additions to the public dataset.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { explicitConclusions,fixedOffset,prepareInvestigation,zoomDepth,visibleTrail,zoomForStop,orderedNodes } from '../src/lib/atlas.investigation.ts';
 import { conceptTrail,initialNavigation } from '../src/lib/atlas.navigation.ts';
-const snapshot=JSON.parse(await readFile(new URL('../public/data/atlas.json',import.meta.url),'utf8'));
+const snapshot=JSON.parse(await readFile(new URL('./fixtures/pilot-atlas.json',import.meta.url),'utf8'));
 const data={...snapshot.atlas,evidence:snapshot.evidence},e=data.evidence;
 test('zoom uses hysteresis and retains the selected deep context when backing away',()=>{
  assert.equal(zoomDepth(1.26,0),0);assert.equal(zoomDepth(1.28,0),1);
@@ -53,3 +54,4 @@ test('server reader uses canonical revision/rejection policy without credential 
  for(const guard of ['cp.based_on_article_revision=a.revision_no','cp.based_on_body_sha256=a.body_sha256','cp.based_on_conclusion_revision=c.revision_no',"cp.review_status<>'rejected'"])assert.ok(sql.includes(guard));
  assert.ok(!source.includes('NeonBatchResult'));
 });
+

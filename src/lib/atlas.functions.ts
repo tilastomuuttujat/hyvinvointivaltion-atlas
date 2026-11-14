@@ -1,12 +1,13 @@
+import type { ThemeCatalog } from './teema.system';
 import type { EvidenceBundle } from './atlas.evidence';
 import type { EvidenceRef } from './atlas.relationships';
 import { createServerFn } from '@tanstack/react-start';
 import { neonQuery,neonUserError } from './neon';
 import snapshotSql from '../../scripts/export-atlas.sql?raw';
 export type Period = { id: string; label: string; start: number; end: number; coverage: { A: number; K: number; S: number } };
-export type Conclusion = { id: number; title: string; claim: string; kind: string; limitations: string | null };
+export type Conclusion = { reviewStatus?:string; id: number; title: string; claim: string; kind: string; limitations: string | null };
 export type Cell = { c: number; p: string; direct: number; context: number; counter: number; articles: number };
-export type AtlasData = { evidence?: EvidenceBundle | undefined; periods: Period[]; conclusions: Conclusion[]; cells: Cell[]; articleCount: number;
+export type AtlasData = { themeCatalog?:ThemeCatalog; evidence?: EvidenceBundle | undefined; periods: Period[]; conclusions: Conclusion[]; cells: Cell[]; articleCount: number;
   evidenceIndex?: EvidenceRef[]; generatedAt?: string; reviewPolicy?: string };
 
 export type Treatment = {
@@ -28,3 +29,4 @@ export const getAtlas=createServerFn({method:'GET'}).handler(async():Promise<Atl
 export const getTreatments=createServerFn({method:'GET'}).inputValidator((d:{conclusionId:number})=>{
  const id=Number(d?.conclusionId);if(!Number.isInteger(id)||id<1)throw new Error('Virheellinen päätelmä');return {conclusionId:id};
 }).handler(async({data}):Promise<Treatment[]> => (await readSnapshot()).treatments.filter(row=>row.conclusionId===data.conclusionId));
+

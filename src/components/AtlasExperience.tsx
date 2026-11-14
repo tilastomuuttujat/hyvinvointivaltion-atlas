@@ -51,10 +51,12 @@ export function AtlasExperience({ data, active: visible=true }: { data: AtlasDat
  const investigationSurface=useMemo(()=>!comparisonOn&&active&&prepared?{nodes:prepared.surfaces,intent:navigation.intent,depth,missingRoot:prepared.missingRoot}:undefined,[active,prepared,navigation.intent,depth,comparisonOn]);
  const goStory=(index:number)=>{const p=data.periods[index],s=ERA_STORIES[index];if(!p||!s)return;if(comparisonOn){setComparisonPeriod(p.id);setComparisonFocus(null);return;}setStory(index);setPeriod(p.id);setYear(p.start);setSelected(s.id);setMapFocus(null);setPreview(null);setNavigation(initialNavigation);setAllAreas(false)};
  const pilot=()=>{setComparisonOn(false);
-  const path=paths[0];if(!path||!data.evidence)return;
+  const path=paths.find(p=>p.id==='work-accommodation-pilot')??paths[0];if(!path||!data.evidence)return;
   const statementId=path.steps.find(s=>data.evidence?.reasoning?.conclusionBridges.some(b=>b.statementId===s.statementId&&b.isCurrent&&b.reviewStatus!=='rejected'))?.statementId;
   const bridge=data.evidence.reasoning?.conclusionBridges.find(b=>b.statementId===statementId&&b.isCurrent&&b.reviewStatus!=='rejected');
-  const study=data.evidence.observations.find(o=>o.kind==='research_finding'&&o.start!=null);
+  const stepIds=new Set(path.steps.map(s=>s.statementId));
+  const observationIds=new Set(data.evidence.reasoning?.evidenceLinks.filter(e=>stepIds.has(e.statementId)&&e.isCurrent&&e.reviewStatus!=='rejected').map(e=>e.observationId));
+  const study=data.evidence.observations.find(o=>observationIds.has(o.id)&&o.kind==='research_finding'&&o.start!=null);
   const p=study?.start!=null?periodAt(data.periods,study.start):undefined;
   if(!bridge||!p)return;
   setSelected(bridge.conclusionId);changeTime(p.id,study!.start!);setManual(true);setAllAreas(false);setNavigation({intent:'effects',trail:conceptTrail(data.evidence,path.steps[0].conceptId)});requestZoom(zoomForStop({level:'concept',conceptId:path.steps[0].conceptId}),undefined,{c:bridge.conclusionId,p:p.id});
@@ -114,4 +116,5 @@ export function AtlasExperience({ data, active: visible=true }: { data: AtlasDat
   <nav className="experience-eras" aria-label="Historialliset murrokset">{data.periods.map((p,i)=><Button key={p.id} variant="ghost" aria-current={period===p.id?'step':undefined} onClick={()=>goStory(i)}><span>{p.label}</span><span>{ERA_STORIES[i]?.title}</span></Button>)}</nav>
  </section>;
 }
+
 
