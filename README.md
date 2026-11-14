@@ -153,10 +153,10 @@ Testit: `npm run test:pages`, `npm run build:pages`, `npm run test:experience`. 
 
 
 
-## Tutkimuspolku samassa verkkokuvaajassa
+## Tutkimuspolku suoraan pisteitä valitsemalla
 
-Teemaverkossa ja solmuverkossa käsitteen valinta avaa pisteen lähelle kysymykset: mikä tähän johti, mihin tämä vaikuttaa, miten vaikutus välittyy ja millä ehdoilla. Teeman tai päätelmän valinnasta voi ensin valita teemaan kuuluvan käsitteen; aihejäsenyyttä ei käsitellä vaikutuksena.
+Teemaverkossa ja solmuverkossa käsitteen valinta vihjaa heti seuraavat pisteet: katkokehät ja pienet suuntanuolet osoittavat kirjatut viereiset mekanismit. Lyhyt tausta-/seurausvihje näkyy osoitettaessa tai näppäimistökohdistuksessa; kosketuslaitteella se näkyy suoraan. Kysymysvalikkoa tai automaattista tekstilaatikkoa ei avata.
 
-Kysymys korostaa suunnan mukaiset ajantasaiset, hylkäämättömät mekanismit. Jatkon voi valita kysymysvalikosta tai korostetusta pisteestä. Polku säilyy kuvaajassa; alareunan vaihevalinta palauttaa aiempaan kohtaan ja mahdollistaa uuden haaran. Muu piste aloittaa uuden polun. Vaihejärjestys on tutkimisjärjestys, ei välttämättä vaikutussuunta: nuoli näyttää aina kirjatun vaikutussuunnan myös taaksepäin tutkittaessa.
+Seuraavan pisteen klikkaus jatkaa polkua. Valitut pisteet numeroidaan tutkimisjärjestyksessä, valitut mekanismit vahvistuvat yhtenäisiksi viivoiksi ja vaihtoehtoiset jatkot jäävät kevyiksi katkoviivoiksi. Nuoli säilyttää kirjatun vaikutussuunnan myös taaksepäin tutkittaessa. Aiemman valitun pisteen klikkaus tai Edellinen palauttaa polkua ja mahdollistaa uuden haaran. Muu piste aloittaa uuden polun. Tyhjennä polku poistaa korostukset.
 
-Yhteyksien selitteet, ehdot, rajat ja suorat havaintolähteet tulevat julkisesta aineistosta. Puuttuva jatko tai havaintoperuste ilmoitetaan aukkona. Mekanismia ei muuteta vahvistetuksi syy-yhteydeksi valitsemalla se. Erillinen tietolaatikko avautuu edelleen vain käyttäjän painikkeella. Polku on näkymän istuntotilaa; sitä ei tallenneta tietokantaan.
+Jatkoja ei päätellä teemajäsenyydestä tai samankaltaisuudesta. Nykyiset hylkäämättömät mekanismit ja väitteet sekä puuttuvat jatkot säilyttävät aineistonsa tilan. Vihje ei vahvista syy-yhteyttä. Pitkät perustelut ja lähteet ovat edelleen käyttäjän erikseen avaamassa tietolaatikossa. Polku on näkymän istuntotilaa, eikä sitä tallenneta tietokantaan.
