@@ -107,6 +107,21 @@ test(
             .querySelector("title")
             .textContent.includes("Mukautettu työ ja työhönpaluu"),
         );
+        assert.ok(scope.querySelector(".graph-flow-stream"));
+        assert.ok(
+          scope
+            .querySelector(".graph-flow-caption")
+            .textContent.includes("Mukautettu työ"),
+        );
+        assert.ok(
+          scope
+            .querySelector(".graph-flow-caption")
+            .textContent.includes("Osa-aikainen työ"),
+        );
+        assert.equal(
+          scope.querySelector(".graph-summary").getAttribute("aria-hidden"),
+          "true",
+        );
         target().dispatchEvent(
           new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
         );
@@ -118,6 +133,20 @@ test(
           "2",
         );
         assert.ok(scope.querySelector('[data-path-chosen="true"]'));
+        scope.querySelector(".graph-summary-open").click();
+        await until(() => scope.querySelector(".graph-summary.open"));
+        assert.equal(scope.querySelectorAll(".graph-summary li").length, 2);
+        assert.ok(
+          scope
+            .querySelector(".graph-summary")
+            .textContent.includes("Osa-aikainen työ"),
+        );
+        assert.ok(
+          scope.querySelector(
+            '.graph-summary a[href="https://www.sjweh.fi/article/3664"]',
+          ),
+        );
+
         assert.equal(
           scope.querySelector("aside").getAttribute("aria-hidden"),
           "true",
@@ -131,6 +160,11 @@ test(
           () => target()?.getAttribute("data-path-candidate") === "true",
         );
         assert.equal(scope.querySelector('[data-path-chosen="true"]'), null);
+        assert.equal(scope.querySelectorAll(".graph-summary li").length, 1);
+        assert.ok(scope.querySelector(".graph-summary.open"));
+        scope.querySelector('[aria-label="Piilota polun yhteenveto"]').click();
+        await until(() => !scope.querySelector(".graph-summary.open"));
+
         target().dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
         await until(
           () => target()?.getAttribute("data-path-active") === "true",
@@ -140,6 +174,32 @@ test(
           "2",
         );
         assert.equal(scope.querySelectorAll(".graph-trail button").length, 2);
+        [...scope.querySelectorAll(".graph-trail button")]
+          .find((b) => b.textContent === "Tyhjennä polku")
+          .click();
+        await until(() => !scope.querySelector(".graph-trail"));
+        target().dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+        const reverse = () =>
+          scope.querySelector(
+            '[role="button"][aria-label="Työn mukauttaminen"]',
+          );
+        await until(
+          () => reverse()?.getAttribute("data-path-candidate") === "true",
+        );
+        reverse().dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+        await until(
+          () => reverse()?.getAttribute("data-path-active") === "true",
+        );
+        scope.querySelector(".graph-summary-open").click();
+        await until(() => scope.querySelector(".graph-summary.open"));
+        assert.ok(
+          scope
+            .querySelector(".graph-summary")
+            .textContent.includes("Tutkit vaikutusta taaksepäin"),
+        );
+        assert.equal(scope.querySelectorAll(".graph-summary li").length, 2);
+        scope.querySelector('[aria-label="Piilota polun yhteenveto"]').click();
+        await until(() => !scope.querySelector(".graph-summary.open"));
       };
       await exercisePath(themeView);
       choose("☍ Solmuverkko");

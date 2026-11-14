@@ -1,4 +1,9 @@
-import { GraphExplore, GraphPointHint, useGraphExplore } from "./GraphExplore";
+import {
+  GraphExplore,
+  GraphFlow,
+  GraphPointHint,
+  useGraphExplore,
+} from "./GraphExplore";
 import type { AtlasData } from "@/lib/atlas.functions";
 import { catalogueFor } from "@/lib/teema.system";
 import { ThemeSelectionDetails } from "./ThemeSelectionDetails";
@@ -238,40 +243,53 @@ export function OrganicNodeGraph({
                 : depthAlpha((a.z + b.z) / 2) *
                   (e.kind === "mechanism" ? 0.55 : 0.18);
             return (
-              <line
-                markerEnd={
-                  e.kind === "mechanism" ? "url(#organic-direction)" : undefined
-                }
-                key={i}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                stroke={
-                  exploration.chosen(e.referenceId ?? "")
-                    ? "var(--primary)"
-                    : e.kind === "mechanism"
-                      ? color(e.a)
-                      : "var(--muted-foreground)"
-                }
-                strokeOpacity={op}
-                data-path-chosen={exploration.chosen(e.referenceId ?? "")}
-                strokeWidth={
-                  exploration.chosen(e.referenceId ?? "")
-                    ? 4
-                    : e.kind === "mechanism"
-                      ? 1.6
-                      : 0.8
-                }
-                strokeDasharray={
-                  e.kind === "member"
-                    ? "3 4"
-                    : exploration.current &&
-                        !exploration.chosen(e.referenceId ?? "")
-                      ? "3 5"
+              <g key={i}>
+                <line
+                  markerEnd={
+                    e.kind === "mechanism"
+                      ? "url(#organic-direction)"
                       : undefined
-                }
-              />
+                  }
+                  key={i}
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke={
+                    exploration.chosen(e.referenceId ?? "")
+                      ? "var(--primary)"
+                      : e.kind === "mechanism"
+                        ? color(e.a)
+                        : "var(--muted-foreground)"
+                  }
+                  strokeOpacity={exploration.current && hot ? 0 : op}
+                  data-path-chosen={exploration.chosen(e.referenceId ?? "")}
+                  strokeWidth={
+                    exploration.chosen(e.referenceId ?? "")
+                      ? 4
+                      : e.kind === "mechanism"
+                        ? 1.6
+                        : 0.8
+                  }
+                  strokeDasharray={
+                    e.kind === "member"
+                      ? "3 4"
+                      : exploration.current &&
+                          !exploration.chosen(e.referenceId ?? "")
+                        ? "3 5"
+                        : undefined
+                  }
+                />
+                {e.kind === "mechanism" && (
+                  <GraphFlow
+                    exploration={exploration}
+                    id={e.referenceId ?? ""}
+                    from={a}
+                    to={b}
+                    marker="organic-direction"
+                  />
+                )}
+              </g>
             );
           })}
           {order.map((i) => {
@@ -378,6 +396,7 @@ export function OrganicNodeGraph({
           })}
         </svg>
         <GraphExplore
+          onOpenSummary={() => setPanelOpen(false)}
           data={data}
           exploration={exploration}
           onPick={(id) => {
@@ -393,7 +412,10 @@ export function OrganicNodeGraph({
           <button
             type="button"
             aria-label="Avaa tietolaatikko"
-            onClick={() => setPanelOpen(true)}
+            onClick={() => {
+              setPanelOpen(true);
+              exploration.setSummaryOpen(false);
+            }}
             className="absolute right-0 top-1/2 -translate-y-1/2 rounded-l-lg border border-r-0 border-border bg-card/95 px-1.5 py-4 text-xs shadow-lg backdrop-blur transition-colors hover:bg-accent"
           >
             ◂ Tiedot
