@@ -1,3 +1,4 @@
+import { exploreOptions } from "../src/lib/atlas.explore.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -13,10 +14,24 @@ const s = JSON.parse(
   readFileSync(new URL("../public/data/atlas.json", import.meta.url), "utf8"),
 );
 const data = { ...s.atlas, evidence: s.evidence, themeCatalog: s.themeCatalog };
-test('equal labels with different IDs do not fabricate a cross-theme bridge',()=>{
- const theme=id=>({id,label:id,concepts:[{id,t:'Sama nimi',d:'',r:''}],conclusions:[],mechanisms:[],paths:[],insights:[],findings:[],series:0,claims:0,gap:[]});
- assert.equal(themeBridges([theme('one'),theme('two')]).length,0);
- const copy=theme('two');copy.concepts[0].id='one';assert.equal(themeBridges([theme('one'),copy]).length,1);
+test("equal labels with different IDs do not fabricate a cross-theme bridge", () => {
+  const theme = (id) => ({
+    id,
+    label: id,
+    concepts: [{ id, t: "Sama nimi", d: "", r: "" }],
+    conclusions: [],
+    mechanisms: [],
+    paths: [],
+    insights: [],
+    findings: [],
+    series: 0,
+    claims: 0,
+    gap: [],
+  });
+  assert.equal(themeBridges([theme("one"), theme("two")]).length, 0);
+  const copy = theme("two");
+  copy.concepts[0].id = "one";
+  assert.equal(themeBridges([theme("one"), copy]).length, 1);
 });
 test("all views share one snapshot, 12 themes and every canonical concept", () => {
   validateThemeCatalog(s.themeCatalog, data);
@@ -139,4 +154,39 @@ test("publication holds and hypothesis status survive the shared snapshot", () =
       assert.equal(m.reviewStatus, canonical.reviewStatus);
       assert.equal(m.conditions, canonical.conditions);
     }
+});
+
+test("exploration follows recorded direction and excludes rejected, stale and unknown mechanisms", () => {
+  const mechanism = {
+    id: "ab",
+    from: "a",
+    to: "b",
+    statementId: "s",
+    isCurrent: true,
+    reviewStatus: "needs_review",
+  };
+  const d = {
+    evidence: {
+      concepts: [{ id: "a" }, { id: "b" }],
+      reasoning: {
+        statements: [{ id: "s", reviewStatus: "needs_review" }],
+        mechanisms: [
+          mechanism,
+          { ...mechanism, id: "rejected", reviewStatus: "rejected" },
+          { ...mechanism, id: "stale", isCurrent: false },
+          { ...mechanism, id: "unknown", to: "unknown" },
+        ],
+      },
+    },
+  };
+  assert.deepEqual(
+    exploreOptions(d, "a", "after").map((o) => o.mechanism.id),
+    ["ab"],
+  );
+  assert.equal(exploreOptions(d, "a", "before").length, 0);
+  assert.equal(exploreOptions(d, "b", "after").length, 0);
+  assert.equal(exploreOptions(d, "b", "before")[0].target.id, "a");
+  assert.equal(exploreOptions(d, "b", "how")[0].incoming, true);
+  assert.equal(exploreOptions(d, "a", "conditions")[0].target.id, "b");
+  assert.equal(exploreOptions(d, "isolated", "after").length, 0);
 });

@@ -1,3 +1,4 @@
+import { GraphExplore, useGraphExplore } from "./GraphExplore";
 import type { AtlasData } from "@/lib/atlas.functions";
 import { catalogueFor } from "@/lib/teema.system";
 import { ThemeSelectionDetails } from "./ThemeSelectionDetails";
@@ -27,6 +28,14 @@ export function OrganicNodeGraph({
   data: AtlasData;
 }) {
   const catalog = catalogueFor(data);
+  const exploration = useGraphExplore(data);
+  const chooseNode = (i: number) => {
+    const node = graph.nodes[i]!;
+    setSel(i);
+    setSpin(false);
+    if (node.kind === "concept") exploration.pick(node.id.slice(2));
+    else exploration.clear();
+  };
   const graph = useMemo(
     () => layoutForceGraph(buildForceGraph(catalog.themes)),
     [catalog],
@@ -132,7 +141,13 @@ export function OrganicNodeGraph({
             <input
               type="checkbox"
               checked={show[k]}
-              onChange={(e) => setShow({ ...show, [k]: e.target.checked })}
+              onChange={(e) => {
+                setShow({ ...show, [k]: e.target.checked });
+                if (!e.target.checked && k === "concept") {
+                  exploration.clear();
+                  setSel(null);
+                }
+              }}
             />
             {KIND_LABEL[k]}
           </label>
@@ -184,7 +199,10 @@ export function OrganicNodeGraph({
             )
           }
           onClick={() => {
-            if (!moved.current) setSel(null);
+            if (!moved.current) {
+              setSel(null);
+              exploration.clear();
+            }
           }}
         >
           <defs>
@@ -208,7 +226,10 @@ export function OrganicNodeGraph({
             if (!visible(e.a) || !visible(e.b)) return null;
             const a = proj[e.a]!,
               b = proj[e.b]!,
-              hot = sel !== null && (e.a === sel || e.b === sel);
+              hot = exploration.current
+                ? e.kind === "mechanism" &&
+                  exploration.edgeLit(e.referenceId ?? "")
+                : sel !== null && (e.a === sel || e.b === sel);
             const op =
               sel !== null
                 ? hot
@@ -239,12 +260,42 @@ export function OrganicNodeGraph({
               />
             );
           })}
+          {exploration.current &&
+            graph.edges
+              .filter(
+                (e) =>
+                  e.kind === "mechanism" &&
+                  exploration.edgeLit(e.referenceId ?? "") &&
+                  visible(e.a) &&
+                  visible(e.b),
+              )
+              .map((e) => (
+                <text
+                  key={`explain:${e.referenceId}:${e.a}:${e.b}`}
+                  x={(proj[e.a]!.x + proj[e.b]!.x) / 2}
+                  y={(proj[e.a]!.y + proj[e.b]!.y) / 2 - 7}
+                  textAnchor="middle"
+                  fill="var(--foreground)"
+                  fontSize="11"
+                  style={{
+                    pointerEvents: "none",
+                    paintOrder: "stroke",
+                    stroke: "var(--background)",
+                    strokeWidth: 4,
+                  }}
+                >
+                  {(e.label ?? "Kirjattu mekanismi").slice(0, 64)}
+                  <title>{e.label}</title>
+                </text>
+              ))}
           {order.map((i) => {
             const n = graph.nodes[i]!,
               p = proj[i]!;
             const r =
               (n.kind === "theme" ? 14 : n.kind === "concept" ? 6 : 4.5) * p.s;
-            const dim = near && !near.has(i);
+            const dim = exploration.current
+              ? n.kind !== "concept" || !exploration.lit(n.id.slice(2))
+              : near && !near.has(i);
             const op = dim ? 0.12 : depthAlpha(p.z);
             const showLabel =
               n.kind === "theme" || (near?.has(i) ?? false) || zoom * p.s > 2.2;
@@ -253,10 +304,18 @@ export function OrganicNodeGraph({
                 role="button"
                 tabIndex={0}
                 aria-label={n.label}
+                data-path-active={
+                  (exploration.current === n.id.slice(2) &&
+                    n.kind === "concept") ||
+                  (!exploration.current && i === sel)
+                }
+                data-concept-id={
+                  n.kind === "concept" ? n.id.slice(2) : undefined
+                }
                 onKeyDown={(ev) => {
                   if (ev.key === "Enter" || ev.key === " ") {
                     ev.preventDefault();
-                    setSel(i);
+                    chooseNode(i);
                   }
                 }}
                 key={n.id}
@@ -265,7 +324,7 @@ export function OrganicNodeGraph({
                 onClick={(ev) => {
                   ev.stopPropagation();
                   if (!moved.current) {
-                    setSel(i);
+                    chooseNode(i);
                   }
                 }}
               >
@@ -315,6 +374,36 @@ export function OrganicNodeGraph({
             );
           })}
         </svg>
+        <GraphExplore
+          data={data}
+          exploration={exploration}
+          start={
+            s && s.kind !== "concept"
+              ? {
+                  label: s.label,
+                  ids: [
+                    ...new Set(
+                      s.themes.flatMap(
+                        (ti) =>
+                          catalog.themes[ti]?.concepts.map((c) => c.id) ?? [],
+                      ),
+                    ),
+                  ],
+                }
+              : undefined
+          }
+          onCloseStart={() => {
+            if (s?.kind !== "concept") setSel(null);
+          }}
+          onPick={(id) => {
+            const i = graph.nodes.findIndex((n) => n.id === `K:${id}`);
+            if (i >= 0) {
+              setSel(i);
+              setSpin(false);
+              setShow((v) => ({ ...v, concept: true }));
+            }
+          }}
+        />
         {s && !panelOpen && (
           <button
             type="button"
@@ -394,7 +483,7 @@ export function OrganicNodeGraph({
                       <button
                         type="button"
                         className="text-left hover:underline"
-                        onClick={() => setSel(o)}
+                        onClick={() => chooseNode(o)}
                       >
                         {e.kind === "mechanism" ? "⟶ " : "· "}
                         {graph.nodes[o]!.label}
@@ -412,17 +501,24 @@ export function OrganicNodeGraph({
               <button
                 type="button"
                 className="mt-3 self-start rounded border border-border px-2 py-1 text-xs"
-                onClick={() => setSel(null)}
+                onClick={() => {
+                  setSel(null);
+                  exploration.clear();
+                }}
               >
                 Näytä koko verkko
               </button>
             </div>
           )}
         </aside>
-        <p className="pointer-events-none absolute bottom-2 left-3 text-[11px] text-muted-foreground">
-          Raahaa pyörittääksesi · nipistä tai rullaa zoomataksesi · nuoli =
-          kirjattu mekanismiehdotus, katkoviiva = teemajäsenyys. Sijainti kuvaa
-          kytkentöjä, ei vaikutuksen suuruutta.
+        <p
+          hidden={!!exploration.current}
+          className="pointer-events-none absolute bottom-2 left-3 text-[11px] text-muted-foreground"
+        >
+          Valitse käsite ja kysymys rakentaaksesi polun. Raahaa pyörittääksesi ·
+          nipistä tai rullaa zoomataksesi · nuoli = kirjattu mekanismiehdotus,
+          katkoviiva = teemajäsenyys. Sijainti kuvaa kytkentöjä, ei vaikutuksen
+          suuruutta.
         </p>
       </div>
     </section>
