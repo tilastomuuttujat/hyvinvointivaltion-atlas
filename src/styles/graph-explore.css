@@ -1,0 +1,128 @@
+.graph-explore {
+  position: absolute;
+  z-index: 12;
+  width: min(330px, calc(100% - 24px));
+  max-height: 55%;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 8px 30px #0003;
+  font-size: 13px;
+  line-height: 1.45;
+  overscroll-behavior: contain;
+}
+.graph-explore header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.graph-explore header button {
+  font-size: 22px;
+  padding: 0 8px;
+}
+.graph-explore p {
+  margin: 8px 0;
+}
+.graph-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.graph-questions button,
+.graph-trail button {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: var(--background);
+  text-align: left;
+}
+.graph-questions [aria-pressed="true"],
+.graph-trail [aria-current="step"] {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.graph-options article {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+}
+.graph-options small,
+.graph-options strong {
+  display: block;
+}
+.graph-options article > button {
+  font-size: 15px;
+  color: var(--primary);
+  text-align: left;
+  padding: 7px 0;
+  font-weight: 600;
+}
+.graph-options summary {
+  cursor: pointer;
+  color: var(--primary);
+}
+.graph-options a {
+  text-decoration: underline;
+}
+.graph-trail {
+  position: absolute;
+  z-index: 11;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: auto;
+  max-height: 80px;
+  padding: 8px;
+  border-radius: 9px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+.graph-trail > * {
+  flex-shrink: 0;
+}
+.graph-trail span {
+  color: var(--muted-foreground);
+}
+.graph-explore button:focus-visible,
+.graph-trail button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.ts-constellation .ts-star[data-path-dim="true"],
+.ts-constellation[data-path-dim="true"] {
+  opacity: 0.12;
+}
+.ts-causal[data-path-dim="true"] {
+  opacity: 0.08;
+}
+.ts-causal[data-path-lit="true"] .ts-causal-line {
+  stroke-width: 5;
+  opacity: 1;
+}
+.ts-star[data-path-active="true"] .ts-star-dot {
+  r: 7;
+  stroke: var(--foreground);
+  stroke-width: 2;
+}
+@media (max-width: 600px) {
+  .graph-explore {
+    max-height: 45%;
+    font-size: 12px;
+  }
+  .graph-trail {
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+  }
+  .graph-trail span {
+    display: none;
+  }
+}

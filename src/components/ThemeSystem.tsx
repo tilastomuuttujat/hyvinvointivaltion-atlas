@@ -1,3 +1,4 @@
+import { GraphExplore, useGraphExplore } from "./GraphExplore";
 import type { AtlasData } from "@/lib/atlas.functions";
 import { ThemeSelectionDetails } from "./ThemeSelectionDetails";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
@@ -49,6 +50,7 @@ export function ThemeSystem({
   active?: boolean;
 }) {
   const catalog = catalogueFor(data);
+  const exploration = useGraphExplore(data);
   const layouts = useMemo(() => {
     const positions = spherePositions(catalog.themes.length, RADIUS);
     return catalog.themes.map((theme, i) => {
@@ -156,6 +158,7 @@ export function ThemeSystem({
     if (moved.current) return;
     const location = layouts[i];
     if (!location) return;
+    exploration.clear();
     setSelected(i);
     setDetail(null);
     setShared(null);
@@ -165,6 +168,7 @@ export function ThemeSystem({
     setCamera({ zoom: 2.4, x: CX - CX * 2.4, y: CY - (CY + 40 * k) * 2.4 });
   };
   const overview = () => {
+    exploration.clear();
     setCamera(STAR_OVERVIEW);
     setSpinning(true);
     setSelected(null);
@@ -231,6 +235,12 @@ export function ThemeSystem({
   const pickDetail = (i: number, d: Detail) => {
     if (moved.current) return;
     const changed = selected !== i;
+    const id =
+      d.kind === "concept"
+        ? catalog.themes[i]?.concepts.find((c) => c.t === d.label)?.id
+        : undefined;
+    if (id) exploration.pick(id);
+    else exploration.clear();
     setSelected(i);
     setDetail(d);
     setShared(null);
@@ -416,6 +426,10 @@ export function ThemeSystem({
                   key={t.id}
                   className={`ts-constellation${active ? " selected" : ""}${camera.zoom > 1.65 || i === nearest || p.front > 0.8 ? " near" : ""}`}
                   color={ink(i)}
+                  data-path-dim={
+                    !!exploration.current &&
+                    !t.concepts.some((c) => exploration.lit(c.id))
+                  }
                   transform={`translate(${p.x} ${p.y}) scale(${p.s * 0.9}) translate(-195 0)`}
                   opacity={active ? 1 : 0.3 + p.front * 0.7}
                   onMouseEnter={() => setHovered(i)}
@@ -426,6 +440,7 @@ export function ThemeSystem({
                     tabIndex={0}
                     aria-label={t.label}
                     className="ts-theme"
+                    data-path-active={!exploration.current && selected === i}
                     onClick={() => selectTheme(i)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -471,6 +486,19 @@ export function ThemeSystem({
                       <g
                         key={k}
                         className={`ts-causal ${edge.kind}${isActive ? " lit" : ""}`}
+                        data-path-lit={
+                          edge.kind === "mechanism" &&
+                          exploration.edgeLit(t.mechanisms[edge.ref]?.id ?? "")
+                        }
+                        data-path-dim={
+                          !!exploration.current &&
+                          !(
+                            edge.kind === "mechanism" &&
+                            exploration.edgeLit(
+                              t.mechanisms[edge.ref]?.id ?? "",
+                            )
+                          )
+                        }
                       >
                         <path
                           d={d}
@@ -478,6 +506,30 @@ export function ThemeSystem({
                           markerEnd="url(#ts-arrow)"
                         />
                         <path d={d} className="ts-causal-pulse" />
+                        {exploration.current &&
+                          edge.kind === "mechanism" &&
+                          exploration.edgeLit(
+                            t.mechanisms[edge.ref]?.id ?? "",
+                          ) && (
+                            <text
+                              x={(a.x + b.x) / 2}
+                              y={(a.y + b.y) / 2 - 12}
+                              textAnchor="middle"
+                              className="ts-node-name"
+                            >
+                              {wrapLabel(t.mechanisms[edge.ref]!.t, 30).map(
+                                (line, i) => (
+                                  <tspan
+                                    key={i}
+                                    x={(a.x + b.x) / 2}
+                                    dy={i ? 13 : 0}
+                                  >
+                                    {line}
+                                  </tspan>
+                                ),
+                              )}
+                            </text>
+                          )}
                         <path
                           d={d}
                           className="ts-hit"
@@ -519,6 +571,17 @@ export function ThemeSystem({
                         role="button"
                         tabIndex={0}
                         aria-label={n.label}
+                        data-path-active={
+                          selected === i &&
+                          exploration.current ===
+                            t.concepts.find((c) => c.t === n.label)?.id
+                        }
+                        data-path-dim={
+                          !!exploration.current &&
+                          !exploration.lit(
+                            t.concepts.find((c) => c.t === n.label)?.id ?? "",
+                          )
+                        }
                         className={`ts-star${litEdge ? " lit" : ""}`}
                         onClick={() =>
                           pickDetail(i, {
@@ -617,6 +680,37 @@ export function ThemeSystem({
             })}
           </g>
         </svg>
+        <GraphExplore
+          data={data}
+          exploration={exploration}
+          start={
+            theme && detail?.kind !== "concept"
+              ? { label: theme.label, ids: theme.concepts.map((c) => c.id) }
+              : undefined
+          }
+          onCloseStart={() => {
+            if (detail?.kind !== "concept") setSelected(null);
+          }}
+          onPick={(id) => {
+            const ti =
+              selected !== null &&
+              catalog.themes[selected]?.concepts.some((c) => c.id === id)
+                ? selected
+                : catalog.themes.findIndex((t) =>
+                    t.concepts.some((c) => c.id === id),
+                  );
+            if (ti < 0) return;
+            const concept = catalog.themes[ti]!.concepts.find(
+              (c) => c.id === id,
+            )!;
+            setSelected(ti);
+            setDetail({ kind: "concept", index: 0, label: concept.t });
+            setShared(null);
+            setSpinning(false);
+            const loc = layouts[ti];
+            if (loc) animateOrbit(facingOrbit(loc.base));
+          }}
+        />
         <div className="ts-tools">
           <Button
             variant="outline"
@@ -766,7 +860,8 @@ export function ThemeSystem({
         </aside>
       </div>
       <p className="ts-note">
-        Syy-seurausviivat perustuvat kirjattuihin mekanismeihin ja
+        Valitse käsite ja kysymys rakentaaksesi polun. Muu piste aloittaa uuden
+        polun. Syy-seurausviivat perustuvat kirjattuihin mekanismeihin ja
         selityspolkuihin. Teemojen väliset sillat osoittavat samannimisiä
         käsitteitä, eivät hyväksyttyjä kytkentöjä.
       </p>

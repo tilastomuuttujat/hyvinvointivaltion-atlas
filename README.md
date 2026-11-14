@@ -151,3 +151,12 @@ Kirjatut mekanismit ovat suunnattuja selitysehdotuksia, eivät automaattisesti k
 
 Testit: `npm run test:pages`, `npm run build:pages`, `npm run test:experience`. Navigoinnin vanhan pilotin regressiot käyttävät kiinteää `scripts/fixtures/pilot-atlas.json`-aineistoa; `scripts/catalogue.test.mjs` tarkistaa nykyisen julkisen aineiston kattavuuden, lähteet, suunnat ja havaintoviittausten eheyden.
 
+
+
+## Tutkimuspolku samassa verkkokuvaajassa
+
+Teemaverkossa ja solmuverkossa käsitteen valinta avaa pisteen lähelle kysymykset: mikä tähän johti, mihin tämä vaikuttaa, miten vaikutus välittyy ja millä ehdoilla. Teeman tai päätelmän valinnasta voi ensin valita teemaan kuuluvan käsitteen; aihejäsenyyttä ei käsitellä vaikutuksena.
+
+Kysymys korostaa suunnan mukaiset ajantasaiset, hylkäämättömät mekanismit. Jatkon voi valita kysymysvalikosta tai korostetusta pisteestä. Polku säilyy kuvaajassa; alareunan vaihevalinta palauttaa aiempaan kohtaan ja mahdollistaa uuden haaran. Muu piste aloittaa uuden polun. Vaihejärjestys on tutkimisjärjestys, ei välttämättä vaikutussuunta: nuoli näyttää aina kirjatun vaikutussuunnan myös taaksepäin tutkittaessa.
+
+Yhteyksien selitteet, ehdot, rajat ja suorat havaintolähteet tulevat julkisesta aineistosta. Puuttuva jatko tai havaintoperuste ilmoitetaan aukkona. Mekanismia ei muuteta vahvistetuksi syy-yhteydeksi valitsemalla se. Erillinen tietolaatikko avautuu edelleen vain käyttäjän painikkeella. Polku on näkymän istuntotilaa; sitä ei tallenneta tietokantaan.
