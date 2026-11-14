@@ -1,3 +1,4 @@
+import { ThemeSystem } from "@/components/ThemeSystem";
 import { ConceptMap } from "@/components/ConceptMap";
 import { EvidenceExplorer } from "@/components/EvidenceExplorer";
 import { createFileRoute } from "@tanstack/react-router";
@@ -32,7 +33,7 @@ export const Route = createFileRoute("/")({
 
 export function AtlasPage() {
   const { data } = useSuspenseQuery(atlasQuery);
-  const [view, setView] = useState<"sphere" | "radial" | "axes" | "routes">("sphere");
+  const [view, setView] = useState<"sphere" | "radial" | "axes" | "routes" | "themes">("sphere");
   const [visited,setVisited]=useState<Set<string>>(new Set(["sphere"]));
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -51,7 +52,7 @@ export function AtlasPage() {
         </div>
       </header>
       <nav className="view-switch" aria-label="Näkymä">
-        {([["sphere", "◐ Pallo"], ["radial", "◎ Säteittäinen"], ["axes", "⊹ Akselikenttä"], ["routes", "⌁ Reittikartta"]] as const).map(([k, l]) => (
+        {([["sphere", "◐ Pallo"], ["radial", "◎ Säteittäinen"], ["axes", "⊹ Akselikenttä"], ["routes", "⌁ Reittikartta"], ["themes", "☊ Teemaverkko"]] as const).map(([k, l]) => (
           <button key={k} type="button" aria-current={view === k || undefined} onClick={() => {setView(k);setVisited(previous=>new Set([...previous,k]))}}>{l}</button>
         ))}
       </nav>
@@ -59,6 +60,7 @@ export function AtlasPage() {
       {visited.has("radial")&&<div hidden={view!=="radial"}><RadialAtlas data={data}/></div>}
       {visited.has("axes")&&<div hidden={view!=="axes"}><AxisField data={data} active={view==="axes"}/></div>}
       {visited.has("routes")&&<div hidden={view!=="routes"}><ConceptMap data={data} layout="routes" active={view==="routes"}/></div>}
+      {visited.has("themes") && <div hidden={view !== "themes"}><ThemeSystem /></div>}
       <details className="border-t border-border">
         <summary className="cursor-pointer px-6 py-4 text-xs text-muted-foreground">Havaintoaineiston hakemisto</summary>
         <EvidenceExplorer bundle={data.evidence} />

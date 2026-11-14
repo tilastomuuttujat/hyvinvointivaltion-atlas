@@ -32,3 +32,5 @@ use the editor.
 - Neon access remains exclusively behind the existing Lovable connector gateway in server functions; the browser never touches Neon directly and credentials stay server-side.
 - The visual experience reads the supplied versioned static snapshot through atlas.static; keep the existing Neon readers unchanged and connect semantic navigation to globe conclusions only through explicit current, non-rejected bridges, never text similarity.
 - AtlasExperience uses one persistent AtlasSphere terrain; zoom reveals recorded map labels at fixed spherical coordinates without switching semantic scenes or resetting the camera, with anchored delta-normalized touch/trackpad gestures and no inferred evidence links.
+
+- Teemaverkko renders recorded mechanisms and explanation paths in one persistent SVG constellation canvas; camera gestures are anchored in SVG coordinates and contextual evidence stays alongside the selected constellation, preserving the source distinction between shared terms and causal evidence.

@@ -98,6 +98,15 @@
   --kind-hypo: oklch(0.8 0.12 65);
   --kind-principle: oklch(0.74 0.12 15);
   --space: oklch(0.11 0.03 260);
+  --constellation-space: oklch(0.13 0.008 260);
+  --constellation-1: oklch(0.82 0.10 180);
+  --constellation-2: oklch(0.82 0.11 145);
+  --constellation-3: oklch(0.84 0.12 95);
+  --constellation-4: oklch(0.82 0.12 65);
+  --constellation-5: oklch(0.78 0.12 25);
+  --constellation-6: oklch(0.80 0.10 335);
+  --constellation-7: oklch(0.78 0.10 295);
+  --constellation-8: oklch(0.80 0.10 230);
   --sphere-lit: oklch(0.36 0.07 220);
   --sphere-mid: oklch(0.19 0.045 245);
   --sphere-grid: oklch(0.75 0.06 210);
