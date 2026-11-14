@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+const pilot = JSON.parse(await readFile(new URL('./fixtures/pilot-atlas.json',import.meta.url),'utf8'));
 const data = JSON.parse(await readFile(new URL('../public/data/atlas.json', import.meta.url), 'utf8'));
 test('snapshot links reference existing conclusions and periods; aggregates match detail rows', () => {
   assert.equal(data.schemaVersion, 1);
@@ -33,7 +34,7 @@ test('public snapshot contains no connection credentials or privileged configura
 
 test('observation layer preserves references, publication holds, months and research dates', async () => {
  const { conceptObservations, observationDate } = await import('../src/lib/atlas.evidence.ts');
- const { evidence:e } = JSON.parse(await readFile(new URL('../public/data/atlas.json',import.meta.url),'utf8'));
+ const { evidence:e } = pilot;
  assert.equal(e.concepts.length,13);
  assert.equal(e.observations.length,284);
  assert.equal(e.withheld,30);
@@ -55,7 +56,7 @@ test('observation layer preserves references, publication holds, months and rese
 
 test('reasoning graph is traceable, clustered and explicitly provisional', async () => {
  const { validateReasoning,conceptsInCluster }=await import('../src/lib/atlas.reasoning.ts');
- const e=data.evidence,r=e.reasoning;
+ const data=pilot; const e=data.evidence,r=e.reasoning;
  validateReasoning(e,new Set(data.atlas.conclusions.map(c=>c.id)));
  assert.equal(r.clusters.length,4);
  assert.equal(r.memberships.length,16);
@@ -86,8 +87,8 @@ test('reasoning validator rejects broken references and false causal approvals',
   e=>{e.reasoning.mechanisms[0].basis='causal'},
   e=>{e.reasoning.paths[0].steps[1].conceptId='income_adequacy'},
   e=>{e.reasoning.observationSources=[]},
- ]) {const e=structuredClone(data.evidence);change(e);assert.throws(()=>validateReasoning(e),/Invalid reasoning/)}
- const old=structuredClone(data.evidence);delete old.reasoning;assert.doesNotThrow(()=>validateReasoning(old));
+ ]) {const e=structuredClone(pilot.evidence);change(e);assert.throws(()=>validateReasoning(e),/Invalid reasoning/)}
+ const old=structuredClone(pilot.evidence);delete old.reasoning;assert.doesNotThrow(()=>validateReasoning(old));
 });
 
 test('shared SQL export includes canonical reasoning fragment', async () => {
@@ -95,3 +96,4 @@ test('shared SQL export includes canonical reasoning fragment', async () => {
  const fragment=await readFile(new URL('./export-reasoning.sql',import.meta.url),'utf8');
  assert.ok(combined.includes(fragment.trim().replace(/;$/,'')));
 });
+

@@ -1,8 +1,9 @@
+// Fixed pilot fixture isolates navigation behaviour from additions to the public dataset.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initialNavigation,descend,returnTo,temporalStatus,observationsFor,mechanismsFor,evidenceFor,sceneFor,conceptTrail,validPaths } from '../src/lib/atlas.navigation.ts';
-const {evidence:e}=JSON.parse(await readFile(new URL('../public/data/atlas.json',import.meta.url),'utf8'));
+const {evidence:e}=JSON.parse(await readFile(new URL('./fixtures/pilot-atlas.json',import.meta.url),'utf8'));
 const current={start:2010,end:2025},past={start:1850,end:1916},future={start:2026,end:2050};
 test('navigation preserves inquiry and true visited ancestry; repeated stops do not loop',()=>{
  let s={...initialNavigation,intent:'causes'};
@@ -65,3 +66,4 @@ test('guided paths use explicit valid steps and omit broken paths',()=>{
  const copy=structuredClone(e);copy.reasoning.paths[0].steps[1].conceptId='income_adequacy';
  assert.equal(validPaths(copy).length,0);
 });
+

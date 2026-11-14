@@ -767,7 +767,7 @@ export function ConceptMap({
                         fontSize={11 / scale}
                       >
                         {o.kind === "research_finding"
-                          ? "Tutkimustulos"
+                          ? `Tutkimustulos · ${o.title}`
                           : `${observationDate(o)} · ${Number(o.value).toLocaleString("fi-FI")}`}
                       </text>
                     </g>
@@ -940,10 +940,11 @@ export function ConceptMap({
                       <button
                         type="button"
                         key={o.id}
+                        data-observation-id={o.id}
                         onClick={() => openObservation(o.id)}
                       >
                         {o.kind === "research_finding"
-                          ? "Tutkimustulos"
+                          ? `Tutkimustulos · ${o.title}`
                           : `${observationDate(o)} · ${Number(o.value).toLocaleString("fi-FI")} ${o.unit}`}
                         <small>{o.population}</small>
                       </button>
@@ -1142,3 +1143,4 @@ export function ConceptMap({
     </section>
   );
 }
+

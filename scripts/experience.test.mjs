@@ -32,8 +32,9 @@ test('built experience preserves the sphere and follows the evidence all the way
   choose(label);await until(()=>svg.dataset.reasoningDepth==='3','explanation layer');
   choose('Tukee: Tutkimustulos');await until(()=>svg.dataset.reasoningDepth==='4','observation layer');
   assert.ok(scope.textContent.includes('8,0 prosenttiyksikköä'));
-  const observation=snapshot.evidence.observations.find(o=>o.id.includes('3664'));
-  choose(observation.title);await until(()=>svg.dataset.reasoningDepth==='5','source layer');
+  const observation=snapshot.evidence.observations.find(o=>o.id==='research:doi-10.5271-sjweh.3664-sustained-rtw');
+  const source=snapshot.evidence.reasoning.sources.find(source=>source.url===observation.sourceUrl&&snapshot.evidence.reasoning.observationSources.some(ref=>ref.sourceId===source.id&&ref.observationId===observation.id));
+  choose(source.title);await until(()=>svg.dataset.reasoningDepth==='5','source layer');
   assert.ok([...scope.querySelectorAll('.investigation-choices a')].some(a=>a.href===observation.sourceUrl));
   assert.equal(scope.querySelector('[aria-label="Sijainti selityspolulla"]').querySelectorAll('button').length,6);
   const year=scope.querySelector('input[type="range"]').value;
@@ -113,20 +114,22 @@ test('concept maps drill down to sources, retain context across views and follow
   const menu=w.document.querySelector('.view-switch'),sphere=w.document.querySelector('[data-testid="atlas-sphere"]');
   click(button(menu,'⊹ Akselikenttä'));await until(()=>w.document.querySelector('[data-layout="field"]'),'map');
   const map=w.document.querySelector('[data-layout="field"]'),svg=map.querySelector('svg[data-depth]');
-  assert.equal(map.querySelectorAll('[data-concept-id]').length,13);
+  assert.equal(map.querySelectorAll('[data-concept-id]').length,snapshot.evidence.concepts.length);
   const node=map.querySelector('[data-concept-id="sustained_return_to_work"]');node.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
   await until(()=>svg.dataset.depth==='2','concept zoom');
-  click([...map.querySelectorAll('.concept-map-list button')].find(b=>b.textContent.startsWith('Tutkimustulos')));
+  click(map.querySelector('.concept-map-list [data-observation-id="research:doi-10.5271-sjweh.3664-sustained-rtw"]'));
   await until(()=>map.querySelector('.concept-map-evidence'),'finding');assert.ok(map.textContent.includes('8,0 prosenttiyksikköä'));
   click([...map.querySelectorAll('.concept-map-evidence button')].find(b=>b.textContent.startsWith('Lähde:')));
   await until(()=>map.querySelector('.concept-map-source a'),'source');assert.equal(map.querySelector('.concept-map-source a').href,'https://www.sjweh.fi/article/3664');
   const zoom=svg.dataset.zoom;
   click(button(menu,'◎ Säteittäinen'));await until(()=>button(menu,'◎ Säteittäinen').getAttribute('aria-current')==='true','radial');
   click(button(menu,'⊹ Akselikenttä'));await pause(80);assert.equal(map.querySelector('svg'),svg);assert.equal(svg.dataset.zoom,zoom);assert.ok(map.querySelector('.concept-map-source a'));
+  const routeSelect=map.querySelector('select[aria-label="Käsitekartan selityspolku"]');routeSelect.value='work-accommodation-pilot';routeSelect.dispatchEvent(new w.Event('change',{bubbles:true}));await pause(80);
   const period=map.querySelector('select[aria-label="Käsitekartan aikakausi"]');period.value='p1';period.dispatchEvent(new w.Event('change',{bubbles:true}));await until(()=>map.querySelector('.concept-map-caution'),'time warning');assert.equal(button(map,'Aloita reitti').disabled,true);
   period.value='';period.dispatchEvent(new w.Event('change',{bubbles:true}));await until(()=>!button(map,'Aloita reitti').disabled,'restore route');click(button(map,'Aloita reitti'));await until(()=>map.querySelector('.concept-map-path-steps [aria-current="step"]')?.textContent.startsWith('1.'),'start');
   click(button(map,'Seuraava vaihe →'));await until(()=>map.querySelector('.concept-map-path-steps [aria-current="step"]')?.textContent.startsWith('2.'),'next');assert.equal(button(map,'Toista reitti').disabled,true);
-  click(button(menu,'⌁ Reittikartta'));await until(()=>w.document.querySelector('[data-layout="routes"]'),'routes');const routes=w.document.querySelector('[data-layout="routes"]');assert.equal(routes.querySelectorAll('[data-mechanism-id]').length,2);
+  click(button(menu,'⌁ Reittikartta'));await until(()=>w.document.querySelector('[data-layout="routes"]'),'routes');const routes=w.document.querySelector('[data-layout="routes"]');assert.equal(routes.querySelectorAll('[data-mechanism-id]').length,snapshot.evidence.reasoning.mechanisms.length);
   click(button(menu,'◐ Pallo'));await pause(80);assert.equal(w.document.querySelector('[data-testid="atlas-sphere"]'),sphere);assert.equal(requests.length,1);assert.deepEqual(errors,[]);
  }finally{dom.window.close()}
 });
+

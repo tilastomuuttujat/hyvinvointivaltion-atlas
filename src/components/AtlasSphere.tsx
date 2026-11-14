@@ -4,7 +4,7 @@ import { orderedNodes } from '@/lib/atlas.investigation';
 import type { Intent } from '@/lib/atlas.navigation';
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { AtlasData, Cell } from "@/lib/atlas.functions";
-import { CATALOG } from "../lib/teema.system";
+import { catalogueFor } from "../lib/teema.system";
 import { relatedConnections, timelineSegments } from "../lib/atlas.relationships";
 import { heightField, contourSegments, contourFill } from "../lib/atlas.contours";
 import { STORYLINES, storylineStops, backcast, futurePeriods, periodAt } from "../lib/atlas.storylines";
@@ -47,6 +47,7 @@ const STARS = Array.from({ length: 140 }, (_, i) => {
 });
 
 function AtlasSphereInner({ data, selected, period, kinds, showContext, onPick, onClear, immersive = false, onEra, onLensChange, scrubYear, onMapDetail, investigation, onInvestigationPick, onInvestigationPreview, zoomRequest, onZoomChange, comparison, onComparisonFocus, paused=false }: Props) {
+  const CATALOG = catalogueFor(data);
   const [yaw, setYaw] = useState(-0.6), [pitch, setPitch] = useState(0.25), [zoom, setZoom] = useState(1);
   const svgRef = useRef<SVGSVGElement>(null);
   const camera = useRef<Camera>({ zoom: 1, x: 0, y: 0 });
@@ -976,4 +977,5 @@ export type { Cell };
 
 // Contextual HUD updates do not reproject the terrain; camera changes still render normally.
 export const AtlasSphere=memo(AtlasSphereInner);
+
 
