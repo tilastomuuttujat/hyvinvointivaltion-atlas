@@ -1,3 +1,4 @@
+// Fixed pilot fixture isolates navigation behaviour from additions to the public dataset.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -12,7 +13,7 @@ import {
 } from "../src/lib/atlas.concept-map.ts";
 import { conceptUses, articleClusters } from "../src/lib/atlas.axes.ts";
 const snapshot = JSON.parse(
-  await readFile(new URL("../public/data/atlas.json", import.meta.url), "utf8"),
+  await readFile(new URL("./fixtures/pilot-atlas.json", import.meta.url), "utf8"),
 );
 const data = { ...snapshot.atlas, evidence: snapshot.evidence };
 test("map uses defined concepts once, preserving multiple memberships and measurement gaps", () => {
@@ -117,3 +118,4 @@ test("metric word and article groups exclude rejected references", () => {
   assert.equal(conceptUses(d).size, 0);
   assert.equal(articleClusters(d, [1]).length, 0);
 });
+

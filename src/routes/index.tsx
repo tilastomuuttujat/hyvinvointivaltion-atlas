@@ -63,8 +63,8 @@ export function AtlasPage() {
       {visited.has("axes") && <div hidden={view !== "axes"}><AxisField data={data} active={view === "axes"} /></div>}
       {visited.has("concepts") && <div hidden={view !== "concepts"}><ThemeConceptMap data={data} /></div>}
       {visited.has("routes") && <div hidden={view !== "routes"}><ConceptMap data={data} layout="routes" active={view === "routes"} /></div>}
-      {visited.has("themes") && <div hidden={view !== "themes"}><ThemeSystem /></div>}
-      {visited.has("network") && <div hidden={view !== "network"}><OrganicNodeGraph active={view === "network"} /></div>}
+      {visited.has("themes") && <div hidden={view !== "themes"}><ThemeSystem data={data} active={view === "themes"} /></div>}
+      {visited.has("network") && <div hidden={view !== "network"}><OrganicNodeGraph data={data} active={view === "network"} /></div>}
       <details className="border-t border-border">
         <summary className="cursor-pointer px-6 py-4 text-xs text-muted-foreground">Havaintoaineiston hakemisto</summary>
         <EvidenceExplorer bundle={data.evidence} />
@@ -80,3 +80,4 @@ export function AtlasPage() {
 function Stat({ n, l }: { n: number; l: string }) {
   return <div><div className="font-display text-3xl text-primary">{n}</div><div className="text-xs text-muted-foreground">{l}</div></div>;
 }
+
