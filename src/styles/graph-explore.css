@@ -270,43 +270,193 @@
 }
 
 .graph-next {
-  position: absolute; top: 0; right: 0; bottom: 0; z-index: 18;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 18;
   width: min(360px, 90%);
-  overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px 24px;
   background: color-mix(in oklab, var(--background) 90%, transparent);
   border-left: 1px solid color-mix(in oklab, var(--primary) 30%, transparent);
-  backdrop-filter: blur(8px); font-size: 12px; color: var(--foreground);
-  transform: translateX(105%); visibility: hidden; pointer-events: none;
-  transition: transform .3s ease, visibility 0s linear .3s;
+  backdrop-filter: blur(8px);
+  font-size: 12px;
+  color: var(--foreground);
+  transform: translateX(105%);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.3s ease,
+    visibility 0s linear 0.3s;
 }
-.graph-next.open { transform: translateX(0); visibility: visible; pointer-events: auto; transition-delay: 0s; }
-.graph-next-bar { display: flex; justify-content: flex-end; }
-.graph-next .graph-next-bar button { width: auto; padding: 4px 10px; display: inline-block; }
+.graph-next.open {
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+.graph-next-bar {
+  display: flex;
+  justify-content: flex-end;
+}
+.graph-next .graph-next-bar button {
+  width: auto;
+  padding: 4px 10px;
+  display: inline-block;
+}
 .graph-next-open {
-  position: absolute; right: 8px; top: 104px; z-index: 19;
-  background: var(--card); color: var(--foreground);
-  border: 1px solid var(--primary); border-radius: 6px; padding: 8px 12px; font-size: 12px;
+  position: absolute;
+  right: 8px;
+  top: 104px;
+  z-index: 19;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
 }
-.graph-next-open:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .graph-next { transition: none; } }
-.graph-next-head { display: flex; flex-direction: column; margin: 0 0 4px; }
-.graph-next-head span { color: var(--primary); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
-.graph-next-head strong { font-size: 14px; }
-.graph-next-lead, .graph-next-empty { margin: 0 0 8px; color: var(--muted-foreground); }
-.graph-next ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.graph-next-open:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .graph-next {
+    transition: none;
+  }
+}
+.graph-next-head {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 4px;
+}
+.graph-next-head span {
+  color: var(--primary);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.graph-next-head strong {
+  font-size: 14px;
+}
+.graph-next-lead,
+.graph-next-empty {
+  margin: 0 0 8px;
+  color: var(--muted-foreground);
+}
+.graph-next ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
 .graph-next button {
-  display: grid; gap: 3px; width: 100%; text-align: left; cursor: pointer;
-  padding: 8px 10px; border-radius: 9px; color: inherit;
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 9px;
+  color: inherit;
   background: color-mix(in oklab, var(--card) 70%, transparent);
-  border: 1px solid var(--border); transition: border-color .2s, transform .2s;
+  border: 1px solid var(--border);
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
 }
-.graph-next button:hover, .graph-next button:focus-visible { border-color: var(--primary); transform: translateX(2px); outline: none; }
-.graph-next-dir { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
-.graph-next-dir.fwd { color: var(--primary); }
-.graph-next-dir.back { color: var(--accent-foreground); }
-.graph-next-target { font-weight: 600; font-size: 13px; }
-.graph-next-mech { color: var(--primary); }
-.graph-next-why { color: var(--muted-foreground); line-height: 1.35; }
-.graph-next-where { line-height: 1.35; border-top: 1px dashed var(--border); padding-top: 4px; margin-top: 2px; }
-.graph-next-where em { color: var(--primary); font-style: normal; }
-.graph-trail-end{color:var(--primary);font-weight:600}
+.graph-next button:hover,
+.graph-next button:focus-visible {
+  border-color: var(--primary);
+  transform: translateX(2px);
+  outline: none;
+}
+.graph-next-dir {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.graph-next-dir.fwd {
+  color: var(--primary);
+}
+.graph-next-dir.back {
+  color: var(--accent-foreground);
+}
+.graph-next-target {
+  font-weight: 600;
+  font-size: 13px;
+}
+.graph-next-mech {
+  color: var(--primary);
+}
+.graph-next-why {
+  color: var(--muted-foreground);
+  line-height: 1.35;
+}
+.graph-next-where {
+  line-height: 1.35;
+  border-top: 1px dashed var(--border);
+  padding-top: 4px;
+  margin-top: 2px;
+}
+.graph-next-where em {
+  color: var(--primary);
+  font-style: normal;
+}
+.graph-trail-end {
+  color: var(--primary);
+  font-weight: 600;
+}
+.graph-flow-preview .graph-flow-line {
+  stroke-width: 3;
+  opacity: 1;
+}
+.graph-flow-preview .graph-flow-stream {
+  stroke-width: 4;
+}
+.graph-flow-caption {
+  font-size: 12px;
+}
+.graph-mechanism-choice {
+  position: absolute;
+  left: 12px;
+  bottom: 90px;
+  z-index: 20;
+  max-width: min(540px, calc(100% - 24px));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 12px;
+}
+.graph-mechanism-choice span {
+  width: 100%;
+  color: var(--muted-foreground);
+}
+.graph-mechanism-choice button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  text-align: left;
+  color: var(--primary);
+}
+.graph-mechanism-choice button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.graph-summary-synthesis {
+  border-left: 2px solid var(--primary);
+  padding-left: 12px;
+  margin: 18px 0;
+}
+.graph-next li button:focus-visible,
+.graph-next li button:hover {
+  border-color: var(--primary);
+  background: var(--accent);
+}

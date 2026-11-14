@@ -1,3 +1,8 @@
+import {
+  exploreTransition,
+  EMPTY_EXPLORATION,
+  frameGraph,
+} from "../src/lib/atlas.explore.ts";
 import { exploreOptions } from "../src/lib/atlas.explore.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -189,4 +194,93 @@ test("exploration follows recorded direction and excludes rejected, stale and un
   assert.equal(exploreOptions(d, "b", "how")[0].incoming, true);
   assert.equal(exploreOptions(d, "a", "conditions")[0].target.id, "b");
   assert.equal(exploreOptions(d, "isolated", "after").length, 0);
+});
+
+test("parallel mechanisms require a precise choice and history restores the chosen mechanism", () => {
+  const m = {
+    id: "ab1",
+    from: "a",
+    to: "b",
+    isCurrent: true,
+    reviewStatus: "needs_review",
+    statementId: "s",
+  };
+  const d = {
+    evidence: {
+      concepts: [{ id: "a" }, { id: "b" }, { id: "c" }],
+      reasoning: {
+        statements: [{ id: "s", reviewStatus: "needs_review" }],
+        mechanisms: [
+          m,
+          { ...m, id: "ab2" },
+          { ...m, id: "bc", from: "b", to: "c" },
+        ],
+      },
+    },
+  };
+  let h = exploreTransition(EMPTY_EXPLORATION, { type: "pick", id: "a" }, d);
+  const pending = exploreTransition(h, { type: "pick", id: "b" }, d);
+  assert.equal(pending.pending, "b");
+  assert.deepEqual(pending.steps, [{ id: "a" }]);
+  assert.equal(
+    exploreTransition(h, { type: "pick", id: "b", via: "unknown" }, d),
+    h,
+  );
+  h = exploreTransition(pending, { type: "pick", id: "b", via: "ab2" }, d);
+  assert.equal(h.steps[1].via, "ab2");
+  h = exploreTransition(h, { type: "pick", id: "c" }, d);
+  assert.equal(h.steps.length, 3);
+  const back = exploreTransition(h, { type: "back" }, d);
+  assert.equal(back.steps.length, 2);
+  const restored = exploreTransition(back, { type: "forward" }, d);
+  assert.deepEqual(restored.steps, h.steps);
+  const root = exploreTransition(restored, { type: "pick", id: "a" }, d);
+  assert.equal(root.steps.length, 1);
+  const branch = exploreTransition(
+    root,
+    { type: "pick", id: "b", via: "ab1" },
+    d,
+  );
+  assert.equal(branch.steps[1].via, "ab1");
+  assert.equal(branch.future.length, 0);
+  const clear = exploreTransition(branch, { type: "clear" }, d);
+  assert.deepEqual(clear.steps, []);
+  assert.deepEqual(
+    exploreTransition(clear, { type: "back" }, d).steps,
+    branch.steps,
+  );
+});
+test("framing leaves visible points still and pans before zooming out", () => {
+  assert.deepEqual(
+    frameGraph(
+      [
+        { x: 300, y: 300 },
+        { x: 500, y: 400 },
+      ],
+      1000,
+      760,
+    ),
+    { scale: 1, dx: 0, dy: 0 },
+  );
+  const pan = frameGraph([{ x: 1050, y: 300 }], 1000, 760);
+  assert.equal(pan.scale, 1);
+  assert.ok(pan.dx < 0);
+  const fit = frameGraph(
+    [
+      { x: -300, y: -100 },
+      { x: 1200, y: 900 },
+    ],
+    1000,
+    760,
+  );
+  assert.ok(fit.scale < 1);
+  for (const p of [
+    { x: -300, y: -100 },
+    { x: 1200, y: 900 },
+  ]) {
+    const x = 500 + (p.x - 500) * fit.scale + fit.dx,
+      y = 380 + (p.y - 380) * fit.scale + fit.dy;
+    assert.ok(x >= 74.9 && x <= 925.1);
+    assert.ok(y >= 74.9 && y <= 685.1);
+  }
 });
