@@ -1,4 +1,4 @@
-import { GraphExplore, useGraphExplore } from "./GraphExplore";
+import { GraphExplore, GraphPointHint, useGraphExplore } from "./GraphExplore";
 import type { AtlasData } from "@/lib/atlas.functions";
 import { ThemeSelectionDetails } from "./ThemeSelectionDetails";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
@@ -486,6 +486,10 @@ export function ThemeSystem({
                       <g
                         key={k}
                         className={`ts-causal ${edge.kind}${isActive ? " lit" : ""}`}
+                        data-path-chosen={
+                          edge.kind === "mechanism" &&
+                          exploration.chosen(t.mechanisms[edge.ref]?.id ?? "")
+                        }
                         data-path-lit={
                           edge.kind === "mechanism" &&
                           exploration.edgeLit(t.mechanisms[edge.ref]?.id ?? "")
@@ -506,30 +510,6 @@ export function ThemeSystem({
                           markerEnd="url(#ts-arrow)"
                         />
                         <path d={d} className="ts-causal-pulse" />
-                        {exploration.current &&
-                          edge.kind === "mechanism" &&
-                          exploration.edgeLit(
-                            t.mechanisms[edge.ref]?.id ?? "",
-                          ) && (
-                            <text
-                              x={(a.x + b.x) / 2}
-                              y={(a.y + b.y) / 2 - 12}
-                              textAnchor="middle"
-                              className="ts-node-name"
-                            >
-                              {wrapLabel(t.mechanisms[edge.ref]!.t, 30).map(
-                                (line, i) => (
-                                  <tspan
-                                    key={i}
-                                    x={(a.x + b.x) / 2}
-                                    dy={i ? 13 : 0}
-                                  >
-                                    {line}
-                                  </tspan>
-                                ),
-                              )}
-                            </text>
-                          )}
                         <path
                           d={d}
                           className="ts-hit"
@@ -582,6 +562,9 @@ export function ThemeSystem({
                             t.concepts.find((c) => c.t === n.label)?.id ?? "",
                           )
                         }
+                        data-path-candidate={exploration.candidate(
+                          t.concepts.find((c) => c.t === n.label)?.id ?? "",
+                        )}
                         className={`ts-star${litEdge ? " lit" : ""}`}
                         onClick={() =>
                           pickDetail(i, {
@@ -599,6 +582,13 @@ export function ThemeSystem({
                             });
                         }}
                       >
+                        <GraphPointHint
+                          exploration={exploration}
+                          id={t.concepts.find((c) => c.t === n.label)?.id ?? ""}
+                          x={n.x}
+                          y={n.y}
+                          r={7}
+                        />
                         <circle cx={n.x} cy={n.y} r="13" fill="transparent" />
                         <circle
                           cx={n.x}
@@ -683,14 +673,6 @@ export function ThemeSystem({
         <GraphExplore
           data={data}
           exploration={exploration}
-          start={
-            theme && detail?.kind !== "concept"
-              ? { label: theme.label, ids: theme.concepts.map((c) => c.id) }
-              : undefined
-          }
-          onCloseStart={() => {
-            if (detail?.kind !== "concept") setSelected(null);
-          }}
           onPick={(id) => {
             const ti =
               selected !== null &&
@@ -860,7 +842,7 @@ export function ThemeSystem({
         </aside>
       </div>
       <p className="ts-note">
-        Valitse käsite ja kysymys rakentaaksesi polun. Muu piste aloittaa uuden
+        Valitse käsite ja jatka vihjatuista pisteistä. Muu piste aloittaa uuden
         polun. Syy-seurausviivat perustuvat kirjattuihin mekanismeihin ja
         selityspolkuihin. Teemojen väliset sillat osoittavat samannimisiä
         käsitteitä, eivät hyväksyttyjä kytkentöjä.

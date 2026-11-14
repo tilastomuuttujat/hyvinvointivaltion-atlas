@@ -1,4 +1,4 @@
-import { GraphExplore, useGraphExplore } from "./GraphExplore";
+import { GraphExplore, GraphPointHint, useGraphExplore } from "./GraphExplore";
 import type { AtlasData } from "@/lib/atlas.functions";
 import { catalogueFor } from "@/lib/teema.system";
 import { ThemeSelectionDetails } from "./ThemeSelectionDetails";
@@ -248,46 +248,32 @@ export function OrganicNodeGraph({
                 x2={b.x}
                 y2={b.y}
                 stroke={
-                  e.kind === "mechanism"
-                    ? color(e.a)
-                    : "var(--muted-foreground)"
+                  exploration.chosen(e.referenceId ?? "")
+                    ? "var(--primary)"
+                    : e.kind === "mechanism"
+                      ? color(e.a)
+                      : "var(--muted-foreground)"
                 }
                 strokeOpacity={op}
+                data-path-chosen={exploration.chosen(e.referenceId ?? "")}
                 strokeWidth={
-                  (e.kind === "mechanism" ? 1.6 : 0.8) * (hot ? 1.8 : 1)
+                  exploration.chosen(e.referenceId ?? "")
+                    ? 4
+                    : e.kind === "mechanism"
+                      ? 1.6
+                      : 0.8
                 }
-                strokeDasharray={e.kind === "member" ? "3 4" : undefined}
+                strokeDasharray={
+                  e.kind === "member"
+                    ? "3 4"
+                    : exploration.current &&
+                        !exploration.chosen(e.referenceId ?? "")
+                      ? "3 5"
+                      : undefined
+                }
               />
             );
           })}
-          {exploration.current &&
-            graph.edges
-              .filter(
-                (e) =>
-                  e.kind === "mechanism" &&
-                  exploration.edgeLit(e.referenceId ?? "") &&
-                  visible(e.a) &&
-                  visible(e.b),
-              )
-              .map((e) => (
-                <text
-                  key={`explain:${e.referenceId}:${e.a}:${e.b}`}
-                  x={(proj[e.a]!.x + proj[e.b]!.x) / 2}
-                  y={(proj[e.a]!.y + proj[e.b]!.y) / 2 - 7}
-                  textAnchor="middle"
-                  fill="var(--foreground)"
-                  fontSize="11"
-                  style={{
-                    pointerEvents: "none",
-                    paintOrder: "stroke",
-                    stroke: "var(--background)",
-                    strokeWidth: 4,
-                  }}
-                >
-                  {(e.label ?? "Kirjattu mekanismi").slice(0, 64)}
-                  <title>{e.label}</title>
-                </text>
-              ))}
           {order.map((i) => {
             const n = graph.nodes[i]!,
               p = proj[i]!;
@@ -298,7 +284,12 @@ export function OrganicNodeGraph({
               : near && !near.has(i);
             const op = dim ? 0.12 : depthAlpha(p.z);
             const showLabel =
-              n.kind === "theme" || (near?.has(i) ?? false) || zoom * p.s > 2.2;
+              n.kind === "theme" ||
+              (n.kind === "concept" &&
+                exploration.lit(n.id.slice(2)) &&
+                !!exploration.current) ||
+              (near?.has(i) ?? false) ||
+              zoom * p.s > 2.2;
             return (
               <g
                 role="button"
@@ -318,6 +309,9 @@ export function OrganicNodeGraph({
                     chooseNode(i);
                   }
                 }}
+                data-path-candidate={
+                  n.kind === "concept" && exploration.candidate(n.id.slice(2))
+                }
                 key={n.id}
                 opacity={op}
                 style={{ cursor: "pointer" }}
@@ -328,6 +322,15 @@ export function OrganicNodeGraph({
                   }
                 }}
               >
+                {n.kind === "concept" && (
+                  <GraphPointHint
+                    exploration={exploration}
+                    id={n.id.slice(2)}
+                    x={p.x}
+                    y={p.y}
+                    r={Math.max(r, 2)}
+                  />
+                )}
                 {n.kind === "theme" && (
                   <circle
                     cx={p.x}
@@ -377,24 +380,6 @@ export function OrganicNodeGraph({
         <GraphExplore
           data={data}
           exploration={exploration}
-          start={
-            s && s.kind !== "concept"
-              ? {
-                  label: s.label,
-                  ids: [
-                    ...new Set(
-                      s.themes.flatMap(
-                        (ti) =>
-                          catalog.themes[ti]?.concepts.map((c) => c.id) ?? [],
-                      ),
-                    ),
-                  ],
-                }
-              : undefined
-          }
-          onCloseStart={() => {
-            if (s?.kind !== "concept") setSel(null);
-          }}
           onPick={(id) => {
             const i = graph.nodes.findIndex((n) => n.id === `K:${id}`);
             if (i >= 0) {
@@ -515,7 +500,7 @@ export function OrganicNodeGraph({
           hidden={!!exploration.current}
           className="pointer-events-none absolute bottom-2 left-3 text-[11px] text-muted-foreground"
         >
-          Valitse käsite ja kysymys rakentaaksesi polun. Raahaa pyörittääksesi ·
+          Valitse käsite ja jatka vihjatuista pisteistä. Raahaa pyörittääksesi ·
           nipistä tai rullaa zoomataksesi · nuoli = kirjattu mekanismiehdotus,
           katkoviiva = teemajäsenyys. Sijainti kuvaa kytkentöjä, ei vaikutuksen
           suuruutta.

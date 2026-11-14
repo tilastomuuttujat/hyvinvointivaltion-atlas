@@ -1,111 +1,85 @@
-.graph-explore {
-  position: absolute;
-  z-index: 12;
-  width: min(330px, calc(100% - 24px));
-  max-height: 55%;
-  overflow: auto;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: 0 8px 30px #0003;
-  font-size: 13px;
-  line-height: 1.45;
-  overscroll-behavior: contain;
-}
-.graph-explore header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.graph-explore header button {
-  font-size: 22px;
-  padding: 0 8px;
-}
-.graph-explore p {
-  margin: 8px 0;
-}
-.graph-questions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.graph-questions button,
-.graph-trail button {
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 6px 9px;
-  background: var(--background);
-  text-align: left;
-}
-.graph-questions [aria-pressed="true"],
-.graph-trail [aria-current="step"] {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-.graph-options article {
-  padding: 12px 0;
-  border-top: 1px solid var(--border);
-  margin-top: 12px;
-}
-.graph-options small,
-.graph-options strong {
-  display: block;
-}
-.graph-options article > button {
-  font-size: 15px;
-  color: var(--primary);
-  text-align: left;
-  padding: 7px 0;
-  font-weight: 600;
-}
-.graph-options summary {
-  cursor: pointer;
-  color: var(--primary);
-}
-.graph-options a {
-  text-decoration: underline;
-}
 .graph-trail {
   position: absolute;
-  z-index: 11;
-  bottom: 12px;
+  bottom: 10px;
   left: 12px;
-  right: 12px;
+  right: 45px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  overflow: auto;
-  max-height: 80px;
-  padding: 8px;
-  border-radius: 9px;
-  background: var(--card);
-  border: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 10px;
+  pointer-events: none;
   font-size: 12px;
-}
-.graph-trail > * {
-  flex-shrink: 0;
-}
-.graph-trail span {
   color: var(--muted-foreground);
+  text-shadow: 0 1px 3px var(--background);
 }
-.graph-explore button:focus-visible,
+.graph-trail button {
+  pointer-events: auto;
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 5px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
 .graph-trail button:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+.graph-next-ring {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 4;
+  pointer-events: none;
+}
+.graph-next-mark,
+.graph-step-number {
+  fill: var(--primary);
+  font: 600 12px var(--font-sans);
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--background);
+  stroke-width: 3px;
+}
+.graph-point-hint,
+.graph-end-hint {
+  fill: var(--foreground);
+  font: 11px var(--font-sans);
+  paint-order: stroke;
+  stroke: var(--background);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.graph-point-hint {
+  opacity: 0;
+}
+.ts-star:hover .graph-point-hint,
+.ts-star:focus .graph-point-hint,
+.organic-graph g[role="button"]:hover .graph-point-hint,
+.organic-graph g[role="button"]:focus .graph-point-hint {
+  opacity: 1;
 }
 .ts-constellation .ts-star[data-path-dim="true"],
 .ts-constellation[data-path-dim="true"] {
   opacity: 0.12;
 }
 .ts-causal[data-path-dim="true"] {
-  opacity: 0.08;
+  opacity: 0.06;
 }
 .ts-causal[data-path-lit="true"] .ts-causal-line {
+  stroke-width: 2;
+  stroke-dasharray: 3 5;
+  opacity: 0.5;
+}
+.ts-causal[data-path-chosen="true"] .ts-causal-line {
   stroke-width: 5;
+  stroke-dasharray: none;
   opacity: 1;
+  stroke: var(--primary);
+}
+.ts-causal[data-path-lit="true"] .ts-causal-pulse {
+  display: none;
 }
 .ts-star[data-path-active="true"] .ts-star-dot {
   r: 7;
@@ -113,16 +87,21 @@
   stroke-width: 2;
 }
 @media (max-width: 600px) {
-  .graph-explore {
-    max-height: 45%;
-    font-size: 12px;
-  }
   .graph-trail {
+    font-size: 11px;
     bottom: 4px;
-    left: 4px;
-    right: 4px;
+    left: 6px;
+    gap: 5px;
   }
   .graph-trail span {
-    display: none;
+    max-width: 165px;
+  }
+  .graph-point-hint {
+    font-size: 12px;
+  }
+}
+@media (hover: none) {
+  .graph-point-hint {
+    opacity: 0.8;
   }
 }
