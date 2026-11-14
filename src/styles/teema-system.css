@@ -33,12 +33,12 @@
 .ts-star-dot,.ts-star-glow{fill:currentColor}
 .ts-star-glow{opacity:.6}
 .ts-star:hover .ts-star-dot,.ts-star:focus .ts-star-dot{r:5}
-.ts-star-label{opacity:0;transition:opacity .3s;pointer-events:none;overflow:hidden}
-.ts-node-name{color:var(--foreground);font:11px/1.3 var(--font-sans);text-align:center;overflow-wrap:anywhere}
-.ts-constellation.near .ts-star-label,.ts-star:focus .ts-star-label{opacity:.9}
+.ts-star-label{opacity:0;transition:opacity .3s;pointer-events:none;overflow:visible}
+.ts-node-name{fill:var(--foreground);font:11px var(--font-sans);paint-order:stroke;stroke:var(--constellation-space);stroke-width:3px;stroke-linejoin:round}
+.ts-constellation.selected .ts-star-label,.ts-constellation.near .ts-star-label,.ts-star:focus .ts-star-label{opacity:.9}
 .ts-conclusion-stars{fill:currentColor;cursor:pointer}
 .ts-conclusion-stars text{font:10px var(--font-sans);opacity:0}
-.ts-constellation.near .ts-conclusion-stars text{opacity:.85}
+.ts-constellation.selected .ts-conclusion-stars text,.ts-constellation.near .ts-conclusion-stars text{opacity:.85}
 .ts-conclusion-stars g:focus{outline:none;stroke:var(--foreground)}
 .ts-unrecorded{fill:var(--muted-foreground);font:13px var(--font-sans)}
 .ts-tools{position:absolute;top:1rem;left:1rem;display:flex;gap:.35rem}
@@ -70,3 +70,15 @@
 @media(prefers-reduced-motion:reduce){.ts *{animation:none!important;transition:none!important}}
 .ts-space.ts-expanded{position:fixed;inset:0;z-index:100;height:100dvh;width:100%;border:0}
 .ts-expanded .ts-tools{top:max(1rem,env(safe-area-inset-top));left:max(1rem,env(safe-area-inset-left))}
+
+.ts-constellation .ts-star-label,.ts-conclusion-stars text{transition:opacity .6s ease}
+.ts-space .ts-drawer{position:absolute;top:0;bottom:0;right:0;left:auto;width:min(360px,85%);max-height:none;overflow:visible;transform:translateX(100%);transition:transform .35s ease-out;pointer-events:none;border-radius:0}
+.ts-space .ts-drawer.open{transform:none;pointer-events:auto;overflow-y:auto}
+.ts-drawer-close{position:sticky;float:left;margin:0 .5rem 0 -1.15rem;top:45%;width:1.75rem;height:3.5rem;border:1px solid var(--border);border-left:0;border-radius:0 .5rem .5rem 0;background:var(--card);color:var(--foreground);font-size:.75rem;pointer-events:auto}
+.ts-drawer:not(.open) .ts-drawer-close{display:none}
+.ts-drawer-open{position:absolute;right:0;top:50%;transform:translateY(-50%);padding:1rem .4rem;border:1px solid var(--border);border-right:0;border-radius:.5rem 0 0 .5rem;background:var(--card);color:var(--foreground);font-size:.75rem;z-index:5}
+
+.ts-star.lit .ts-star-dot{r:6}
+.ts-star.lit .ts-star-glow{r:11;opacity:1}
+.ts-star.lit .ts-star-label{opacity:1}
+.ts-star.lit .ts-node-name{fill:var(--foreground);font:11px var(--font-sans);paint-order:stroke;stroke:var(--constellation-space);stroke-width:3px;stroke-linejoin:round}

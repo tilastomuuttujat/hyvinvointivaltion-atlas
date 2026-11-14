@@ -14,7 +14,7 @@ const layouts = CATALOG.themes.map((theme, i) => {
   const base = positions[i]!;
   const flow = buildFlow(theme, 390, 235);
   const ordered = [...flow.nodes].sort((a, b) => a.rank - b.rank || a.y - b.y);
-  const spread = ordered.map((n, j) => ({ ...n, x: 35 + (j % 4) * 110, y: 40 + Math.floor(j / 4) * 82 }));
+  const spread = ordered.map((n, j) => ({ ...n, x: 70 + (j % 4) * 150, y: 40 + Math.floor(j / 4) * 82 }));
   // Unconnected recorded concepts stay unconnected, rather than inventing edges.
   const nodes = flow.nodes.length ? spread : theme.concepts.map((c, j) => ({ key: c.t, label: c.t, rank: 0, x: 50 + (j % 3) * 145, y: 65 + Math.floor(j / 3) * 65 }));
   return { base, nodes, edges: flow.edges };
@@ -29,6 +29,7 @@ export function ThemeSystem() {
   const [shared, setShared] = useState<string[] | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [orbit, setOrbit] = useState<Orbit>({ yaw: 0.3, pitch: -0.18 });
   const [spinning, setSpinning] = useState(true);
   const tween = useRef<number | null>(null);
@@ -52,6 +53,7 @@ export function ThemeSystem() {
   };
   const proj = layouts.map(l => { const r = rotate(l.base, orbit), k = perspective(r.z); return { x: CX + r.x * k, y: CY + r.y * k, s: k, z: r.z, front: (1 - r.z / RADIUS) / 2 }; });
   const drawOrder = proj.map((_, i) => i).sort((a, b) => (proj[b]?.z ?? 0) - (proj[a]?.z ?? 0));
+  const nearest = drawOrder[drawOrder.length - 1];
   useEffect(() => {
     if (!expanded) return;
     const previous = document.body.style.overflow;
@@ -107,7 +109,7 @@ export function ThemeSystem() {
     } else if (e.shiftKey || camera.zoom > 1.6) setCamera(c => ({ ...c, x: c.x + next.x - previous.x, y: c.y + next.y - previous.y }));
     else { setSpinning(false); setOrbit(o => ({ yaw: o.yaw - (next.x - previous.x) * 0.0035 / camera.zoom, pitch: Math.max(-1.3, Math.min(1.3, o.pitch + (next.y - previous.y) * 0.0035 / camera.zoom)) })); }
   };
-  const pickDetail = (i: number, d: Detail) => { if (moved.current) return; setSelected(i); setDetail(d); setShared(null); };
+  const pickDetail = (i: number, d: Detail) => { if (moved.current) return; const changed = selected !== i; setSelected(i); setDetail(d); setShared(null); if (changed) { setSpinning(false); const loc = layouts[i]; if (loc) animateOrbit(facingOrbit(loc.base)); } };
   const mechanism = detail?.kind === "mechanism" ? theme?.mechanisms[detail.index] : null;
   const path = detail?.kind === "path" ? theme?.paths[detail.index] : null;
   const conclusion = detail?.kind === "conclusion" ? theme?.conclusions[detail.index] : null;
@@ -143,7 +145,7 @@ export function ThemeSystem() {
             const t = CATALOG.themes[i]; if (!t) return null;
             const active = selected === i;
             const at = new Map(l.nodes.map(n => [n.key, n]));
-            return <g key={t.id} className={`ts-constellation${active ? " selected" : ""}${camera.zoom > 1.65 ? " near" : ""}`} color={ink(i)} transform={`translate(${p.x} ${p.y}) scale(${p.s * 0.9}) translate(-195 0)`} opacity={active ? 1 : 0.3 + p.front * 0.7} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
+            return <g key={t.id} className={`ts-constellation${active ? " selected" : ""}${camera.zoom > 1.65 || i === nearest || p.front > 0.8 ? " near" : ""}`} color={ink(i)} transform={`translate(${p.x} ${p.y}) scale(${p.s * 0.9}) translate(-195 0)`} opacity={active ? 1 : 0.3 + p.front * 0.7} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
               <g role="button" tabIndex={0} aria-label={t.label} className="ts-theme" onClick={() => selectTheme(i)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTheme(i); } }}>
                 <rect x="-20" y="-68" width="430" height="74" fill="transparent" />
                 <circle cx="195" cy="-45" r="11" filter="url(#ts-glow)" className="ts-theme-glow" /><circle cx="195" cy="-45" r="5" />
@@ -158,10 +160,10 @@ export function ThemeSystem() {
                   <path d={d} className="ts-hit" tabIndex={0} role="button" aria-label={edge.kind === "mechanism" ? t.mechanisms[edge.ref]?.t : t.paths[edge.ref]?.t} onClick={() => pickDetail(i, { kind: edge.kind, index: edge.ref })} onKeyDown={e => { if (e.key === "Enter") pickDetail(i, { kind: edge.kind, index: edge.ref }); }} />
                 </g>;
               })}
-              {l.nodes.map(n => <g key={n.key} role="button" tabIndex={0} aria-label={n.label} className="ts-star" onClick={() => pickDetail(i, { kind: "concept", index: 0, label: n.label })} onKeyDown={e => { if (e.key === "Enter") pickDetail(i, { kind: "concept", index: 0, label: n.label }); }}>
+              {l.nodes.map((n, j) => { const litEdge = active && (detail?.kind === "mechanism" || detail?.kind === "path") ? l.edges.find(e => e.kind === detail.kind && e.ref === detail.index && (e.from === n.key || e.to === n.key)) : undefined; return <g key={n.key} role="button" tabIndex={0} aria-label={n.label} className={`ts-star${litEdge ? " lit" : ""}`} onClick={() => pickDetail(i, { kind: "concept", index: 0, label: n.label })} onKeyDown={e => { if (e.key === "Enter") pickDetail(i, { kind: "concept", index: 0, label: n.label }); }}>
                 <circle cx={n.x} cy={n.y} r="13" fill="transparent" /><circle cx={n.x} cy={n.y} r="5" className="ts-star-glow" filter="url(#ts-glow)" /><circle cx={n.x} cy={n.y} r="3.3" className="ts-star-dot" />
-                <foreignObject x={n.x - 48} y={n.y + 11} width="96" height="61" className="ts-star-label"><div className="ts-node-name">{n.label}</div></foreignObject><title>{n.label}</title>
-              </g>)}
+                <text x={n.x} y={n.y + (j % 2 ? -14 - (wrapLabel(n.label).length - 1) * 13 : 22)} textAnchor="middle" className="ts-star-label ts-node-name">{wrapLabel(n.label).map((line, k) => <tspan key={k} x={n.x} dy={k ? 13 : 0}>{line}</tspan>)}</text><title>{n.label}</title>
+              </g>; })}
               {l.nodes.length === 0 && <text x="195" y="55" textAnchor="middle" className="ts-unrecorded">Mekanismeja ei kirjattu</text>}
               <g className="ts-conclusion-stars" transform={`translate(0 ${Math.max(0, Math.ceil(l.nodes.length / 4) * 82 - 220)})`}>{t.conclusions.map((c, k) => <g key={c.id} role="button" tabIndex={0} aria-label={`P${c.id} ${c.t}`} onClick={() => pickDetail(i, { kind: "conclusion", index: k })} onKeyDown={e => { if (e.key === "Enter") pickDetail(i, { kind: "conclusion", index: k }); }}><circle cx={125 + k * 22} cy="278" r="9" fill="transparent" /><path d={`M${121 + k * 22} 278l4 -4 4 4 -4 4z`} /><text x={125 + k * 22} y="302" textAnchor="middle">P{c.id}</text></g>)}</g>
             </g>;
@@ -175,16 +177,28 @@ export function ThemeSystem() {
         <Button variant="outline" size="icon" aria-label={expanded ? "Poistu koko näytöstä" : "Tähtitaivas koko näytölle"} title={expanded ? "Poistu koko näytöstä" : "Tähtitaivas koko näytölle"} aria-pressed={expanded} onClick={() => setExpanded(v => !v)}>{expanded ? <Minimize /> : <Maximize />}</Button>
       </div>
       <div className="ts-legend"><span className="ts-legend-cause">Mekanismi</span><span className="ts-legend-path">Selityspolku</span><span className="ts-legend-link">Yhteinen käsite</span></div>
-      {(theme || shared) && <aside className="ts-context" aria-label="Valinnan aineisto">
-        <Button className="ts-close" variant="ghost" size="icon" aria-label="Sulje valinnan aineisto" onClick={() => { setSelected(null); setDetail(null); setShared(null); }}><X /></Button>
+      {(theme || shared) && !panelOpen && <button type="button" className="ts-drawer-open" aria-label="Avaa tietolaatikko" onClick={() => setPanelOpen(true)}>◂ Tiedot</button>}
+      <aside className={`ts-context ts-drawer${panelOpen && (theme || shared) ? " open" : ""}`} aria-label="Valinnan aineisto" aria-hidden={!(panelOpen && (theme || shared))}>
+        <button type="button" className="ts-drawer-close" aria-label="Piilota tietolaatikko" onClick={() => setPanelOpen(false)}>▸</button>
+        <Button className="ts-close" variant="ghost" size="icon" aria-label="Tyhjennä valinta" onClick={() => { setSelected(null); setDetail(null); setShared(null); setPanelOpen(false); }}><X /></Button>
         {shared ? <><p className="ts-kicker">Teemojen välillä</p><h3>Yhteiset käsitteet</h3><p>{shared.join(" · ")}</p><p className="ts-muted">Sama kirjattu käsite, ei vahvistettu syy-yhteys.</p></> : theme && <>
           <p className="ts-kicker">Teema {selected === null ? "" : selected + 1}</p><h3>{theme.label}</h3>
           {mechanism ? <><h4>{mechanism.t}</h4><p className="ts-chain">{mechanism.from} → {mechanism.to}</p><p>{mechanism.d}</p><p className="ts-muted">{mechanism.m}</p></> : path ? <><h4>{path.t}</h4><ol className="ts-steps">{path.steps.map((s, i) => <li key={i}>{s}</li>)}</ol><p className="ts-muted">{path.m}</p></> : conclusion ? <><h4>P{conclusion.id} · {conclusion.t}</h4><p>{conclusion.d}</p></> : insight ? <><h4>{insight.t}</h4><p>{insight.d}</p>{insight.q && <blockquote>{insight.q}</blockquote>}<h4>Vastatapaus</h4><p>{insight.v || "Vastatapausta ei kirjattu."}</p></> : detail?.kind === "concept" ? <><h4>{detail.label}</h4><p>{theme.concepts.find(c => c.t === detail.label)?.d || "Kirjattu mekanismin tai selityspolun käsite."}</p></> : <p className="ts-muted">{theme.gap[0]}</p>}
           <div className="ts-context-options">{theme.paths.map((p, i) => <Button key={i} variant="ghost" onClick={() => setDetail({ kind: "path", index: i })} aria-pressed={detail?.kind === "path" && detail.index === i}><ChevronRight />{p.t}</Button>)}{theme.insights.map((p, i) => <Button key={`i${i}`} variant="ghost" onClick={() => setDetail({ kind: "insight", index: i })}>{p.t}</Button>)}</div>
           <p className="ts-status">Päätelmät: draft · Oivallukset: tarkistettavana</p>
         </>}
-      </aside>}
+      </aside>
     </div>
     <p className="ts-note">Syy-seurausviivat perustuvat kirjattuihin mekanismeihin ja selityspolkuihin. Teemojen väliset sillat osoittavat samannimisiä käsitteitä, eivät hyväksyttyjä kytkentöjä.</p>
   </section>;
+}
+
+function wrapLabel(label: string, max = 18) {
+  const lines: string[] = [];
+  for (const word of label.split(" ")) {
+    const last = lines[lines.length - 1];
+    if (last && (last + " " + word).length <= max) lines[lines.length - 1] = last + " " + word;
+    else lines.push(word);
+  }
+  return lines;
 }
