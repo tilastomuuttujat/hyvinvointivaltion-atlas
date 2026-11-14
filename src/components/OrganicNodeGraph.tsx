@@ -14,6 +14,7 @@ import {
   neighbours,
   type ForceKind,
 } from "@/lib/atlas.force-graph";
+import { frameGraph } from "@/lib/atlas.explore";
 import { rotate, perspective, type Orbit } from "@/lib/teema.camera";
 
 const W = 1000,
@@ -36,10 +37,9 @@ export function OrganicNodeGraph({
   const exploration = useGraphExplore(data);
   const chooseNode = (i: number) => {
     const node = graph.nodes[i]!;
+    if (node.kind === "concept" && !exploration.pick(node.id.slice(2))) return;
     setSel(i);
     setSpin(false);
-    if (node.kind === "concept") exploration.pick(node.id.slice(2));
-    else exploration.clear();
   };
   const graph = useMemo(
     () => layoutForceGraph(buildForceGraph(catalog.themes)),
@@ -47,6 +47,7 @@ export function OrganicNodeGraph({
   );
   const [orbit, setOrbit] = useState<Orbit>({ yaw: 0.4, pitch: -0.25 });
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [sel, setSel] = useState<number | null>(null);
   const [show, setShow] = useState<Record<ForceKind, boolean>>({
     theme: true,
@@ -58,6 +59,7 @@ export function OrganicNodeGraph({
   const [panelOpen, setPanelOpen] = useState(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<number | null>(null);
+  const gestureOrigin = useRef({ x: 0, y: 0 });
   const moved = useRef(false);
 
   useEffect(() => {
@@ -88,8 +90,41 @@ export function OrganicNodeGraph({
   const proj = graph.nodes.map((n) => {
     const r = rotate(n.p, orbit),
       s = perspective(r.z * 2.2) * zoom * 0.6;
-    return { x: W / 2 + r.x * s, y: H / 2 + r.y * s, z: r.z, s };
+    return {
+      x: W / 2 + r.x * s + pan.x,
+      y: H / 2 + r.y * s + pan.y,
+      z: r.z,
+      s,
+    };
   });
+  useEffect(() => {
+    if (!active) return;
+    if (!exploration.current) {
+      setSel(null);
+      return;
+    }
+    const i = graph.nodes.findIndex((n) => n.id === `K:${exploration.current}`);
+    if (i >= 0) {
+      setSel(i);
+      setSpin(false);
+      setShow((v) => (v.concept ? v : { ...v, concept: true }));
+    }
+    const ids = new Set([
+      ...exploration.steps.map((s) => s.id),
+      ...exploration.options.map((o) => o.target.id),
+    ]);
+    const points = graph.nodes.flatMap((n, i) =>
+      n.kind === "concept" && ids.has(n.id.slice(2)) ? [proj[i]!] : [],
+    );
+    const fit = frameGraph(points, W, H, 100, 0.5 / zoom);
+    if (fit.scale !== 1 || fit.dx || fit.dy) {
+      setZoom((z) => Math.max(0.5, z * fit.scale));
+      setPan((p) => ({
+        x: p.x * fit.scale + fit.dx,
+        y: p.y * fit.scale + fit.dy,
+      }));
+    }
+  }, [exploration.current, active]);
   const visible = (i: number) => show[graph.nodes[i]!.kind];
   const order = graph.nodes
     .map((_, i) => i)
@@ -100,7 +135,9 @@ export function OrganicNodeGraph({
   const depthAlpha = (z: number) => Math.max(0.25, Math.min(1, 0.75 - z / 900));
 
   const down = (e: React.PointerEvent) => {
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    if (e.isTrusted) (e.target as Element).setPointerCapture?.(e.pointerId);
+    if (!pointers.current.size)
+      gestureOrigin.current = { x: e.clientX, y: e.clientY };
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     moved.current = false;
   };
@@ -119,7 +156,14 @@ export function OrganicNodeGraph({
     }
     const dx = e.clientX - prev.x,
       dy = e.clientY - prev.y;
-    if (Math.abs(dx) + Math.abs(dy) > 2) moved.current = true;
+    if (
+      Math.hypot(
+        e.clientX - gestureOrigin.current.x,
+        e.clientY - gestureOrigin.current.y,
+      ) > 8
+    )
+      moved.current = true;
+    if (!moved.current) return;
     setOrbit((o) => ({
       yaw: o.yaw + dx * 0.006,
       pitch: Math.max(-1.4, Math.min(1.4, o.pitch - dy * 0.006)),
@@ -148,10 +192,7 @@ export function OrganicNodeGraph({
               checked={show[k]}
               onChange={(e) => {
                 setShow({ ...show, [k]: e.target.checked });
-                if (!e.target.checked && k === "concept") {
-                  exploration.clear();
-                  setSel(null);
-                }
+                if (!e.target.checked && k === "concept") setSel(null);
               }}
             />
             {KIND_LABEL[k]}
@@ -198,17 +239,14 @@ export function OrganicNodeGraph({
           onPointerMove={move}
           onPointerUp={up}
           onPointerCancel={up}
+          data-pan-x={pan.x}
+          data-pan-y={pan.y}
+          data-zoom={zoom}
           onWheel={(e) =>
             setZoom((z) =>
               Math.min(4, Math.max(0.5, z * Math.exp(-e.deltaY * 0.0015))),
             )
           }
-          onClick={() => {
-            if (!moved.current) {
-              setSel(null);
-              exploration.clear();
-            }
-          }}
         >
           <defs>
             <marker
@@ -318,6 +356,22 @@ export function OrganicNodeGraph({
                 role="button"
                 tabIndex={0}
                 aria-label={n.label}
+                onMouseEnter={() => {
+                  if (
+                    n.kind === "concept" &&
+                    exploration.candidate(n.id.slice(2))
+                  )
+                    exploration.setPreview({ target: n.id.slice(2) });
+                }}
+                onMouseLeave={() => exploration.setPreview(null)}
+                onFocus={() => {
+                  if (
+                    n.kind === "concept" &&
+                    exploration.candidate(n.id.slice(2))
+                  )
+                    exploration.setPreview({ target: n.id.slice(2) });
+                }}
+                onBlur={() => exploration.setPreview(null)}
                 data-path-active={
                   (exploration.current === n.id.slice(2) &&
                     n.kind === "concept") ||
@@ -517,7 +571,8 @@ export function OrganicNodeGraph({
                 className="mt-3 self-start rounded border border-border px-2 py-1 text-xs"
                 onClick={() => {
                   setSel(null);
-                  exploration.clear();
+                  setZoom(1);
+                  setPan({ x: 0, y: 0 });
                 }}
               >
                 Näytä koko verkko

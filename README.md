@@ -167,3 +167,14 @@ Jatkoja ei päätellä teemajäsenyydestä tai samankaltaisuudesta. Nykyiset hyl
 Ensimmäisestä käsitevalinnasta lähtien kirjatut jatkot näkyvät kaarevina, vaikutussuuntaan virtaavina viivoina. Jokaisella avoimella jatkolla on kuvaajassa mekanismin nimi ja lyhyt kuvaus ennen valintaa. Kuljettu polku pysyy vahvempana; liikkeen vähennysasetus pysäyttää virtauksen.
 
 Oma polku -painike avaa erillisen liukuvan yhteenvedon. Se näyttää aloituksen, valitut vaiheet, kunkin yhteyden selityksen, kirjatun vaikutussuunnan ja mahdollisen taaksepäin tutkimisen. Ehdot, rajat ja suorat havaintolähteet ovat yhteyden omassa lisätiedossa. Paneeli päivittyy etenemisen ja palaamisen mukana, mutta ei avaudu itsestään. Alkuperäinen tietolaatikko ja polkuyhteenveto avataan vuorotellen, jotta ne eivät peitä toisiaan.
+
+
+### Yhteinen tutkimusreitti ja valintojen esikatselu
+
+Teemaverkko ja solmuverkko käyttävät samaa tutkimusreittiä. Näkymän vaihto säilyttää käsitteen, valitun mekanismin ja navigointihistorian. Edellinen ja Eteenpäin palauttavat täsmälliset valinnat; myös uuden aloituksen ja tyhjentämisen voi perua. Taustan klikkaus tai aiheen selaaminen ei tyhjennä reittiä.
+
+Seuraava askel -valikon osoitus tai näppäimistökohdistus esikatselee juuri kyseistä mekanismia. Kuvaajan pisteen osoitus korostaa siihen johtavat vaihtoehdot. Kaikilla jatkoilla on lyhyt kuvaus; esikatselu avaa tarkemman selityksen samalle viivalle. Jos kahden pisteen välillä on useita mekanismeja, suora pistevalinta pyytää valitsemaan kirjatuista yhteyksistä eikä käytä ensimmäistä löytyvää. Valikon valinta säilyttää mekanismin pysyvän tunnisteen.
+
+Kuljetut mekanismit piirretään myös sen jälkeen, kun ne eivät enää ole nykyisen pisteen välittömiä jatkoja. Molemmat kuvaajat sovittavat valitun polun pisteet ja nykyisen pisteen välittömät jatkot näkyviin ensisijaisesti pienellä siirrolla, tarvittaessa loitonnuksella. Eteneminen ei kierrä teemataivasta uudelleen. Jokaisen näkymän kamera säilyy erikseen.
+
+Oma polku -yhteenveto kertoo myös tutkimissuunnan, selitysehdotusten määrän ja havaintokytkentöjen puutteet. Se ei muodosta uusia päätelmiä yhteyksien yhdistämisestä. Reitti ja historia säilyvät tämän sivun istunnon ajan; ne eivät tallennu tietokantaan tai selaimen pysyvään tallennustilaan.

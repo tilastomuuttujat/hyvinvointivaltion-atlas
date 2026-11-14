@@ -1,57 +1,128 @@
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useEffect,
+  useContext,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { AtlasData } from "@/lib/atlas.functions";
-import { exploreOptions } from "@/lib/atlas.explore";
+import {
+  exploreOptions,
+  exploreTransition,
+  EMPTY_EXPLORATION,
+  type ExploreHistory,
+} from "@/lib/atlas.explore";
 import { catalogueFor } from "@/lib/teema.system";
 import "@/styles/graph-explore.css";
 
-export function useGraphExplore(data: AtlasData) {
-  const [steps, setSteps] = useState<{ id: string; via?: string }[]>([]);
+function useExplorationState(data: AtlasData) {
+  const [history, setHistory] = useState<ExploreHistory>(EMPTY_EXPLORATION);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [nextOpen, setNextOpen] = useState(false);
+  const [preview, setPreview] = useState<{
+    target: string;
+    via?: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!nextOpen) setPreview(null);
+  }, [nextOpen]);
+  const { steps, pending } = history;
   const current = steps.at(-1)?.id;
-  // Reveal adjacent recorded directions immediately, without a question dialog.
   const options = current ? exploreOptions(data, current, "how") : [];
   const chosen = (id: string) => steps.some((s) => s.via === id);
   const candidate = (id: string) =>
     id !== current &&
     options.some((o) => o.target.id === id) &&
     !steps.some((s) => s.id === id);
-  const pick = (id: string) => {
-    const existing = steps.findIndex((s) => s.id === id);
-    const next = options.find((o) => o.target.id === id);
-    setSteps((previous) =>
-      existing >= 0
-        ? previous.slice(0, existing + 1)
-        : next
-          ? [...previous, { id, via: next.mechanism.id }]
-          : [{ id }],
-    );
+  const pick = (id: string, via?: string) => {
+    const next = exploreTransition(history, { type: "pick", id, via }, data);
+    setHistory(next);
+    setPreview(null);
+    return !next.pending && next !== history;
   };
+  const navigate = (type: "back" | "forward") => {
+    setHistory((h) => exploreTransition(h, { type }, data));
+    setPreview(null);
+  };
+  const describe = (id: string) =>
+    data.evidence?.reasoning?.mechanisms.find(
+      (m) => m.id === id && m.isCurrent && m.reviewStatus !== "rejected",
+    );
+  const edgePreview = (id: string) =>
+    !!preview &&
+    options.some(
+      (o) =>
+        o.mechanism.id === id &&
+        o.target.id === preview.target &&
+        (!preview.via || preview.via === id),
+    );
   return {
     steps,
+    current,
+    options,
+    history,
+    pending,
     summaryOpen,
     setSummaryOpen,
     nextOpen,
     setNextOpen,
-    describe: (id: string) =>
-      data.evidence?.reasoning?.mechanisms.find(
-        (m) => m.id === id && m.isCurrent && m.reviewStatus !== "rejected",
-      ),
-    current,
-    options,
+    preview,
+    setPreview,
     pick,
     chosen,
     candidate,
+    describe,
+    edgePreview,
+    back: () => navigate("back"),
+    forward: () => navigate("forward"),
+    cancel: () => setHistory((h) => ({ ...h, pending: undefined })),
     clear: () => {
-      setSteps([]);
+      setHistory((h) => exploreTransition(h, { type: "clear" }, data));
       setSummaryOpen(false);
       setNextOpen(false);
+      setPreview(null);
     },
     lit: (id: string) =>
-      !current || steps.some((s) => s.id === id) || candidate(id),
+      !current ||
+      steps.some((s) => s.id === id) ||
+      (preview ? preview.target === id : candidate(id)),
     edgeLit: (id: string) =>
-      chosen(id) || options.some((o) => o.mechanism.id === id),
+      chosen(id) ||
+      (preview ? edgePreview(id) : options.some((o) => o.mechanism.id === id)),
+    displayedMechanisms: [
+      ...new Set([
+        ...options.map((o) => o.mechanism.id),
+        ...steps.flatMap((s) => (s.via ? [s.via] : [])),
+      ]),
+    ]
+      .map(describe)
+      .filter((m): m is NonNullable<typeof m> => !!m),
   };
+}
+const ExplorationContext = createContext<ReturnType<
+  typeof useExplorationState
+> | null>(null);
+export function GraphExploreProvider({
+  data,
+  children,
+}: {
+  data: AtlasData;
+  children: ReactNode;
+}) {
+  const value = useExplorationState(data);
+  return (
+    <ExplorationContext.Provider value={value}>
+      {children}
+    </ExplorationContext.Provider>
+  );
+}
+export function useGraphExplore(_data: AtlasData) {
+  const value = useContext(ExplorationContext);
+  if (!value) throw new Error("GraphExploreProvider missing");
+  return value;
 }
 export type GraphExploration = ReturnType<typeof useGraphExplore>;
 
@@ -74,11 +145,13 @@ export function GraphPointHint({
   const next = e.candidate(id);
   const incoming = choices.some((o) => o.incoming),
     outgoing = choices.some((o) => !o.incoming);
-  const causal = choices.some(
-    (o) =>
-      o.mechanism.basis === "causal" &&
-      o.mechanism.reviewStatus === "accepted",
-  );
+  const causal =
+    choices.length > 0 &&
+    choices.every(
+      (o) =>
+        o.mechanism.basis === "causal" &&
+        o.mechanism.reviewStatus === "accepted",
+    );
   const nature = causal ? "kausaaliseksi arvioitu" : "selitysehdotus";
   const hint =
     incoming && outgoing
@@ -161,13 +234,24 @@ export function GraphExplore({
 }) {
   const summaryId = useId();
   const nextId = useId();
-  if (!e.current) return null;
+  if (!e.current)
+    return e.history.future.length || e.history.past.length ? (
+      <nav className="graph-trail" aria-label="Oma tutkimuspolku">
+        <button
+          type="button"
+          onClick={e.history.future.length ? e.forward : e.back}
+        >
+          Palauta polku
+        </button>
+      </nav>
+    ) : null;
   const previous = e.steps.at(-2);
   const conceptLabel = (id: string) =>
     data.evidence?.concepts.find((c) => c.id === id)?.label ?? id;
   const themeOf = (mid: string) =>
-    catalogueFor(data).themes.find((t) => t.mechanisms.some((m) => m.id === mid))
-      ?.label;
+    catalogueFor(data).themes.find((t) =>
+      t.mechanisms.some((m) => m.id === mid),
+    )?.label;
   const choices = e.options.filter(
     (o) => !e.steps.some((s) => s.id === o.target.id),
   );
@@ -175,6 +259,45 @@ export function GraphExplore({
     !t ? "" : t.length > n ? t.slice(0, n).trimEnd() + "…" : t;
   return (
     <>
+      {e.pending && (
+        <div
+          className="graph-mechanism-choice"
+          role="group"
+          aria-label="Valitse kirjattu yhteys"
+        >
+          <span>Samaan pisteeseen on useita yhteyksiä:</span>
+          {e.options
+            .filter((o) => o.target.id === e.pending)
+            .map((o) => (
+              <button
+                type="button"
+                key={o.mechanism.id}
+                onMouseEnter={() =>
+                  e.setPreview({ target: o.target.id, via: o.mechanism.id })
+                }
+                onMouseLeave={() => e.setPreview(null)}
+                onFocus={() =>
+                  e.setPreview({ target: o.target.id, via: o.mechanism.id })
+                }
+                onBlur={() => e.setPreview(null)}
+                onClick={() => {
+                  if (e.pick(o.target.id, o.mechanism.id)) onPick(o.target.id);
+                }}
+              >
+                {o.mechanism.label}
+              </button>
+            ))}
+          <button
+            type="button"
+            onClick={() => {
+              e.cancel();
+              e.setPreview(null);
+            }}
+          >
+            Peruuta
+          </button>
+        </div>
+      )}
       <button
         type="button"
         className="graph-next-open"
@@ -236,9 +359,23 @@ export function GraphExplore({
                   <li key={o.mechanism.id}>
                     <button
                       type="button"
+                      onMouseEnter={() =>
+                        e.setPreview({
+                          target: o.target.id,
+                          via: o.mechanism.id,
+                        })
+                      }
+                      onMouseLeave={() => e.setPreview(null)}
+                      onFocus={() =>
+                        e.setPreview({
+                          target: o.target.id,
+                          via: o.mechanism.id,
+                        })
+                      }
+                      onBlur={() => e.setPreview(null)}
                       onClick={() => {
-                        e.pick(o.target.id);
-                        onPick(o.target.id);
+                        if (e.pick(o.target.id, o.mechanism.id))
+                          onPick(o.target.id);
                       }}
                     >
                       <span
@@ -300,16 +437,22 @@ export function GraphExplore({
               );
             })()}
         </span>
-        {previous && (
+        {e.history.past.length > 0 && (
           <button
             type="button"
-            onClick={() => {
-              e.pick(previous.id);
-              onPick(previous.id);
-            }}
-            aria-label={`Palaa: ${data.evidence?.concepts.find((c) => c.id === previous.id)?.label}`}
+            aria-label={`Palaa: ${previous ? conceptLabel(previous.id) : "edellinen valinta"}`}
+            onClick={e.back}
           >
             ← Edellinen
+          </button>
+        )}
+        {e.history.future.length > 0 && (
+          <button
+            type="button"
+            aria-label="Eteenpäin polulla"
+            onClick={e.forward}
+          >
+            Eteenpäin →
           </button>
         )}
         <button type="button" onClick={e.clear}>
@@ -373,6 +516,45 @@ export function GraphExplore({
           Valintajärjestys on tutkimusreitti. Yhteyksien muodostama kokonaisuus
           ei itsessään osoita syy-seurausketjua.
         </p>
+        {e.steps.length > 1 && (
+          <div className="graph-summary-synthesis">
+            <h4>Mitä reitti kertoo?</h4>
+            {(() => {
+              const links = e.steps.slice(1).flatMap((s, i) => {
+                const m = s.via ? e.describe(s.via) : undefined;
+                return m ? [{ m, reverse: m.to === e.steps[i]?.id }] : [];
+              });
+              const reverse = links.filter((l) => l.reverse).length;
+              const provisional = links.filter(
+                (l) =>
+                  l.m.basis !== "causal" || l.m.reviewStatus !== "accepted",
+              ).length;
+              const gaps = links.filter(
+                ({ m }) =>
+                  !(data.evidence?.reasoning?.evidenceLinks ?? []).some(
+                    (l) =>
+                      l.statementId === m.statementId &&
+                      l.isCurrent &&
+                      l.reviewStatus !== "rejected",
+                  ),
+              ).length;
+              return (
+                <>
+                  <p>
+                    {links.length - reverse} askelta mahdollisten seurausten
+                    suuntaan ja {reverse} askelta taustatekijöihin päin.
+                  </p>
+                  <p>
+                    {provisional} yhteyttä on selitysehdotuksia.{" "}
+                    {gaps > 0
+                      ? `${gaps} yhteydeltä puuttuu suora havaintokytkentä.`
+                      : "Yhteyksien havaintoperusteet löytyvät vaiheiden lähdetiedoista."}
+                  </p>
+                </>
+              );
+            })()}
+          </div>
+        )}
         <ol>
           {e.steps.map((s, i) => {
             const m = s.via ? e.describe(s.via) : undefined;
@@ -528,16 +710,18 @@ export function GraphFlow({
   const x = (a.x + 2 * cx + b.x) / 4,
     y = (a.y + 2 * cy + b.y) / 4;
   const label = flowLines(m.label, 34),
-    description = flowLines(m.explanation, 42).slice(0, 2);
+    description = e.edgePreview(id)
+      ? flowLines(m.explanation, 42).slice(0, 2)
+      : [];
   return (
     <g
       ref={ref}
-      className={`graph-flow${chosen ? " graph-flow-chosen" : ""}`}
+      className={`graph-flow${chosen ? " graph-flow-chosen" : ""}${e.edgePreview(id) ? " graph-flow-preview" : ""}`}
       data-flow-mechanism={id}
     >
       <path className="graph-flow-line" d={d} markerEnd={`url(#${marker})`} />
       <path className="graph-flow-stream" d={d} />
-      {!chosen && (
+      {(!chosen || e.edgePreview(id)) && (
         <text
           className="graph-flow-caption"
           textAnchor="middle"

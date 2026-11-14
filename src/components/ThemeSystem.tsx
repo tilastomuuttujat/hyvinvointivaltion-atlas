@@ -29,6 +29,7 @@ import {
   type Orbit,
 } from "@/lib/teema.camera";
 import "@/styles/teema-system.css";
+import { frameGraph } from "@/lib/atlas.explore";
 
 const W = 2600,
   H = 2200,
@@ -86,7 +87,7 @@ export function ThemeSystem({
   const [spinning, setSpinning] = useState(true);
   const tween = useRef<number | null>(null);
   useEffect(() => {
-    if (!active || !spinning) return;
+    if (!active || !spinning || exploration.current) return;
     let raf = 0,
       last = performance.now();
     const tick = (t: number) => {
@@ -97,7 +98,7 @@ export function ThemeSystem({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [active, spinning]);
+  }, [active, spinning, exploration.current]);
   const animateOrbit = (to: Orbit) => {
     if (tween.current) cancelAnimationFrame(tween.current);
     const from = orbit,
@@ -131,6 +132,62 @@ export function ThemeSystem({
     .map((_, i) => i)
     .sort((a, b) => (proj[b]?.z ?? 0) - (proj[a]?.z ?? 0));
   const nearest = drawOrder[drawOrder.length - 1];
+  const world = new Map<string, { x: number; y: number; i: number }[]>();
+  catalog.themes.forEach((t, i) => {
+    const l = layouts[i],
+      p = proj[i];
+    if (!l || !p) return;
+    for (const n of l.nodes) {
+      const key = n.label.trim().toLowerCase();
+      const id =
+        t.concepts.find((c) => c.t.trim().toLowerCase() === key)?.id ??
+        t.mechanisms.find((m) => m.from.trim().toLowerCase() === key)?.fromId ??
+        t.mechanisms.find((m) => m.to.trim().toLowerCase() === key)?.toId;
+      if (!id) continue;
+      const k = p.s * 0.9;
+      world.set(id, [
+        ...(world.get(id) ?? []),
+        { x: p.x + (n.x - 195) * k, y: p.y + n.y * k, i },
+      ]);
+    }
+  });
+  const best = (id: string, prefer: number | null) =>
+    world.get(id)?.find((p) => p.i === prefer) ?? world.get(id)?.[0];
+  useEffect(() => {
+    if (!active) return;
+    const id = exploration.current;
+    if (!id) {
+      setDetail(null);
+      return;
+    }
+    const preferred =
+      selected !== null && world.get(id)?.some((p) => p.i === selected)
+        ? selected
+        : world.get(id)?.[0]?.i;
+    if (preferred === undefined) return;
+    const c = data.evidence?.concepts.find((c) => c.id === id);
+    setSelected(preferred);
+    setDetail({ kind: "concept", index: 0, label: c?.label });
+    setShared(null);
+    setSpinning(false);
+    const ids = new Set([
+      ...exploration.steps.map((s) => s.id),
+      ...exploration.options.map((o) => o.target.id),
+    ]);
+    const points = [...ids].flatMap((id) => {
+      const p = best(id, id === exploration.current ? preferred : null);
+      return p
+        ? [{ x: p.x * camera.zoom + camera.x, y: p.y * camera.zoom + camera.y }]
+        : [];
+    });
+    const fit = frameGraph(points, W, H, 180, 0.4 / camera.zoom);
+    if (fit.scale !== 1 || fit.dx || fit.dy)
+      setCamera((c) => ({
+        zoom: c.zoom * fit.scale,
+        x: c.x * fit.scale + (W / 2) * (1 - fit.scale) + fit.dx,
+        y: c.y * fit.scale + (H / 2) * (1 - fit.scale) + fit.dy,
+      }));
+  }, [exploration.current, active]);
   useEffect(() => {
     if (!expanded) return;
     const previous = document.body.style.overflow;
@@ -163,7 +220,6 @@ export function ThemeSystem({
     if (moved.current) return;
     const location = layouts[i];
     if (!location) return;
-    exploration.clear();
     setSelected(i);
     setDetail(null);
     setShared(null);
@@ -173,11 +229,14 @@ export function ThemeSystem({
     setCamera({ zoom: 2.4, x: CX - CX * 2.4, y: CY - (CY + 40 * k) * 2.4 });
   };
   const overview = () => {
-    exploration.clear();
     setCamera(STAR_OVERVIEW);
     setSpinning(true);
-    setSelected(null);
-    setDetail(null);
+    setSelected(
+      exploration.current
+        ? (world.get(exploration.current)?.[0]?.i ?? null)
+        : null,
+    );
+    if (!exploration.current) setDetail(null);
     setShared(null);
   };
   const pointerDown = (e: PointerEvent<SVGSVGElement>) => {
@@ -239,13 +298,14 @@ export function ThemeSystem({
   };
   const pickDetail = (i: number, d: Detail) => {
     if (moved.current) return;
-    const changed = selected !== i;
     const id =
       d.kind === "concept"
         ? (() => {
             const th = catalog.themes[i];
             const key = (d.label ?? "").trim().toLowerCase();
-            const c = th?.concepts.find((c) => c.t.trim().toLowerCase() === key);
+            const c = th?.concepts.find(
+              (c) => c.t.trim().toLowerCase() === key,
+            );
             if (c) return c.id;
             const m = th?.mechanisms.find(
               (m) =>
@@ -259,16 +319,11 @@ export function ThemeSystem({
               : undefined;
           })()
         : undefined;
-    if (id) exploration.pick(id);
-    else exploration.clear();
+    if (id && !exploration.pick(id)) return;
     setSelected(i);
     setDetail(d);
     setShared(null);
-    if (changed) {
-      setSpinning(false);
-      const loc = layouts[i];
-      if (loc) animateOrbit(facingOrbit(loc.base));
-    }
+    setSpinning(false);
   };
   const mechanism =
     detail?.kind === "mechanism" ? theme?.mechanisms[detail.index] : null;
@@ -550,15 +605,6 @@ export function ThemeSystem({
                           markerEnd="url(#ts-arrow)"
                         />
                         <path d={d} className="ts-causal-pulse" />
-                        {edge.kind === "mechanism" && (
-                          <GraphFlow
-                            exploration={exploration}
-                            id={t.mechanisms[edge.ref]?.id ?? ""}
-                            from={a}
-                            to={b}
-                            marker="ts-arrow"
-                          />
-                        )}
                         <path
                           d={d}
                           className="ts-hit"
@@ -600,16 +646,25 @@ export function ThemeSystem({
                         role="button"
                         tabIndex={0}
                         aria-label={n.label}
+                        onMouseEnter={() => {
+                          const id = conceptIdOf(n.label);
+                          if (exploration.candidate(id))
+                            exploration.setPreview({ target: id });
+                        }}
+                        onMouseLeave={() => exploration.setPreview(null)}
+                        onFocus={() => {
+                          const id = conceptIdOf(n.label);
+                          if (exploration.candidate(id))
+                            exploration.setPreview({ target: id });
+                        }}
+                        onBlur={() => exploration.setPreview(null)}
                         data-path-active={
                           selected === i &&
-                          exploration.current ===
-                            conceptIdOf(n.label)
+                          exploration.current === conceptIdOf(n.label)
                         }
                         data-path-dim={
                           !!exploration.current &&
-                          !exploration.lit(
-                            conceptIdOf(n.label),
-                          )
+                          !exploration.lit(conceptIdOf(n.label))
                         }
                         data-path-candidate={exploration.candidate(
                           conceptIdOf(n.label),
@@ -623,12 +678,14 @@ export function ThemeSystem({
                           })
                         }
                         onKeyDown={(e) => {
-                          if (e.key === "Enter")
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
                             pickDetail(i, {
                               kind: "concept",
                               index: 0,
                               label: n.label,
                             });
+                          }
                         }}
                       >
                         <GraphPointHint
@@ -718,57 +775,27 @@ export function ThemeSystem({
               );
             })}
             {exploration.current &&
-              (() => {
-                // Recorded mechanisms whose next point sits in another star pattern: draw them across the sky.
-                const world = new Map<string, { x: number; y: number; f: number; i: number }[]>();
-                drawOrder.forEach((i) => {
-                  const t = catalog.themes[i],
-                    l = layouts[i],
-                    p = proj[i];
-                  if (!t || !l || !p) return;
-                  for (const n of l.nodes) {
-                    const key = n.label.trim().toLowerCase();
-                    const id =
-                      t.concepts.find((c) => c.t.trim().toLowerCase() === key)?.id ??
-                      t.mechanisms.find((m) => m.from.trim().toLowerCase() === key)?.fromId ??
-                      t.mechanisms.find((m) => m.to.trim().toLowerCase() === key)?.toId;
-                    if (!id) continue;
-                    const k = p.s * 0.9;
-                    world.set(id, [
-                      ...(world.get(id) ?? []),
-                      { x: p.x + (n.x - 195) * k, y: p.y + n.y * k, f: p.front, i },
-                    ]);
-                  }
-                });
-                const local = (i: number | null, mid: string) =>
-                  i !== null &&
-                  !!catalog.themes[i]?.mechanisms.some((m) => m.id === mid);
-                const best = (id: string, prefer: number | null) => {
-                  const all = world.get(id) ?? [];
-                  return (
-                    all.find((w) => w.i === prefer) ??
-                    [...all].sort((a, b) => b.f - a.f)[0]
+              exploration.displayedMechanisms.map((m) => {
+                const from = best(
+                    m.from,
+                    m.from === exploration.current ? selected : null,
+                  ),
+                  to = best(
+                    m.to,
+                    m.to === exploration.current ? selected : null,
                   );
-                };
-                return exploration.options
-                  .filter((o) => !local(selected, o.mechanism.id))
-                  .map((o) => {
-                    const here = best(exploration.current!, selected),
-                      there = best(o.target.id, null);
-                    if (!here || !there) return null;
-                    const fromIsHere = o.mechanism.from === exploration.current;
-                    return (
-                      <GraphFlow
-                        key={o.mechanism.id}
-                        exploration={exploration}
-                        id={o.mechanism.id}
-                        from={fromIsHere ? here : there}
-                        to={fromIsHere ? there : here}
-                        marker="ts-arrow"
-                      />
-                    );
-                  });
-              })()}
+                if (!from || !to) return null;
+                return (
+                  <GraphFlow
+                    key={m.id}
+                    exploration={exploration}
+                    id={m.id}
+                    from={from}
+                    to={to}
+                    marker="ts-arrow"
+                  />
+                );
+              })}
           </g>
         </svg>
         <GraphExplore
@@ -791,8 +818,6 @@ export function ThemeSystem({
             setDetail({ kind: "concept", index: 0, label: concept.t });
             setShared(null);
             setSpinning(false);
-            const loc = layouts[ti];
-            if (loc) animateOrbit(facingOrbit(loc.base));
           }}
         />
         <div className="ts-tools">
@@ -860,7 +885,6 @@ export function ThemeSystem({
               setPanelOpen(true);
               exploration.setNextOpen(false);
               exploration.setSummaryOpen(false);
-              exploration.setSummaryOpen(false);
             }}
           >
             ◂ Tiedot
@@ -885,6 +909,7 @@ export function ThemeSystem({
             size="icon"
             aria-label="Tyhjennä valinta"
             onClick={() => {
+              exploration.clear();
               setSelected(null);
               setDetail(null);
               setShared(null);
