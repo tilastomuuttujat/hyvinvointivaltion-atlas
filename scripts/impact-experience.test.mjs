@@ -227,6 +227,57 @@ test(
           ),
         );
       }
+      const clickText = (text) => {
+        const button = [
+          ...w.document.querySelectorAll(".reasoning-space button"),
+        ].find((b) => b.textContent === text);
+        assert.ok(button, text);
+        button.click();
+      };
+      clickText("Aloita kysymyksestä");
+      await until(() => w.document.querySelector(".reader-questions"));
+      clickText("Millä ehdoilla työ tukee toimintakykyä?");
+      await until(() =>
+        w.document.querySelector(".reader-next [data-reader-via]"),
+      );
+      assert.ok(!w.document.querySelector(".reader-summary.open"));
+      w.document.querySelector(".reader-next [data-reader-via]").click();
+      await until(() =>
+        w.document.querySelector(".reader-entry").textContent.includes("(2)"),
+      );
+      assert.ok(
+        w.document.querySelector('.reasoning-space [data-chosen="true"]'),
+      );
+      assert.ok(w.document.querySelector(".reader-minimap"));
+      clickText("Oma tulkintapolku (2)");
+      await until(() => w.document.querySelector(".reader-summary.open"));
+      assert.ok(
+        w.document
+          .querySelector(".reader-summary")
+          .textContent.includes("Mitä tästä voi päätellä?"),
+      );
+      assert.ok(
+        w.document
+          .querySelector(".reader-summary")
+          .textContent.includes("Millä ehdoilla ja rajoilla?"),
+      );
+      clickText("Säilytä tämä vertailuun");
+      await until(() => w.document.querySelector(".reader-comparison"));
+      clickText("Tutki toista polkua samasta alusta");
+      await until(() => !w.document.querySelector(".reader-summary.open"));
+      w.document.querySelector(".reader-next [data-reader-via]").click();
+      await until(() =>
+        w.document.querySelector(".reader-entry").textContent.includes("(2)"),
+      );
+      clickText("Oma tulkintapolku (2)");
+      await until(() =>
+        w.document.querySelector(".reader-summary.open .reader-comparison"),
+      );
+      assert.ok(
+        w.document
+          .querySelector(".reader-comparison")
+          .textContent.includes("Sama lähtökohta"),
+      );
       assert.deepEqual(errors, []);
     } finally {
       dom.window.close();

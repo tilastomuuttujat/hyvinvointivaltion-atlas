@@ -1,3 +1,5 @@
+import { ReaderJourney } from "./ReaderJourney";
+import { GraphExplore, useGraphExplore } from "./GraphExplore";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AtlasData } from "@/lib/atlas.functions";
 import { catalogueFor } from "@/lib/teema.system";
@@ -23,9 +25,8 @@ const W = 1600,
   PALETTE = 8;
 
 /**
- * Wordless reasoning space: concepts carry their names, relations are shown only
- * visually (flow direction = recorded mechanism direction, faint threads = theme membership).
- * No buttons except the exit; the reader draws their own conclusions.
+ * Persistent visual network with optional inquiry, source and path-summary controls.
+ * Mechanisms retain their recorded direction; membership never becomes causality.
  */
 export function ReasoningSpace({
   data,
@@ -34,6 +35,7 @@ export function ReasoningSpace({
   data: AtlasData;
   onClose: () => void;
 }) {
+  const exploration = useGraphExplore(data);
   const catalog = catalogueFor(data);
   const graph = useMemo(
     () => layoutForceGraph(buildForceGraph(catalog.themes)),
@@ -43,7 +45,7 @@ export function ReasoningSpace({
   const [zoom, setZoom] = useState(1);
   const [sel, setSel] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
-  const [trail, setTrail] = useState<number[]>([]);
+
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
@@ -147,14 +149,24 @@ export function ReasoningSpace({
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
   };
+  useEffect(() => {
+    if (!exploration.current) return;
+    const i = graph.nodes.findIndex((n) => n.id === `K:${exploration.current}`);
+    if (i >= 0) setSel(i);
+  }, [exploration.current, graph]);
   const choose = (i: number) => {
     if (moved.current) return;
     if (sel === i) {
       setSel(null);
       return;
     }
-    setSel(i);
-    setTrail((t) => (t[t.length - 1] === i ? t : [...t.slice(-6), i]));
+    const node = graph.nodes[i]!;
+    if (node.kind === "concept") {
+      const id = node.id.slice(2);
+      if (exploration.current && exploration.candidate(id))
+        exploration.pick(id);
+      else exploration.start(id);
+    } else setSel(i);
   };
 
   const order = graph.nodes
@@ -199,6 +211,22 @@ export function ReasoningSpace({
         }}
       >
         <defs>
+          <marker
+            id="rs-direction"
+            viewBox="0 0 10 10"
+            refX="15"
+            refY="5"
+            markerWidth="5"
+            markerHeight="5"
+            orient="auto"
+          >
+            <path
+              d="M1 1L9 5L1 9"
+              fill="none"
+              stroke="context-stroke"
+              strokeWidth="1.5"
+            />
+          </marker>
           <radialGradient id="rs-glow">
             <stop offset="0%" stopColor="currentColor" stopOpacity="0.9" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
@@ -207,7 +235,20 @@ export function ReasoningSpace({
         {edges.map((e, k) => {
           const a = proj[e.a]!,
             b = proj[e.b]!;
-          const lit = focus !== null && (e.a === focus || e.b === focus);
+          const chosen =
+            e.kind === "mechanism" &&
+            !!e.referenceId &&
+            exploration.chosen(e.referenceId);
+          const mechanism = e.referenceId
+            ? exploration.describe(e.referenceId)
+            : undefined;
+          const causal =
+            mechanism?.basis === "causal" &&
+            mechanism.reviewStatus === "accepted";
+          const lit =
+            chosen ||
+            exploration.edgePreview(e.referenceId ?? "") ||
+            (focus !== null && (e.a === focus || e.b === focus));
           const echoed =
             focus !== null && !lit && echo!.has(e.a) && echo!.has(e.b);
           const alpha =
@@ -228,13 +269,32 @@ export function ReasoningSpace({
               />
             );
           return (
-            <g key={k} style={{ color: color(e.a) }} pointerEvents="none">
+            <g
+              key={k}
+              style={{ color: color(e.a) }}
+              pointerEvents="none"
+              data-rs-mechanism={e.referenceId}
+              data-chosen={chosen}
+            >
+              {exploration.edgePreview(e.referenceId ?? "") && (
+                <text
+                  x={mx}
+                  y={my - 12}
+                  textAnchor="middle"
+                  className="rs-label"
+                  fontSize="14"
+                >
+                  {e.label}
+                </text>
+              )}
               <path
                 d={d}
                 fill="none"
                 stroke="currentColor"
-                strokeWidth={lit ? 2.4 : 1.1}
-                opacity={alpha * 0.5}
+                strokeDasharray={chosen || causal ? undefined : "6 5"}
+                markerEnd="url(#rs-direction)"
+                strokeWidth={chosen ? 4 : lit ? 2.4 : 1.1}
+                opacity={chosen ? 1 : alpha * 0.5}
               />
               <path
                 d={d}
@@ -249,17 +309,6 @@ export function ReasoningSpace({
             </g>
           );
         })}
-        {trail.length > 1 && (
-          <polyline
-            points={trail.map((i) => `${proj[i]!.x},${proj[i]!.y}`).join(" ")}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1}
-            strokeDasharray="1 6"
-            opacity={0.5}
-            pointerEvents="none"
-          />
-        )}
         {order.map((i) => {
           const n = graph.nodes[i]!,
             p = proj[i]!;
@@ -356,6 +405,70 @@ export function ReasoningSpace({
           );
         })}
       </svg>
+      <svg
+        className="reader-minimap"
+        viewBox={`0 0 ${W} ${H}`}
+        aria-label="Polun sijainti kokonaisverkossa"
+        role="img"
+      >
+        {graph.edges
+          .filter((e) => e.kind === "mechanism")
+          .map((edge, i) => {
+            const a = proj[edge.a]!,
+              b = proj[edge.b]!;
+            return (
+              <line
+                key={i}
+                x1={W / 2 + (a.x - W / 2) / zoom}
+                y1={H / 2 + (a.y - H / 2) / zoom}
+                x2={W / 2 + (b.x - W / 2) / zoom}
+                y2={H / 2 + (b.y - H / 2) / zoom}
+                stroke={color(edge.a)}
+                strokeWidth={
+                  edge.referenceId && exploration.chosen(edge.referenceId)
+                    ? 12
+                    : 3
+                }
+                opacity={
+                  edge.referenceId && exploration.chosen(edge.referenceId)
+                    ? 1
+                    : 0.2
+                }
+              />
+            );
+          })}
+        {graph.nodes.map((n, i) => (
+          <circle
+            key={n.id}
+            cx={W / 2 + (proj[i]!.x - W / 2) / zoom}
+            cy={H / 2 + (proj[i]!.y - H / 2) / zoom}
+            r={exploration.steps.some((s) => `K:${s.id}` === n.id) ? 15 : 5}
+            fill={color(i)}
+            opacity={
+              exploration.steps.some((s) => `K:${s.id}` === n.id) ? 1 : 0.4
+            }
+          />
+        ))}
+      </svg>
+      <ReaderJourney data={data} />
+      <GraphExplore
+        data={data}
+        exploration={exploration}
+        onOpenSummary={() => {}}
+        onPick={() => {}}
+      />
+      <div
+        className="rs-time-horizon"
+        style={{
+          position: "absolute",
+          bottom: 65,
+          right: 18,
+          fontSize: 11,
+          opacity: 0.65,
+        }}
+      >
+        1850 · 1900 · 1950 · 2000 · 2050 · sijainti ei kuvaa aikaa
+      </div>
       <button
         type="button"
         onClick={onClose}
