@@ -227,6 +227,26 @@ test(
           ),
         );
       }
+      const canvas = w.document.querySelector(".rs-canvas");
+      const initialSpotlight =
+        w.document.querySelector(".reasoning-space").dataset.spotlight;
+      let changed = false;
+      for (let turn = 0; turn < 22; turn++) {
+        canvas.dispatchEvent(
+          new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+        );
+        await pause(35);
+        if (
+          w.document.querySelector(".reasoning-space").dataset.spotlight !==
+          initialSpotlight
+        ) {
+          changed = true;
+          break;
+        }
+      }
+      assert.ok(changed, "rotation should reveal a different chain");
+      assert.ok(!w.document.querySelector(".reader-summary.open"));
+      assert.ok(w.document.querySelector('[data-spotlit="true"]'));
       const clickText = (text) => {
         const button = [
           ...w.document.querySelectorAll(".reasoning-space button"),
@@ -234,14 +254,28 @@ test(
         assert.ok(button, text);
         button.click();
       };
-      clickText("Aloita kysymyksestä");
-      await until(() => w.document.querySelector(".reader-questions"));
-      clickText("Millä ehdoilla työ tukee toimintakykyä?");
-      await until(() =>
-        w.document.querySelector(".reader-next [data-reader-via]"),
+      assert.equal(
+        w.document.querySelectorAll(".reader-questions,.reader-next").length,
+        0,
       );
+      const start = [
+        ...w.document.querySelectorAll(".reasoning-space [data-i]"),
+      ].find(
+        (p) =>
+          p.getAttribute("aria-label") ===
+          snapshot.evidence.concepts.find((c) => c.id === "work_accommodation")
+            .label,
+      );
+      start.dispatchEvent(
+        new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+      await until(() => w.document.querySelector("[data-rs-follow]"));
       assert.ok(!w.document.querySelector(".reader-summary.open"));
-      w.document.querySelector(".reader-next [data-reader-via]").click();
+      w.document
+        .querySelector("[data-rs-follow]")
+        .dispatchEvent(
+          new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+        );
       await until(() =>
         w.document.querySelector(".reader-entry").textContent.includes("(2)"),
       );
@@ -265,7 +299,11 @@ test(
       await until(() => w.document.querySelector(".reader-comparison"));
       clickText("Tutki toista polkua samasta alusta");
       await until(() => !w.document.querySelector(".reader-summary.open"));
-      w.document.querySelector(".reader-next [data-reader-via]").click();
+      w.document
+        .querySelector("[data-rs-follow]")
+        .dispatchEvent(
+          new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+        );
       await until(() =>
         w.document.querySelector(".reader-entry").textContent.includes("(2)"),
       );
