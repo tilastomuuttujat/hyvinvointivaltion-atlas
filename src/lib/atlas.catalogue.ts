@@ -21,11 +21,18 @@ export function validateThemeCatalog(catalog: ThemeCatalog, data: AtlasData) {
   )
     throw new Error("Catalogue conclusion coverage differs from snapshot");
   const concepts = catalog.themes.flatMap((t) => t.concepts.map((c) => c.id));
-  unique(concepts, "concepts");
+  for (const t of catalog.themes)
+    unique(
+      t.concepts.map((c) => c.id),
+      "concepts within theme",
+    );
+  const conceptCoverage = [...new Set(concepts)];
   if (
     data.evidence &&
-    (concepts.length !== data.evidence.concepts.length ||
-      concepts.some((id) => !data.evidence!.concepts.some((c) => c.id === id)))
+    (conceptCoverage.length !== data.evidence.concepts.length ||
+      conceptCoverage.some(
+        (id) => !data.evidence!.concepts.some((c) => c.id === id),
+      ))
   )
     throw new Error("Catalogue concept coverage differs from snapshot");
   for (const key of ["mechanisms", "paths"] as const) {
@@ -59,6 +66,51 @@ export function buildThemeCatalog(
   },
 ): ThemeCatalog {
   const r = data.evidence?.reasoning;
+  if (data.publication) {
+    const p = data.publication;
+    if (p.suppressedConceptIds.length)
+      throw new Error(
+        "Rejected theme membership requires an explicit replacement",
+      );
+    const known = new Set(template.themes.map((t) => t.id));
+    if (
+      p.themes.some((t) => !known.has(t.id)) ||
+      template.themes.some((t) => !p.themes.some((x) => x.id === t.id))
+    )
+      throw new Error(
+        "Theme taxonomy changed; explicit editorial assignment required",
+      );
+    const mapped = new Set(p.memberships.map((m) => m.conceptId));
+    template = {
+      ...template,
+      themes: template.themes.map((t) => {
+        const db = p.themes.find((x) => x.id === t.id)!;
+        const ids = new Set([
+          ...p.memberships
+            .filter((m) => m.themeId === t.id)
+            .map((m) => m.conceptId),
+          ...t.concepts.filter((c) => !mapped.has(c.id)).map((c) => c.id),
+        ]);
+        return {
+          ...t,
+          label: db.label,
+          concepts: [...ids].map((id) => {
+            const c = data.evidence?.concepts.find((c) => c.id === id);
+            if (!c) throw new Error("Unknown theme concept");
+            return {
+              id,
+              t: c.label,
+              d: c.definition,
+              r: c.limitations,
+              membershipSource: mapped.has(id)
+                ? "database"
+                : "editorial_fallback",
+            };
+          }),
+        };
+      }),
+    };
+  }
   const themes: Theme[] = template.themes.map((t) => ({
     ...t,
     conclusions: t.conclusions.flatMap((c) => {
@@ -78,7 +130,7 @@ export function buildThemeCatalog(
     concepts: t.concepts.flatMap((c) => {
       const x = data.evidence?.concepts.find((x) => x.id === c.id);
       return x
-        ? [{ id: x.id, t: x.label, d: x.definition, r: x.limitations }]
+        ? [{ ...c, id: x.id, t: x.label, d: x.definition, r: x.limitations }]
         : [];
     }),
     mechanisms: t.mechanisms.flatMap((m) => {

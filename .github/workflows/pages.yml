@@ -4,12 +4,14 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '17 4 * * *'
   workflow_dispatch:
     inputs:
       refresh_data:
         description: 'Refresh the public JSON snapshot from Neon (requires NEON_DATABASE_URL)'
         type: boolean
-        default: false
+        default: true
 permissions:
   contents: read
 concurrency:
@@ -25,8 +27,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Refresh snapshot (manual runs only)
-        if: github.event_name == 'workflow_dispatch' && inputs.refresh_data
+      - name: Refresh and validate publication from Neon
+        if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.refresh_data)
         run: npm run export:atlas
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}

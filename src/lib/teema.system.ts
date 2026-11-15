@@ -41,7 +41,13 @@ export type Theme = {
     v: string;
     links: number[];
   }[];
-  concepts: { id: string; t: string; d: string; r: string }[];
+  concepts: {
+    id: string;
+    t: string;
+    d: string;
+    r: string;
+    membershipSource?: string;
+  }[];
   mechanisms: Mechanism[];
   paths: Path[];
   findings: {
@@ -77,12 +83,14 @@ export function themeTerms(t: Theme): Map<string, string> {
   const add = (id: string | undefined, label: string) => {
     if (id) m.set(id, label);
   };
-  t.concepts.forEach((c) => add(c.id,c.t));
+  t.concepts.forEach((c) => add(c.id, c.t));
   t.mechanisms.forEach((x) => {
-    add(x.fromId,x.from);
-    add(x.toId,x.to);
+    add(x.fromId, x.from);
+    add(x.toId, x.to);
   });
-  t.paths.forEach((p) => p.steps.forEach((label,i)=>add(p.conceptIds?.[i],label)));
+  t.paths.forEach((p) =>
+    p.steps.forEach((label, i) => add(p.conceptIds?.[i], label)),
+  );
   return m;
 }
 

@@ -1,3 +1,4 @@
+import { AtlasReleaseNotice } from "@/components/AtlasReleaseNotice";
 import { GraphExploreProvider } from "@/components/GraphExplore";
 import { ThemeSystem } from "@/components/ThemeSystem";
 import { OrganicNodeGraph } from "@/components/OrganicNodeGraph";
@@ -83,6 +84,7 @@ export function AtlasPage() {
             />
           </div>
         </header>
+        <AtlasReleaseNotice generatedAt={data.generatedAt} />
         <nav className="view-switch" aria-label="Näkymä">
           {(
             [

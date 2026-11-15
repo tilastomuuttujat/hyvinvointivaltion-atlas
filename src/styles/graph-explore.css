@@ -460,3 +460,107 @@
   border-color: var(--primary);
   background: var(--accent);
 }
+.graph-context-tools {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 13;
+}
+.ts-space .graph-context-tools {
+  top: 64px;
+}
+.graph-context-tools button,
+.graph-catalogue-open {
+  font-size: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px;
+}
+.graph-catalogue-open {
+  position: absolute;
+  top: 64px;
+  left: 12px;
+  z-index: 13;
+}
+.graph-context-fields {
+  position: absolute;
+  top: 110px;
+  left: 12px;
+  width: min(330px, calc(100% - 24px));
+  max-height: 50%;
+  overflow: auto;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  z-index: 16;
+  font-size: 12px;
+}
+.graph-context-fields label {
+  display: block;
+  margin: 7px 0;
+}
+.graph-context-fields input,
+.graph-context-fields select {
+  display: block;
+  width: 100%;
+  padding: 6px;
+  border: 1px solid var(--border);
+  background: var(--background);
+}
+.graph-context-status {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  display: block;
+  margin: 5px 0;
+}
+.graph-evidence-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 12px;
+  padding: 6px 0;
+  text-align: left;
+}
+.graph-evidence {
+  z-index: 22;
+  padding-top: 20px;
+}
+.graph-evidence article {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 12px;
+}
+.graph-evidence nav {
+  display: flex;
+  gap: 15px;
+  margin: 12px 0;
+  font-size: 12px;
+}
+.graph-evidence small {
+  display: block;
+  color: var(--muted-foreground);
+}
+.graph-evidence input {
+  border: 1px solid var(--border);
+  background: var(--background);
+  padding: 6px;
+  width: 100%;
+}
+.graph-next li button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.atlas-release-notice {
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  background: var(--card);
+}
+.atlas-release-notice button {
+  text-decoration: underline;
+  color: var(--primary);
+}

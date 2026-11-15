@@ -74,7 +74,7 @@ export function buildForceGraph(
   ) => {
     const k =
       kind === "mechanism"
-        ? `${a}-${b}-${kind}-${label}`
+        ? `${kind}|${referenceId ?? `${a}-${b}-${label}`}`
         : `${Math.min(a, b)}-${Math.max(a, b)}-${kind}`;
     if (a !== b && !seen.has(k)) {
       seen.add(k);

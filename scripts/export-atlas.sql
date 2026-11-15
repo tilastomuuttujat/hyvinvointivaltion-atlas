@@ -25,7 +25,7 @@ WITH current_links AS (
 )
 SELECT jsonb_build_object(
  'schemaVersion',1,'generatedAt',now(),'evidenceGeneratedAt',now(),'evidence',(WITH published AS (
- SELECT o.observation_id, jsonb_build_object('id',o.observation_id,'kind','statistical','title',s.title,'start',o.year,'end',o.year,'period',o.period,'population',coalesce(o.group_label,o.group_key),'value',o.value,'unit',o.unit,'valueKind',o.value_kind,'sourceUrl',o.source_url,'sourceVersion',o.source_version,'verification',o.source_validation_status) row
+ SELECT o.observation_id, jsonb_build_object('id',o.observation_id,'kind','statistical','seriesKey',o.series_key,'title',s.title,'start',o.year,'end',o.year,'period',o.period,'population',coalesce(o.group_label,o.group_key),'value',o.value,'unit',o.unit,'valueKind',o.value_kind,'sourceUrl',o.source_url,'sourceVersion',o.source_version,'verification',o.source_validation_status) row
  FROM atlas_evidence.observations o JOIN atlas_evidence.observation_series s USING(series_key)
  WHERE o.publication_hold IS FALSE AND o.source_is_published IS TRUE
  UNION ALL
