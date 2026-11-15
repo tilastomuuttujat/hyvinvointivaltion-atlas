@@ -123,8 +123,8 @@ test("corridor places phenomena on receding side walls along the time axis", () 
   assert.ok(rows.some((p) => p.side === "left"));
   assert.ok(rows.some((p) => p.side === "right"));
   for (const p of rows) {
-    // Walls recede toward the central vanishing point; later years sit nearer the viewer.
-    assert.ok(p.side === "left" ? p.x < 800 - 250 && p.endX <= p.x : p.x > 800 + 250 && p.endX >= p.x);
+    // Walls recede toward the central vanishing point; earlier years sit nearer the viewer, the future at the horizon.
+    assert.ok(p.side === "left" ? p.x < 800 && p.endX >= p.x - 1 : p.x > 800 && p.endX <= p.x + 1);
     assert.ok(p.y >= 50 && p.y <= 950);
   }
   assert.deepEqual(rows, corridorLayout(h, order));

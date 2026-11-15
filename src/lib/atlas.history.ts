@@ -289,10 +289,10 @@ export function historyLayout(h: HistoryBundle, themeOrder: string[]) {
     });
 }
 
-/** Corridor geometry: vanishing point at the centre, 1850 at the far horizon, 2050 at the viewer. */
+/** Corridor geometry: vanishing point at the centre, 1850 at the viewer, 2050 at the far horizon. */
 export const CORRIDOR = { cx: 800, cy: 500, halfW: 780, halfH: 440, zFar: 3 };
 export function corridorScale(year: number) {
-  const t = (Math.max(1850, Math.min(2050, year)) - 1850) / 200;
+  const t = (2050 - Math.max(1850, Math.min(2050, year))) / 200;
   return 1 / (CORRIDOR.zFar - (CORRIDOR.zFar - 1) * t);
 }
 /** Phenomena sit on the left/right corridor walls; their wall height is the theme lane. */

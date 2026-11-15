@@ -82,7 +82,7 @@ export function HistoryWall({
       <g pointerEvents="none" data-history-corridor="true">
         {(() => {
           const { cx, cy, halfW, halfH } = CORRIDOR,
-            far = corridorScale(1850),
+            far = corridorScale(2050),
             corner = (sx: number, sy: number, k: number) =>
               `${cx + sx * halfW * k} ${cy + sy * halfH * k}`;
           return (
@@ -137,13 +137,13 @@ export function HistoryWall({
                     : "history-link context"
                 }
                 data-history-relation={c.relation}
-                d={`M${origin.x} ${origin.y} C${origin.x + (p.side === "left" ? -60 : 60)} ${origin.y - 30},${(p.x + origin.x) / 2} ${p.y},${p.x} ${p.y}`}
+                d={`M${p.x} ${p.y} Q${(p.x + origin.x) / 2} ${Math.min(p.y, origin.y) - 40},${origin.x} ${origin.y}`}
                 fill="none"
                 stroke={color(p.theme)}
-                strokeWidth={0.5}
+                strokeWidth={0.9}
                 vectorEffect="non-scaling-stroke"
-                strokeDasharray={c.relation === "recorded" ? "3 12" : "1 7"}
-                opacity={0.18}
+                strokeDasharray={c.relation === "recorded" ? undefined : "2 6"}
+                opacity={0.24}
                 pointerEvents="none"
               />
             );
@@ -230,21 +230,21 @@ export function HistoryWall({
               <circle cx={p.x} cy={p.y} r={14 * k + 4} fill="currentColor" opacity=".14" className="history-glow" />
             )}
             <circle cx={p.x} cy={p.y} r="12" fill="transparent" />
-            {label && (
-              <text
-                x={x}
-                y={y}
-                fill="currentColor"
-                textAnchor={p.side === "left" ? "start" : "end"}
-                fontSize={light || active ? 12 + 6 * k : 12 * Math.max(0.55, k)}
-                opacity={light || active ? 0.92 : 0.12}
-                className="history-title"
-              >
-                {p.item.title.length > 37
-                  ? p.item.title.slice(0, 35) + "…"
-                  : p.item.title}
-              </text>
-            )}
+            {label && (() => {
+              const { cx, cy } = CORRIDOR;
+              const lx = p.x + (p.side === "left" ? 6 : -6) * k,
+                ly = p.y - 7 * k,
+                deg = (Math.atan((cy - ly) / (cx - lx || 1)) * 180) / Math.PI,
+                on = light || active,
+                txt = p.item.title.length > 37 ? p.item.title.slice(0, 35) + "…" : p.item.title,
+                fs = on ? 11 + 7 * k : 11 * Math.max(0.6, k);
+              return (
+                <g transform={`translate(${lx} ${ly}) skewY(${deg})`} className="history-carving">
+                  <text x={0} y={0.9} fill="oklch(.08 .02 250)" textAnchor={p.side === "left" ? "start" : "end"} fontSize={fs} letterSpacing=".08em" opacity={on ? 0.8 : 0.3}>{txt}</text>
+                  <text x={0} y={0} fill="currentColor" textAnchor={p.side === "left" ? "start" : "end"} fontSize={fs} letterSpacing=".08em" opacity={on ? 0.95 : 0.16} className="history-title" style={on ? { filter: "drop-shadow(0 0 3px currentColor)" } : undefined}>{txt}</text>
+                </g>
+              );
+            })()}
           </g>
         );
       })}
