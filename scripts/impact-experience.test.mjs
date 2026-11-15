@@ -227,6 +227,33 @@ test(
           ),
         );
       }
+      const wall = w.document.querySelector(".history-wall");
+      assert.equal(wall.dataset.historyCount, "1111");
+      assert.ok(wall.querySelector('[data-history-lit="true"]'));
+      assert.ok(!wall.querySelector("[data-history-detail]"));
+      const historical = wall.querySelector("[data-history-item]");
+      historical.dispatchEvent(
+        new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+      await until(() =>
+        wall.querySelector('[aria-label="Avaa historiallisen ilmiön lähteet"]'),
+      );
+      assert.ok(!wall.querySelector("[data-history-detail]"));
+      wall
+        .querySelector('[aria-label="Avaa historiallisen ilmiön lähteet"]')
+        .dispatchEvent(
+          new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+        );
+      await until(() => wall.querySelector("[data-history-detail]"));
+      assert.ok(
+        wall
+          .querySelector("[data-history-detail]")
+          .textContent.includes("luottamus:"),
+      );
+      [...wall.querySelectorAll("button")]
+        .find((b) => b.textContent === "Sulje")
+        .click();
+      await until(() => !wall.querySelector("[data-history-detail]"));
       const canvas = w.document.querySelector(".rs-canvas");
       const initialSpotlight =
         w.document.querySelector(".reasoning-space").dataset.spotlight;
