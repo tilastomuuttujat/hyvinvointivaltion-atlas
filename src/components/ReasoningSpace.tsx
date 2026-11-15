@@ -4,6 +4,16 @@ import { catalogueFor } from "@/lib/teema.system";
 import { buildForceGraph, layoutForceGraph, neighbours } from "@/lib/atlas.force-graph";
 import { rotate, perspective, type Orbit } from "@/lib/teema.camera";
 
+const RS_CSS = `
+.reasoning-space{--rs-1:oklch(0.82 0.10 180);--rs-2:oklch(0.82 0.11 145);--rs-3:oklch(0.84 0.12 95);--rs-4:oklch(0.82 0.12 65);--rs-5:oklch(0.78 0.12 25);--rs-6:oklch(0.80 0.10 335);--rs-7:oklch(0.78 0.10 295);--rs-8:oklch(0.80 0.10 230);color:oklch(0.93 0.015 230);background:oklch(0.11 0.03 260)}
+.reasoning-space .rs-label{fill:oklch(0.95 0.015 230);paint-order:stroke;stroke:oklch(0.11 0.03 260);stroke-width:3px;pointer-events:none}
+.reasoning-space .rs-flow{animation:rs-flow 2.4s linear infinite}
+.reasoning-space .rs-fast{animation-duration:1.1s}
+.reasoning-space .rs-pulse{animation:rs-pulse 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes rs-flow{to{stroke-dashoffset:-24}}
+@keyframes rs-pulse{50%{transform:scale(1.5);opacity:.6}}
+@media (prefers-reduced-motion:reduce){.reasoning-space .rs-flow,.reasoning-space .rs-pulse{animation:none}}
+`;
 const W = 1600, H = 1000, PALETTE = 8;
 
 /**
@@ -60,13 +70,13 @@ export function ReasoningSpace({ data, onClose }: { data: AtlasData; onClose: ()
     return d;
   }, [graph]);
 
-  const color = (i: number) => `var(--constellation-${(graph.nodes[i]!.themes[0]! % PALETTE) + 1})`;
+  const color = (i: number) => `var(--rs-${(graph.nodes[i]!.themes[0]! % PALETTE) + 1})`;
   const fog = (z: number) => Math.max(0.3, Math.min(1, 0.85 - z / 900));
   const weight = (i: number) =>
     focus === null ? 1 : near!.has(i) ? 1 : echo!.has(i) ? 0.45 : 0.08;
 
   const down = (e: React.PointerEvent) => {
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     if (!pointers.current.size) origin.current = { x: e.clientX, y: e.clientY };
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     moved.current = false;
@@ -108,14 +118,21 @@ export function ReasoningSpace({ data, onClose }: { data: AtlasData; onClose: ()
 
   return (
     <section className="reasoning-space fixed inset-0 z-50 bg-background" aria-label="Päättelyavaruus">
+      <style>{RS_CSS}</style>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
         className="block h-full w-full touch-none select-none"
         onPointerDown={down}
         onPointerMove={move}
-        onPointerUp={(e) => { up(e); if (!moved.current && e.target === e.currentTarget) setSel(null); }}
+        onPointerUp={(e) => {
+          up(e);
+          if (moved.current) return;
+          const hit = (document.elementFromPoint(e.clientX, e.clientY) as Element | null)?.closest("[data-i]");
+          if (hit) choose(Number(hit.getAttribute("data-i"))); else setSel(null);
+        }}
         onPointerCancel={up}
+        onLostPointerCapture={up}
         onWheel={(e) => { idle.current = performance.now(); setZoom((z) => Math.min(5, Math.max(0.5, z * Math.exp(-e.deltaY * 0.0015)))); }}
       >
         <defs>
@@ -144,7 +161,7 @@ export function ReasoningSpace({ data, onClose }: { data: AtlasData; onClose: ()
         })}
         {trail.length > 1 && (
           <polyline points={trail.map((i) => `${proj[i]!.x},${proj[i]!.y}`).join(" ")}
-            fill="none" stroke="var(--foreground)" strokeWidth={1} strokeDasharray="1 6" opacity={0.5} pointerEvents="none" />
+            fill="none" stroke="currentColor" strokeWidth={1} strokeDasharray="1 6" opacity={0.5} pointerEvents="none" />
         )}
         {order.map((i) => {
           const n = graph.nodes[i]!, p = proj[i]!;
@@ -155,7 +172,7 @@ export function ReasoningSpace({ data, onClose }: { data: AtlasData; onClose: ()
           return (
             <g key={i} style={{ color: color(i) }} opacity={a} className="cursor-pointer"
               onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover((h) => (h === i ? null : h))}
-              onPointerUp={(ev) => { ev.stopPropagation(); choose(i); }}>
+              data-i={i}>
               <circle cx={p.x} cy={p.y} r={r * 4} fill="url(#rs-glow)" opacity={i === focus ? 0.7 : 0.25}
                 className={sel !== null && near!.has(i) && i !== sel ? "rs-pulse" : undefined} />
               <circle cx={p.x} cy={p.y} r={Math.max(1.5, r)} fill="currentColor" />
