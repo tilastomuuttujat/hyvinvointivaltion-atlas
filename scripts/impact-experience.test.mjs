@@ -2,16 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { JSDOM, VirtualConsole } from "jsdom";
-const wait = async (fn) => {
-  const end = Date.now() + 15000;
+
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(fn) {
+  const deadline = Date.now() + 20000;
   while (!fn()) {
-    if (Date.now() > end) throw Error("Impact experience timed out");
-    await new Promise((r) => setTimeout(r, 30));
+    if (Date.now() > deadline) throw new Error("Impact experience timed out");
+    await pause(40);
   }
-};
+}
+
 test(
-  "impact section supports directed steps, manual summary and persistent global context",
-  { timeout: 60000 },
+  "recorded chains play inside the theme sky and keep their context across views",
+  { timeout: 90000 },
   async () => {
     const snapshot = JSON.parse(
       await readFile(
@@ -45,67 +48,85 @@ test(
     };
     try {
       w.eval(await readFile(new URL(entry, dir), "utf8"));
-      await wait(() => w.document.querySelector(".impact-canvas"));
-      const root = w.document.querySelector(".impact-atlas"),
-        node = (id) => root.querySelector(`[data-impact-node="${id}"]`),
-        click = (el) =>
-          el.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+      await until(() => w.document.querySelector(".view-switch"));
+      const tabs = [...w.document.querySelectorAll(".view-switch button")].map(
+        (b) => b.textContent,
+      );
+      // The chains have no section of their own: they belong to the theme sky.
+      assert.ok(!tabs.includes("↝ Vaikutusketjut"));
+      assert.ok(tabs.includes("☊ Teemaverkko"));
+      // #vaikutusketjut opens that sky instead of a separate view.
+      await until(() => w.document.querySelector(".ts-space"));
+      // Before anything is chosen the reader sees the recorded routes, grouped
+      // by the concept they start from.
+      await until(() => w.document.querySelector(".impact-route-card"));
+      const recorded = snapshot.evidence.reasoning.paths.filter(
+        (p) => p.reviewStatus !== "rejected" && p.steps.length > 0,
+      );
+      const starts = new Set(
+        recorded.map((p) => [...p.steps].sort((a, b) => a.order - b.order)[0].conceptId),
+      );
       assert.equal(
-        root.querySelectorAll("[data-impact-node]").length,
-        snapshot.evidence.concepts.length,
+        w.document.querySelectorAll(".impact-route-card").length,
+        recorded.length,
       );
-      const edge = snapshot.evidence.reasoning.mechanisms.find(
-        (m) => m.isCurrent && m.reviewStatus !== "rejected" && m.from !== m.to,
+      assert.equal(
+        w.document.querySelectorAll(".impact-family").length,
+        starts.size,
       );
-      click(node(edge.from));
-      await wait(
+      const family = [...w.document.querySelectorAll(".impact-family")].find(
+        (f) => f.querySelectorAll(".impact-route-card").length > 1,
+      );
+      assert.ok(family, "one start concept should offer several recorded routes");
+      // Choosing a route draws it on the sky step by step.
+      const card = family.querySelector(".impact-route-card");
+      const wanted = Number(card.textContent.match(/(\d+) askelta/)[1]);
+      card.click();
+      await until(
         () =>
-          root.querySelector(".impact-canvas").dataset.current === edge.from,
+          w.document.querySelectorAll(".impact-story-strip li").length >= wanted,
       );
-      assert.equal(node(edge.to).dataset.candidate, "true");
-      assert.ok(root.querySelector(".impact-minimap svg"));
-      assert.ok(!root.querySelector(".graph-summary.open"));
-      click(node(edge.to));
-      await wait(
-        () => root.querySelector(".impact-canvas").dataset.current === edge.to,
+      const d = w.document;
+      assert.equal(
+        d.querySelector(".impact-insight").getAttribute("aria-label"),
+        "Ketjun tulkinta",
       );
-      assert.equal(node(edge.from).dataset.selected, "true");
-      assert.equal(node(edge.to).dataset.selected, "true");
-      assert.ok(root.querySelector('[data-chosen="true"]'));
-      click(root.querySelector(".graph-summary-open"));
-      await wait(() => root.querySelector(".graph-summary.open"));
-      click(root.querySelector(".graph-summary-open"));
-      await wait(() => !root.querySelector(".graph-summary.open"));
-      const button = [...root.querySelectorAll("button")].find(
-        (b) => b.textContent === "3 askelta",
+      assert.equal(d.querySelectorAll(".impact-story-strip li").length, wanted);
+      // The interpretation names the mechanisms and how strong the evidence is.
+      assert.ok(d.querySelector(".impact-meter"));
+      assert.match(
+        d.querySelector(".impact-meter-key").textContent,
+        /\d+ kausaaliseksi arvioitua · \d+ selitysehdotusta/,
       );
-      click(button);
-      await wait(
-        () => root.querySelector(".impact-canvas").dataset.depth === "3",
+      assert.ok(
+        d.querySelectorAll('.ts-causal[data-path-chosen="true"]').length >=
+          wanted - 1,
       );
-      const future = root.querySelector(".impact-node.future");
-      if (future) {
-        const current = root.querySelector(".impact-canvas").dataset.current;
-        click(future);
-        await new Promise((r) => setTimeout(r, 60));
-        assert.equal(
-          root.querySelector(".impact-canvas").dataset.current,
-          current,
-        );
-      }
-      click(
-        [...w.document.querySelectorAll(".view-switch button")].find(
-          (b) => b.textContent === "☍ Solmuverkko",
-        ),
+      assert.ok(
+        d.querySelectorAll('.ts-star[data-path-active="true"]').length >= 1,
       );
-      await wait(() => root.parentElement.hidden);
-      click(
-        [...w.document.querySelectorAll(".view-switch button")].find(
-          (b) => b.textContent === "↝ Vaikutusketjut",
-        ),
+      // The reader is told where the chain goes on.
+      const trail = d.querySelector(".graph-trail");
+      assert.match(trail.textContent, /valittua pistettä/);
+      assert.match(
+        trail.textContent,
+        /jatkoaskel|jatkoaskelta|ei ole kirjattuja jatkoaskelia/,
       );
-      await wait(() => !root.parentElement.hidden);
-      assert.equal(node(edge.from).dataset.selected, "true");
+      const points = trail.textContent.match(/(\d+) valittua pistettä/)[1];
+      // The same chain stays in context when the reader moves to another view.
+      const choose = (text) =>
+        [...d.querySelectorAll(".view-switch button")]
+          .find((b) => b.textContent === text)
+          .click();
+      choose("☍ Solmuverkko");
+      await until(() => d.querySelector(".graph-trail"));
+      assert.equal(
+        d.querySelector(".graph-trail").textContent.match(/(\d+) valittua pistettä/)[1],
+        points,
+      );
+      choose("☊ Teemaverkko");
+      await until(() => d.querySelectorAll(".impact-story-strip li").length >= wanted);
+      assert.equal(d.querySelectorAll(".impact-story-strip li").length, wanted);
       assert.equal(requests, 1);
       assert.deepEqual(errors, []);
     } finally {
