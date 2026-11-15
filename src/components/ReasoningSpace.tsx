@@ -1,3 +1,4 @@
+import { HistoryWall } from "./HistoryWall";
 import { spotlightRoutes, orientationSpotlight } from "@/lib/atlas.spotlight";
 import { ReaderJourney } from "./ReaderJourney";
 import { GraphExplore, useGraphExplore } from "./GraphExplore";
@@ -16,6 +17,11 @@ const RS_CSS = `
 .reasoning-space .rs-mechanism{transition:opacity .45s ease}
 .reasoning-space .rs-start-ring{fill:none;stroke:currentColor;stroke-width:1.5;stroke-dasharray:2 6}
 .reasoning-space .rs-flow-target{cursor:pointer}
+.history-title{paint-order:stroke;stroke:oklch(.11 .03 260);stroke-width:3;stroke-linejoin:round}
+.history-heading{fill:oklch(.75 .02 230);font-size:14px;letter-spacing:.05em}
+.history-link.recorded{animation:rs-flow 3s linear infinite}
+.history-card{box-sizing:border-box;background:oklch(.13 .025 260);border:1px solid oklch(.45 .03 230);border-radius:10px;padding:14px;color:oklch(.94 .02 230);height:250px;overflow:auto;font:14px/1.5 sans-serif}
+.history-card h3{font-size:18px;margin:8px 0}.history-card p{margin:6px 0}.history-card button,.history-card a{display:inline-block;padding:5px 8px;margin:3px;border:1px solid oklch(.45 .03 230);border-radius:5px;color:inherit;background:transparent}.history-card small{display:block;opacity:.6;margin-top:8px}
 .reasoning-space .rs-guide{position:absolute;bottom:95px;left:18px;font-size:12px;opacity:.65;pointer-events:none;max-width:300px}
 
 .reasoning-space{--rs-1:oklch(0.82 0.10 180);--rs-2:oklch(0.82 0.11 145);--rs-3:oklch(0.84 0.12 95);--rs-4:oklch(0.82 0.12 65);--rs-5:oklch(0.78 0.12 25);--rs-6:oklch(0.80 0.10 335);--rs-7:oklch(0.78 0.10 295);--rs-8:oklch(0.80 0.10 230);color:oklch(0.93 0.015 230);background:oklch(0.11 0.03 260)}
@@ -25,7 +31,7 @@ const RS_CSS = `
 .reasoning-space .rs-pulse{animation:rs-pulse 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes rs-flow{to{stroke-dashoffset:-24}}
 @keyframes rs-pulse{50%{transform:scale(1.5);opacity:.6}}
-@media (prefers-reduced-motion:reduce){.reasoning-space .rs-flow,.reasoning-space .rs-pulse{animation:none}.reasoning-space .rs-mechanism{transition:none}}
+@media (prefers-reduced-motion:reduce){.reasoning-space .rs-flow,.reasoning-space .rs-pulse,.history-link.recorded{animation:none}.reasoning-space .rs-mechanism{transition:none}}
 `;
 const W = 1600,
   H = 1000,
@@ -325,6 +331,39 @@ export function ReasoningSpace({
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </radialGradient>
         </defs>
+        <HistoryWall
+          data={data}
+          zoom={zoom}
+          mechanismIds={
+            sel !== null && graph.nodes[sel]?.kind === "concept"
+              ? exploration.options
+                  .filter(
+                    (o) => !o.incoming && o.assessment.status !== "outside",
+                  )
+                  .map((o) => o.mechanism.id)
+              : (spotlight?.mechanisms ?? [])
+          }
+          themeIds={
+            (sel !== null
+              ? graph.nodes[sel]?.themes
+              : graph.nodes.find((n) => n.id === `K:${spotlight?.start}`)
+                  ?.themes
+            )?.map((i) => catalog.themes[i]!.id) ?? []
+          }
+          origin={(() => {
+            const i =
+              sel !== null && graph.nodes[sel]?.kind === "concept"
+                ? sel
+                : graph.nodes.findIndex(
+                    (n) => n.id === `K:${spotlight?.start}`,
+                  );
+            return i >= 0 ? proj[i]! : null;
+          })()}
+          onExplore={(theme) => {
+            const i = graph.nodes.findIndex((n) => n.id === `T:${theme}`);
+            if (i >= 0) setSel(i);
+          }}
+        />
         {edges.map((e, k) => {
           const a = proj[e.a]!,
             b = proj[e.b]!;
