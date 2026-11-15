@@ -229,6 +229,18 @@ test(
       }
       const wall = w.document.querySelector(".history-wall");
       assert.equal(wall.dataset.historyCount, "1111");
+      assert.ok(wall.querySelector('[data-history-corridor="true"]'));
+      assert.ok(wall.querySelector('[data-history-side="left"]'));
+      assert.ok(wall.querySelector('[data-history-side="right"]'));
+      assert.ok(wall.querySelectorAll('[data-history-lit="true"]').length <= 2);
+      for (const label of wall.querySelectorAll(".history-title"))
+        assert.ok(
+          Number(label.getAttribute("x")) < 320 ||
+            Number(label.getAttribute("x")) >= 1280,
+        );
+      for (const line of wall.querySelectorAll(".history-link"))
+        assert.ok(Number(line.getAttribute("opacity")) <= 0.2);
+
       assert.ok(wall.querySelector('[data-history-lit="true"]'));
       assert.ok(!wall.querySelector("[data-history-detail]"));
       const historical = wall.querySelector("[data-history-item]");
