@@ -1,3 +1,4 @@
+import { ImpactAtlas } from "@/components/ImpactAtlas";
 import { AtlasReleaseNotice } from "@/components/AtlasReleaseNotice";
 import { GraphExploreProvider } from "@/components/GraphExplore";
 import { ThemeSystem } from "@/components/ThemeSystem";
@@ -56,9 +57,20 @@ export const Route = createFileRoute("/")({
 export function AtlasPage() {
   const { data } = useSuspenseQuery(atlasQuery);
   const [view, setView] = useState<
-    "sphere" | "radial" | "axes" | "concepts" | "routes" | "themes" | "network"
-  >("sphere");
-  const [visited, setVisited] = useState<Set<string>>(new Set(["sphere"]));
+    | "sphere"
+    | "radial"
+    | "axes"
+    | "concepts"
+    | "routes"
+    | "themes"
+    | "network"
+    | "impact"
+  >(() =>
+    typeof window !== "undefined" && window.location.hash === "#vaikutusketjut"
+      ? "impact"
+      : "sphere",
+  );
+  const [visited, setVisited] = useState<Set<string>>(new Set([view]));
   return (
     <GraphExploreProvider data={data}>
       <div className="min-h-screen bg-background text-foreground">
@@ -95,6 +107,7 @@ export function AtlasPage() {
               ["routes", "⌁ Reittikartta"],
               ["themes", "☊ Teemaverkko"],
               ["network", "☍ Solmuverkko"],
+              ["impact", "↝ Vaikutusketjut"],
             ] as const
           ).map(([k, l]) => (
             <button
@@ -103,6 +116,13 @@ export function AtlasPage() {
               aria-current={view === k || undefined}
               onClick={() => {
                 setView(k);
+                window.history.replaceState(
+                  null,
+                  "",
+                  window.location.pathname +
+                    window.location.search +
+                    (k === "impact" ? "#vaikutusketjut" : ""),
+                );
                 setVisited((previous) => new Set([...previous, k]));
               }}
             >
@@ -145,6 +165,11 @@ export function AtlasPage() {
         {visited.has("network") && (
           <div hidden={view !== "network"}>
             <OrganicNodeGraph data={data} active={view === "network"} />
+          </div>
+        )}
+        {visited.has("impact") && (
+          <div hidden={view !== "impact"}>
+            <ImpactAtlas data={data} active={view === "impact"} />
           </div>
         )}
         <details className="border-t border-border">
