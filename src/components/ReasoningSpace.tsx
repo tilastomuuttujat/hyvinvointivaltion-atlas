@@ -61,7 +61,7 @@ export function ReasoningSpace({ data, onClose }: { data: AtlasData; onClose: ()
   }, [graph]);
 
   const color = (i: number) => `var(--constellation-${(graph.nodes[i]!.themes[0]! % PALETTE) + 1})`;
-  const fog = (z: number) => Math.max(0.12, Math.min(1, 0.8 - z / 700));
+  const fog = (z: number) => Math.max(0.3, Math.min(1, 0.85 - z / 900));
   const weight = (i: number) =>
     focus === null ? 1 : near!.has(i) ? 1 : echo!.has(i) ? 0.45 : 0.08;
 
@@ -110,7 +110,7 @@ export function ReasoningSpace({ data, onClose }: { data: AtlasData; onClose: ()
     <section className="reasoning-space fixed inset-0 z-50 bg-background" aria-label="Päättelyavaruus">
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="xMidYMid slice"
+        preserveAspectRatio="xMidYMid meet"
         className="block h-full w-full touch-none select-none"
         onPointerDown={down}
         onPointerMove={move}
@@ -150,8 +150,8 @@ export function ReasoningSpace({ data, onClose }: { data: AtlasData; onClose: ()
           const n = graph.nodes[i]!, p = proj[i]!;
           const w = weight(i), a = fog(p.z) * w;
           const base = n.kind === "theme" ? 9 : n.kind === "conclusion" ? 3 : 2.5 + Math.sqrt(degree[i]!) * 1.6;
-          const r = base * (p.s / 400) * (i === focus ? 1.8 : 1);
-          const showLabel = n.kind === "concept" && (focus === null ? p.z < -60 && degree[i]! > 0 : w >= 0.45);
+          const r = base * p.s * 1.4 * (i === focus ? 1.8 : 1);
+          const showLabel = n.kind === "concept" && (focus === null ? p.z < 250 : w >= 0.45);
           return (
             <g key={i} style={{ color: color(i) }} opacity={a} className="cursor-pointer"
               onPointerEnter={() => setHover(i)} onPointerLeave={() => setHover((h) => (h === i ? null : h))}
@@ -162,7 +162,8 @@ export function ReasoningSpace({ data, onClose }: { data: AtlasData; onClose: ()
               <circle cx={p.x} cy={p.y} r={Math.max(14, r * 3)} fill="transparent" />
               {showLabel && (
                 <text x={p.x} y={p.y - r - 8} textAnchor="middle" className="rs-label"
-                  fontSize={Math.max(11, Math.min(22, (p.s / 400) * (i === focus ? 22 : 14)))}
+                  fontSize={Math.max(13, Math.min(28, p.s * (i === focus ? 26 : 16)))}
+                  opacity={focus === null ? Math.max(0.35, 1 - (p.z + 300) / 600) : 1}
                   fontWeight={i === focus ? 600 : 400}>
                   {n.label}
                 </text>
