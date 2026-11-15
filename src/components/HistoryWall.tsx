@@ -7,6 +7,8 @@ import {
   corridorLayout,
   historyThemes,
   validateHistory,
+  CORRIDOR,
+  corridorScale,
   type HistoryBundle,
 } from "@/lib/atlas.history";
 const history = raw as HistoryBundle;
@@ -62,7 +64,7 @@ export function HistoryWall({
       .slice(0, Math.ceil(detail / 10)))
       sampled.add(p.item.id);
   }
-  const illuminated = new Set(lit.slice(0, 2).map((c) => c.item.id));
+  const illuminated = new Set(lit.slice(0, 6).map((c) => c.item.id));
   const visible = layout.filter(
     (p) =>
       sampled.has(p.item.id) ||
@@ -77,48 +79,49 @@ export function HistoryWall({
   const labels: { x: number; y: number; width: number }[] = [];
   return (
     <g className="history-wall" data-history-count={history.items.length}>
-      <defs>
-        <clipPath id="history-left-wall">
-          <rect x="0" y="100" width="320" height="820" />
-        </clipPath>
-        <clipPath id="history-right-wall">
-          <rect x="1280" y="100" width="320" height="820" />
-        </clipPath>
-      </defs>
       <g pointerEvents="none" data-history-corridor="true">
-        <path
-          d="M0 90 L320 145 L320 865 L0 950Z"
-          fill="oklch(.16 .025 260)"
-          opacity=".24"
-        />
-        <path
-          d="M1600 90 L1280 145 L1280 865 L1600 950Z"
-          fill="oklch(.16 .025 260)"
-          opacity=".24"
-        />
-        <path
-          d="M0 90L320 145M0 950L320 865M1600 90L1280 145M1600 950L1280 865"
-          fill="none"
-          stroke="currentColor"
-          opacity=".08"
-        />
-        {[1850, 1900, 1950, 2000, 2050].map((year) => (
-          <g key={year}>
-            {["left", "right"].map((side) => (
-              <text
-                key={side}
-                x={side === "left" ? 18 : 1582}
-                y={155 + ((year - 1850) / 200) * 680}
-                textAnchor={side === "left" ? "start" : "end"}
-                fill="currentColor"
-                fontSize="12"
-                opacity=".2"
-              >
-                {year}
-              </text>
-            ))}
-          </g>
-        ))}
+        {(() => {
+          const { cx, cy, halfW, halfH } = CORRIDOR,
+            far = corridorScale(1850),
+            corner = (sx: number, sy: number, k: number) =>
+              `${cx + sx * halfW * k} ${cy + sy * halfH * k}`;
+          return (
+            <>
+              <radialGradient id="history-horizon">
+                <stop offset="0%" stopColor="oklch(.55 .08 230)" stopOpacity=".22" />
+                <stop offset="100%" stopColor="oklch(.55 .08 230)" stopOpacity="0" />
+              </radialGradient>
+              <ellipse cx={cx} cy={cy} rx={halfW * far * 1.6} ry={halfH * far * 1.4} fill="url(#history-horizon)" />
+              {[-1, 1].map((sx) => (
+                <path
+                  key={sx}
+                  d={`M${corner(sx, -1, 1)} L${corner(sx, -1, far)} L${corner(sx, 1, far)} L${corner(sx, 1, 1)}Z`}
+                  fill="oklch(.24 .04 250)"
+                  opacity=".28"
+                />
+              ))}
+              {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sy]) => (
+                <path key={`${sx}${sy}`} d={`M${corner(sx!, sy!, 1)} L${corner(sx!, sy!, far)}`} stroke="currentColor" opacity=".12" />
+              ))}
+              {[1850, 1900, 1950, 2000, 2026, 2050].map((year) => {
+                const k = corridorScale(year);
+                return (
+                  <g key={year} opacity={year === 2026 ? 0.22 : 0.1}>
+                    <path
+                      d={`M${corner(-1, -1, k)} L${corner(1, -1, k)} L${corner(1, 1, k)} L${corner(-1, 1, k)}Z`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeDasharray={year > 2026 ? "4 6" : undefined}
+                    />
+                    <text x={cx - halfW * k + 8} y={cy + halfH * k - 8 * k} textAnchor="start" fill="currentColor" fontSize={11 + 6 * k} opacity="1.6">
+                      {year === 2026 ? "nyt" : year}
+                    </text>
+                  </g>
+                );
+              })}
+            </>
+          );
+        })()}
       </g>
       {origin &&
         visible
@@ -134,10 +137,10 @@ export function HistoryWall({
                     : "history-link context"
                 }
                 data-history-relation={c.relation}
-                d={`M${origin.x} ${origin.y} C${origin.x + (p.side === "left" ? -80 : 80)} ${origin.y},${p.x + (p.side === "left" ? 90 : -90)} ${p.y},${p.x} ${p.y}`}
+                d={`M${origin.x} ${origin.y} C${origin.x + (p.side === "left" ? -60 : 60)} ${origin.y - 30},${(p.x + origin.x) / 2} ${p.y},${p.x} ${p.y}`}
                 fill="none"
                 stroke={color(p.theme)}
-                strokeWidth={0.65}
+                strokeWidth={0.5}
                 vectorEffect="non-scaling-stroke"
                 strokeDasharray={c.relation === "recorded" ? "3 12" : "1 7"}
                 opacity={0.18}
@@ -148,19 +151,19 @@ export function HistoryWall({
       {visible.map((p) => {
         const light = illuminated.has(p.item.id),
           active = selected === p.item.id || hover === p.item.id;
-        const width = 250,
-          x = p.side === "left" ? 24 : 1326,
-          y = p.y - 10;
+        const k = p.depth,
+          width = 250,
+          x = p.x + (p.side === "left" ? 8 : -8) * k,
+          y = p.y - 6 * k;
         const label =
-          (active || light || labels.length < (zoom >= 1.5 ? 12 : 6)) &&
-          !labels.some((l) => Math.abs(l.y - y) < 20 && l.x === x);
+          (active || light || (k > 0.7 && labels.length < (zoom >= 1.5 ? 12 : 6))) &&
+          !labels.some((l) => Math.abs(l.y - y) < 18 * k && Math.abs(l.x - x) < 160 * k);
         if (label) labels.push({ x, y, width });
         return (
           <g
             key={p.item.id}
             data-history-item={p.item.id}
             data-history-side={p.side}
-            clipPath={`url(#history-${p.side}-wall)`}
             data-history-lit={light}
             data-history-context={byId.get(p.item.id)?.relation}
             role="button"
@@ -204,8 +207,8 @@ export function HistoryWall({
                   ? "4 4"
                   : undefined
               }
-              strokeWidth={light || active ? 2 : 1}
-              opacity={light || active ? 0.65 : 0.07}
+              strokeWidth={(light || active ? 2.4 : 1.2) * k}
+              opacity={light || active ? 0.7 : 0.05 + 0.08 * k}
             />
             {p.item.start < 1850 ? (
               <path
@@ -218,10 +221,13 @@ export function HistoryWall({
               <circle
                 cx={p.x}
                 cy={p.y}
-                r={active ? 5 : light ? 4 : 2}
+                r={(active ? 6 : light ? 5 : 2.4) * k + 0.8}
                 fill="currentColor"
-                opacity={light || active ? 0.8 : 0.1}
+                opacity={light || active ? 0.9 : 0.06 + 0.12 * k}
               />
+            )}
+            {light && (
+              <circle cx={p.x} cy={p.y} r={14 * k + 4} fill="currentColor" opacity=".14" className="history-glow" />
             )}
             <circle cx={p.x} cy={p.y} r="12" fill="transparent" />
             {label && (
@@ -229,8 +235,9 @@ export function HistoryWall({
                 x={x}
                 y={y}
                 fill="currentColor"
-                fontSize={light || active ? 13 : 11}
-                opacity={light || active ? 0.85 : 0.1}
+                textAnchor={p.side === "left" ? "start" : "end"}
+                fontSize={light || active ? 12 + 6 * k : 12 * Math.max(0.55, k)}
+                opacity={light || active ? 0.92 : 0.12}
                 className="history-title"
               >
                 {p.item.title.length > 37
@@ -262,7 +269,7 @@ export function HistoryWall({
           }}
         >
           <rect
-            x={selectedPoint.side === "left" ? 30 : 1450}
+            x={Math.max(10, Math.min(1485, selectedPoint.x + (selectedPoint.side === "left" ? 6 : -111)))}
             y={selectedPoint.y + 10}
             width="105"
             height="27"
@@ -272,7 +279,7 @@ export function HistoryWall({
             opacity=".9"
           />
           <text
-            x={(selectedPoint.side === "left" ? 30 : 1450) + 8}
+            x={(Math.max(10, Math.min(1485, selectedPoint.x + (selectedPoint.side === "left" ? 6 : -111)))) + 8}
             y={selectedPoint.y + 28}
             fill="currentColor"
             fontSize="13"

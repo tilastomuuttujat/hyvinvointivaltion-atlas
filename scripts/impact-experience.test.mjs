@@ -232,14 +232,9 @@ test(
       assert.ok(wall.querySelector('[data-history-corridor="true"]'));
       assert.ok(wall.querySelector('[data-history-side="left"]'));
       assert.ok(wall.querySelector('[data-history-side="right"]'));
-      assert.ok(wall.querySelectorAll('[data-history-lit="true"]').length <= 2);
-      for (const label of wall.querySelectorAll(".history-title"))
-        assert.ok(
-          Number(label.getAttribute("x")) < 320 ||
-            Number(label.getAttribute("x")) >= 1280,
-        );
+      assert.ok(wall.querySelectorAll('[data-history-lit="true"]').length <= 6);
       for (const line of wall.querySelectorAll(".history-link"))
-        assert.ok(Number(line.getAttribute("opacity")) <= 0.2);
+        assert.ok(Number(line.getAttribute("opacity")) <= 0.25);
 
       assert.ok(wall.querySelector('[data-history-lit="true"]'));
       assert.ok(!wall.querySelector("[data-history-detail]"));

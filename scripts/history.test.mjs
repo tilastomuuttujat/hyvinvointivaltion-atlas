@@ -104,7 +104,7 @@ test("invalid intervals and duplicate historical IDs fail closed", () => {
   assert.throws(() => validateHistory(copy));
 });
 
-test("corridor keeps every historical marker and duration outside the central graph", () => {
+test("corridor places phenomena on receding side walls along the time axis", () => {
   const order = [
     "rights",
     "work",
@@ -123,13 +123,9 @@ test("corridor keeps every historical marker and duration outside the central gr
   assert.ok(rows.some((p) => p.side === "left"));
   assert.ok(rows.some((p) => p.side === "right"));
   for (const p of rows) {
-    assert.ok(
-      p.side === "left"
-        ? p.x < 320 && p.endX < 320
-        : p.x > 1280 && p.endX > 1280,
-    );
-    assert.ok(p.y >= 155 && p.y <= 835);
-    assert.ok(p.endY >= p.y);
+    // Walls recede toward the central vanishing point; later years sit nearer the viewer.
+    assert.ok(p.side === "left" ? p.x < 800 - 250 && p.endX <= p.x : p.x > 800 + 250 && p.endX >= p.x);
+    assert.ok(p.y >= 50 && p.y <= 950);
   }
   assert.deepEqual(rows, corridorLayout(h, order));
 });

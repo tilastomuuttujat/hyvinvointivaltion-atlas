@@ -289,18 +289,40 @@ export function historyLayout(h: HistoryBundle, themeOrder: string[]) {
     });
 }
 
-/** Perspective side walls. The middle 330–1270 is reserved for the concept graph. */
+/** Corridor geometry: vanishing point at the centre, 1850 at the far horizon, 2050 at the viewer. */
+export const CORRIDOR = { cx: 800, cy: 500, halfW: 780, halfH: 440, zFar: 3 };
+export function corridorScale(year: number) {
+  const t = (Math.max(1850, Math.min(2050, year)) - 1850) / 200;
+  return 1 / (CORRIDOR.zFar - (CORRIDOR.zFar - 1) * t);
+}
+/** Phenomena sit on the left/right corridor walls; their wall height is the theme lane. */
 export function corridorLayout(h: HistoryBundle, themeOrder: string[]) {
+  const hash = (s: string) =>
+    [...s].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 0);
   return historyLayout(h, themeOrder).map((p) => {
     const side = p.row % 2 === 0 ? "left" : "right";
     const lane = Math.floor(p.row / 2) % 7;
+    const v = -0.8 + (lane / 6) * 1.6 + ((hash(p.item.id) % 5) - 2) * 0.025;
+    const sign = side === "left" ? -1 : 1;
     const position = (year: number) => {
-      const depth = (Math.max(1850, Math.min(2050, year)) - 1850) / 200;
-      const left = 70 + 190 * (1 - depth) + lane * 7;
-      return { x: side === "left" ? left : 1600 - left, y: 155 + depth * 680 };
+      const s = corridorScale(year);
+      return {
+        x: CORRIDOR.cx + sign * CORRIDOR.halfW * s,
+        y: CORRIDOR.cy + v * CORRIDOR.halfH * s,
+        s,
+      };
     };
     const start = position(p.item.start),
       end = position(p.item.end);
-    return { ...p, side, x: start.x, y: start.y, endX: end.x, endY: end.y };
+    return {
+      ...p,
+      side,
+      lane,
+      depth: start.s,
+      x: start.x,
+      y: start.y,
+      endX: end.x,
+      endY: end.y,
+    };
   });
 }
