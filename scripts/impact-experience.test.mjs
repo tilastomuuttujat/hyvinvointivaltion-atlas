@@ -64,7 +64,9 @@ test(
         (p) => p.reviewStatus !== "rejected" && p.steps.length > 0,
       );
       const starts = new Set(
-        recorded.map((p) => [...p.steps].sort((a, b) => a.order - b.order)[0].conceptId),
+        recorded.map(
+          (p) => [...p.steps].sort((a, b) => a.order - b.order)[0].conceptId,
+        ),
       );
       assert.equal(
         w.document.querySelectorAll(".impact-route-card").length,
@@ -77,14 +79,18 @@ test(
       const family = [...w.document.querySelectorAll(".impact-family")].find(
         (f) => f.querySelectorAll(".impact-route-card").length > 1,
       );
-      assert.ok(family, "one start concept should offer several recorded routes");
+      assert.ok(
+        family,
+        "one start concept should offer several recorded routes",
+      );
       // Choosing a route draws it on the sky step by step.
       const card = family.querySelector(".impact-route-card");
       const wanted = Number(card.textContent.match(/(\d+) askelta/)[1]);
       card.click();
       await until(
         () =>
-          w.document.querySelectorAll(".impact-story-strip li").length >= wanted,
+          w.document.querySelectorAll(".impact-story-strip li").length >=
+          wanted,
       );
       const d = w.document;
       assert.equal(
@@ -121,13 +127,91 @@ test(
       choose("☍ Solmuverkko");
       await until(() => d.querySelector(".graph-trail"));
       assert.equal(
-        d.querySelector(".graph-trail").textContent.match(/(\d+) valittua pistettä/)[1],
+        d
+          .querySelector(".graph-trail")
+          .textContent.match(/(\d+) valittua pistettä/)[1],
         points,
       );
       choose("☊ Teemaverkko");
-      await until(() => d.querySelectorAll(".impact-story-strip li").length >= wanted);
+      await until(
+        () => d.querySelectorAll(".impact-story-strip li").length >= wanted,
+      );
       assert.equal(d.querySelectorAll(".impact-story-strip li").length, wanted);
       assert.equal(requests, 1);
+      assert.deepEqual(errors, []);
+    } finally {
+      dom.window.close();
+    }
+  },
+);
+
+test(
+  "every reasoning-space point keeps its full label before and after selection",
+  { timeout: 60000 },
+  async () => {
+    const snapshot = JSON.parse(
+      await readFile(
+        new URL("../public/data/atlas.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const dir = new URL("../dist-pages/assets/", import.meta.url),
+      entry = (await readdir(dir)).find((n) => /^index-.*\.js$/.test(n));
+    const errors = [],
+      vc = new VirtualConsole();
+    vc.on("jsdomError", (e) => errors.push(e.message));
+    const dom = new JSDOM('<div id="root"></div>', {
+        url: "https://example.org/hyvinvointivaltion-atlas/",
+        runScripts: "outside-only",
+        pretendToBeVisual: true,
+        virtualConsole: vc,
+      }),
+      w = dom.window;
+    w.matchMedia = () => ({
+      matches: true,
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    w.requestAnimationFrame = () => 1;
+    w.cancelAnimationFrame = () => {};
+    w.fetch = async () => ({ ok: true, json: async () => snapshot });
+    try {
+      w.eval(await readFile(new URL(entry, dir), "utf8"));
+      await until(() =>
+        [...w.document.querySelectorAll("button")].some((b) =>
+          b.textContent.includes("Päättelyavaruus"),
+        ),
+      );
+      [...w.document.querySelectorAll("button")]
+        .find((b) => b.textContent.includes("Päättelyavaruus"))
+        .click();
+      await until(() => w.document.querySelector(".reasoning-space [data-i]"));
+      const points = [
+        ...w.document.querySelectorAll(".reasoning-space [data-i]"),
+      ];
+      const check = () => {
+        for (const p of points) {
+          const label = p.querySelector(".rs-label");
+          assert.ok(label, `Missing ${p.getAttribute("aria-label")}`);
+          assert.equal(
+            [...label.querySelectorAll("tspan")]
+              .map((t) => t.textContent)
+              .join(" "),
+            p.getAttribute("aria-label"),
+          );
+          assert.ok(Number(label.getAttribute("opacity")) >= 0.45);
+        }
+      };
+      assert.ok(points.some((p) => p.dataset.nodeKind === "theme"));
+      assert.ok(points.some((p) => p.dataset.nodeKind === "conclusion"));
+      assert.ok(points.some((p) => p.dataset.nodeKind === "concept"));
+      check();
+      const point = points.find((p) => p.dataset.nodeKind === "concept");
+      point.dispatchEvent(
+        new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+      await until(() => point.getAttribute("aria-pressed") === "true");
+      check();
       assert.deepEqual(errors, []);
     } finally {
       dom.window.close();
