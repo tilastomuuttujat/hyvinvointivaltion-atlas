@@ -4,7 +4,7 @@ import type { AtlasData } from "@/lib/atlas.functions";
 import { catalogueFor } from "@/lib/teema.system";
 import {
   historyConnections,
-  historyLayout,
+  corridorLayout,
   historyThemes,
   validateHistory,
   type HistoryBundle,
@@ -31,7 +31,7 @@ export function HistoryWall({
     [details, setDetails] = useState(false);
   const catalog = catalogueFor(data),
     themeOrder = catalog.themes.map((t) => t.id);
-  const layout = useMemo(() => historyLayout(history, themeOrder), [catalog]);
+  const layout = useMemo(() => corridorLayout(history, themeOrder), [catalog]);
   const connections = historyConnections(
       history,
       data,
@@ -62,7 +62,7 @@ export function HistoryWall({
       .slice(0, Math.ceil(detail / 10)))
       sampled.add(p.item.id);
   }
-  const illuminated = new Set(lit.slice(0, 8).map((c) => c.item.id));
+  const illuminated = new Set(lit.slice(0, 2).map((c) => c.item.id));
   const visible = layout.filter(
     (p) =>
       sampled.has(p.item.id) ||
@@ -77,81 +77,49 @@ export function HistoryWall({
   const labels: { x: number; y: number; width: number }[] = [];
   return (
     <g className="history-wall" data-history-count={history.items.length}>
-      <rect
-        x="70"
-        y="100"
-        width="1460"
-        height="770"
-        rx="24"
-        fill="oklch(.13 .025 260)"
-        opacity=".6"
-        pointerEvents="none"
-      />
-      <text x="100" y="128" className="history-heading">
-        Yhteiskunnan muutokset · 1850–2050
-      </text>
-      {themeOrder.map((id, row) => (
-        <g key={id} pointerEvents="none">
-          <line
-            x1="100"
-            x2="1500"
-            y1={180 + row * 48}
-            y2={180 + row * 48}
-            stroke={color(id)}
-            opacity=".06"
-          />
-          <text
-            x="100"
-            y={166 + row * 48}
-            fill={color(id)}
-            fontSize="10"
-            opacity=".4"
-          >
-            {catalog.themes[row]!.label}
-          </text>
-        </g>
-      ))}
-      {[1850, 1900, 1950, 2000, 2050].map((y) => (
-        <g key={y} pointerEvents="none">
-          <line
-            x1={100 + (y - 1850) * 7}
-            x2={100 + (y - 1850) * 7}
-            y1="145"
-            y2="830"
-            stroke="currentColor"
-            opacity=".07"
-          />
-          <text
-            x={100 + (y - 1850) * 7}
-            y="850"
-            textAnchor="middle"
-            fill="currentColor"
-            fontSize="15"
-            opacity=".5"
-          >
-            {y}
-          </text>
-        </g>
-      ))}
-      <rect
-        x={100 + (2026 - 1850) * 7}
-        y="145"
-        width={(2050 - 2026) * 7}
-        height="685"
-        fill="currentColor"
-        opacity=".025"
-        pointerEvents="none"
-      />
-      <text
-        x="1470"
-        y="815"
-        textAnchor="end"
-        fontSize="10"
-        fill="currentColor"
-        opacity=".4"
-      >
-        2026–2050 · sisältää skenaarioita ja tulevia jaksoja
-      </text>
+      <defs>
+        <clipPath id="history-left-wall">
+          <rect x="0" y="100" width="320" height="820" />
+        </clipPath>
+        <clipPath id="history-right-wall">
+          <rect x="1280" y="100" width="320" height="820" />
+        </clipPath>
+      </defs>
+      <g pointerEvents="none" data-history-corridor="true">
+        <path
+          d="M0 90 L320 145 L320 865 L0 950Z"
+          fill="oklch(.16 .025 260)"
+          opacity=".24"
+        />
+        <path
+          d="M1600 90 L1280 145 L1280 865 L1600 950Z"
+          fill="oklch(.16 .025 260)"
+          opacity=".24"
+        />
+        <path
+          d="M0 90L320 145M0 950L320 865M1600 90L1280 145M1600 950L1280 865"
+          fill="none"
+          stroke="currentColor"
+          opacity=".08"
+        />
+        {[1850, 1900, 1950, 2000, 2050].map((year) => (
+          <g key={year}>
+            {["left", "right"].map((side) => (
+              <text
+                key={side}
+                x={side === "left" ? 18 : 1582}
+                y={155 + ((year - 1850) / 200) * 680}
+                textAnchor={side === "left" ? "start" : "end"}
+                fill="currentColor"
+                fontSize="12"
+                opacity=".2"
+              >
+                {year}
+              </text>
+            ))}
+          </g>
+        ))}
+      </g>
       {origin &&
         visible
           .filter((p) => illuminated.has(p.item.id))
@@ -166,12 +134,13 @@ export function HistoryWall({
                     : "history-link context"
                 }
                 data-history-relation={c.relation}
-                d={`M${origin.x} ${origin.y} Q${(origin.x + p.x) / 2} ${p.y - 70} ${p.x} ${p.y}`}
+                d={`M${origin.x} ${origin.y} C${origin.x + (p.side === "left" ? -80 : 80)} ${origin.y},${p.x + (p.side === "left" ? 90 : -90)} ${p.y},${p.x} ${p.y}`}
                 fill="none"
                 stroke={color(p.theme)}
-                strokeWidth={c.relation === "recorded" ? 1.8 : 0.8}
+                strokeWidth={0.65}
+                vectorEffect="non-scaling-stroke"
                 strokeDasharray={c.relation === "recorded" ? "3 12" : "1 7"}
-                opacity={c.relation === "recorded" ? 0.8 : 0.32}
+                opacity={0.18}
                 pointerEvents="none"
               />
             );
@@ -179,23 +148,19 @@ export function HistoryWall({
       {visible.map((p) => {
         const light = illuminated.has(p.item.id),
           active = selected === p.item.id || hover === p.item.id;
-        const width = Math.min(330, p.item.title.length * 6.4),
-          x = Math.max(100, Math.min(1500 - width, p.x)),
+        const width = 250,
+          x = p.side === "left" ? 24 : 1326,
           y = p.y - 10;
         const label =
-          (active ||
-            light ||
-            ((p.item.importance ?? 0) >= 5 &&
-              labels.length < (zoom >= 1.5 ? 14 : 7))) &&
-          !labels.some(
-            (l) =>
-              Math.abs(l.y - y) < 18 && l.x < x + width && x < l.x + l.width,
-          );
+          (active || light || labels.length < (zoom >= 1.5 ? 12 : 6)) &&
+          !labels.some((l) => Math.abs(l.y - y) < 20 && l.x === x);
         if (label) labels.push({ x, y, width });
         return (
           <g
             key={p.item.id}
             data-history-item={p.item.id}
+            data-history-side={p.side}
+            clipPath={`url(#history-${p.side}-wall)`}
             data-history-lit={light}
             data-history-context={byId.get(p.item.id)?.relation}
             role="button"
@@ -230,24 +195,24 @@ export function HistoryWall({
             </title>
             <line
               x1={p.x}
-              x2={Math.max(p.x + 3, p.endX)}
+              x2={p.endX}
               y1={p.y}
-              y2={p.y}
+              y2={p.endY}
               stroke="currentColor"
               strokeDasharray={
                 p.item.kind === "tulevaisuusskenaario" || p.item.start > 2026
                   ? "4 4"
                   : undefined
               }
-              strokeWidth={light || active ? 3 : 1.5}
-              opacity={light || active ? 0.9 : 0.2}
+              strokeWidth={light || active ? 2 : 1}
+              opacity={light || active ? 0.65 : 0.07}
             />
             {p.item.start < 1850 ? (
               <path
                 d={`M${p.x + 5} ${p.y - 4} L${p.x} ${p.y} L${p.x + 5} ${p.y + 4}`}
                 fill="none"
                 stroke="currentColor"
-                opacity={light || active ? 1 : 0.3}
+                opacity={light || active ? 0.8 : 0.1}
               />
             ) : (
               <circle
@@ -255,7 +220,7 @@ export function HistoryWall({
                 cy={p.y}
                 r={active ? 5 : light ? 4 : 2}
                 fill="currentColor"
-                opacity={light || active ? 1 : 0.25}
+                opacity={light || active ? 0.8 : 0.1}
               />
             )}
             <circle cx={p.x} cy={p.y} r="12" fill="transparent" />
@@ -265,21 +230,17 @@ export function HistoryWall({
                 y={y}
                 fill="currentColor"
                 fontSize={light || active ? 13 : 11}
-                opacity={light || active ? 1 : 0.32}
+                opacity={light || active ? 0.85 : 0.1}
                 className="history-title"
               >
-                {p.item.title.length > 52
-                  ? p.item.title.slice(0, 50) + "…"
+                {p.item.title.length > 37
+                  ? p.item.title.slice(0, 35) + "…"
                   : p.item.title}
               </text>
             )}
           </g>
         );
       })}
-      <text x="100" y="880" fill="currentColor" fontSize="11" opacity=".5">
-        Piste = tapahtuma · viiva = kirjattu kesto · pisteviiva = taustayhteys,
-        ei syyvaikutus · lähennä nähdäksesi lisää
-      </text>
       {selectedPoint && !details && (
         <g
           role="button"
@@ -301,7 +262,7 @@ export function HistoryWall({
           }}
         >
           <rect
-            x={Math.min(1400, selectedPoint.x)}
+            x={selectedPoint.side === "left" ? 30 : 1450}
             y={selectedPoint.y + 10}
             width="105"
             height="27"
@@ -311,7 +272,7 @@ export function HistoryWall({
             opacity=".9"
           />
           <text
-            x={Math.min(1400, selectedPoint.x) + 8}
+            x={(selectedPoint.side === "left" ? 30 : 1450) + 8}
             y={selectedPoint.y + 28}
             fill="currentColor"
             fontSize="13"
@@ -322,10 +283,10 @@ export function HistoryWall({
       )}
       {item && details && (
         <foreignObject
-          x="90"
-          y="105"
-          width="570"
-          height="260"
+          x={selectedPoint?.side === "right" ? 1290 : 10}
+          y="155"
+          width="300"
+          height="300"
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
         >

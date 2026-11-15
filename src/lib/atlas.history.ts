@@ -288,3 +288,19 @@ export function historyLayout(h: HistoryBundle, themeOrder: string[]) {
       };
     });
 }
+
+/** Perspective side walls. The middle 330–1270 is reserved for the concept graph. */
+export function corridorLayout(h: HistoryBundle, themeOrder: string[]) {
+  return historyLayout(h, themeOrder).map((p) => {
+    const side = p.row % 2 === 0 ? "left" : "right";
+    const lane = Math.floor(p.row / 2) % 7;
+    const position = (year: number) => {
+      const depth = (Math.max(1850, Math.min(2050, year)) - 1850) / 200;
+      const left = 70 + 190 * (1 - depth) + lane * 7;
+      return { x: side === "left" ? left : 1600 - left, y: 155 + depth * 680 };
+    };
+    const start = position(p.item.start),
+      end = position(p.item.end);
+    return { ...p, side, x: start.x, y: start.y, endX: end.x, endY: end.y };
+  });
+}

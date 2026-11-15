@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  corridorLayout,
   historyConnections,
   historyLayout,
   historyThemes,
@@ -101,4 +102,34 @@ test("invalid intervals and duplicate historical IDs fail closed", () => {
   assert.throws(() => validateHistory(copy));
   copy.items[0] = h.items[1];
   assert.throws(() => validateHistory(copy));
+});
+
+test("corridor keeps every historical marker and duration outside the central graph", () => {
+  const order = [
+    "rights",
+    "work",
+    "health",
+    "education",
+    "livelihood",
+    "governance",
+    "finance",
+    "population",
+    "information",
+    "democracy",
+    "security_environment",
+    "renewal",
+  ];
+  const rows = corridorLayout(h, order);
+  assert.ok(rows.some((p) => p.side === "left"));
+  assert.ok(rows.some((p) => p.side === "right"));
+  for (const p of rows) {
+    assert.ok(
+      p.side === "left"
+        ? p.x < 320 && p.endX < 320
+        : p.x > 1280 && p.endX > 1280,
+    );
+    assert.ok(p.y >= 155 && p.y <= 835);
+    assert.ok(p.endY >= p.y);
+  }
+  assert.deepEqual(rows, corridorLayout(h, order));
 });
