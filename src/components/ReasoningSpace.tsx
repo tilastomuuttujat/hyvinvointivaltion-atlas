@@ -272,17 +272,13 @@ export function ReasoningSpace({
                 ? 3
                 : 2.5 + Math.sqrt(degree[i]!) * 1.6;
           const r = base * p.s * 1.4 * (i === focus ? 1.8 : 1);
-          // Every rendered point remains identifiable, including rear-facing,
-          // theme and conclusion nodes, even when unrelated points are dimmed.
+          // Keep the overview quiet; name all highlighted local node kinds,
+          // plus any explicitly hovered, focused or selected point.
+          const showLabel =
+            i === sel ||
+            i === hover ||
+            (focus === null ? n.kind === "concept" && p.z < 250 : w >= 0.45);
           const label = n.label.trim() || n.id;
-          const words = label.split(/\s+/),
-            lines: string[] = [];
-          for (const word of words) {
-            const last = lines.at(-1);
-            if (last && (last + " " + word).length <= 32)
-              lines[lines.length - 1] = last + " " + word;
-            else lines.push(word);
-          }
           return (
             <g
               key={i}
@@ -292,6 +288,9 @@ export function ReasoningSpace({
               onPointerLeave={() => setHover((h) => (h === i ? null : h))}
               data-i={i}
               data-node-kind={n.kind}
+              data-label-context={
+                focus === null ? "overview" : w >= 0.45 ? "local" : "background"
+              }
               role="button"
               tabIndex={0}
               aria-label={label}
@@ -333,10 +332,10 @@ export function ReasoningSpace({
                 r={Math.max(14, r * 3)}
                 fill="transparent"
               />
-              {
+              {showLabel && (
                 <text
                   x={p.x}
-                  y={p.y - r - 8 - (lines.length - 1) * 17}
+                  y={p.y - r - 8}
                   textAnchor="middle"
                   className="rs-label"
                   fontSize={Math.max(
@@ -344,21 +343,15 @@ export function ReasoningSpace({
                     Math.min(28, p.s * (i === focus ? 26 : 16)),
                   )}
                   opacity={
-                    i === focus || (near?.has(i) ?? false)
-                      ? 1
-                      : focus === null
-                        ? Math.max(0.65, fog(p.z))
-                        : 0.45
+                    focus === null && i !== hover && i !== sel
+                      ? Math.max(0.35, 1 - (p.z + 300) / 600)
+                      : 1
                   }
                   fontWeight={i === focus ? 600 : 400}
                 >
-                  {lines.map((line, row) => (
-                    <tspan key={row} x={p.x} dy={row ? "1.15em" : 0}>
-                      {line}
-                    </tspan>
-                  ))}
+                  {label}
                 </text>
-              }
+              )}
             </g>
           );
         })}

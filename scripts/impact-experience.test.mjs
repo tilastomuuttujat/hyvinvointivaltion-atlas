@@ -146,7 +146,7 @@ test(
 );
 
 test(
-  "every reasoning-space point keeps its full label before and after selection",
+  "reasoning labels stay sparse in overview and name every local or focused point",
   { timeout: 60000 },
   async () => {
     const snapshot = JSON.parse(
@@ -192,26 +192,41 @@ test(
       const check = () => {
         for (const p of points) {
           const label = p.querySelector(".rs-label");
-          assert.ok(label, `Missing ${p.getAttribute("aria-label")}`);
-          assert.equal(
-            [...label.querySelectorAll("tspan")]
-              .map((t) => t.textContent)
-              .join(" "),
-            p.getAttribute("aria-label"),
-          );
-          assert.ok(Number(label.getAttribute("opacity")) >= 0.45);
+          if (
+            p.dataset.labelContext === "local" ||
+            p.getAttribute("aria-pressed") === "true"
+          ) {
+            assert.ok(
+              label,
+              `Missing local name: ${p.getAttribute("aria-label")}`,
+            );
+            assert.equal(label.textContent, p.getAttribute("aria-label"));
+          }
         }
       };
-      assert.ok(points.some((p) => p.dataset.nodeKind === "theme"));
-      assert.ok(points.some((p) => p.dataset.nodeKind === "conclusion"));
-      assert.ok(points.some((p) => p.dataset.nodeKind === "concept"));
-      check();
-      const point = points.find((p) => p.dataset.nodeKind === "concept");
-      point.dispatchEvent(
-        new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      assert.ok(
+        points.filter((p) => p.querySelector(".rs-label")).length <
+          points.length,
       );
-      await until(() => point.getAttribute("aria-pressed") === "true");
-      check();
+      for (const kind of ["theme", "conclusion", "concept"]) {
+        const point = points.find((p) => p.dataset.nodeKind === kind);
+        point.dispatchEvent(
+          new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+        );
+        await until(() => point.getAttribute("aria-pressed") === "true");
+        check();
+        assert.equal(
+          point.querySelector(".rs-label").textContent,
+          point.getAttribute("aria-label"),
+        );
+        assert.ok(
+          points.some(
+            (p) =>
+              p.dataset.labelContext === "background" &&
+              !p.querySelector(".rs-label"),
+          ),
+        );
+      }
       assert.deepEqual(errors, []);
     } finally {
       dom.window.close();
