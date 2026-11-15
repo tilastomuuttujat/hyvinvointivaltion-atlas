@@ -1,8 +1,8 @@
-import { ImpactAtlas } from "@/components/ImpactAtlas";
 import { AtlasReleaseNotice } from "@/components/AtlasReleaseNotice";
 import { GraphExploreProvider } from "@/components/GraphExplore";
 import { ThemeSystem } from "@/components/ThemeSystem";
 import { OrganicNodeGraph } from "@/components/OrganicNodeGraph";
+import { ReasoningSpace } from "@/components/ReasoningSpace";
 import { ConceptMap } from "@/components/ConceptMap";
 import { ThemeConceptMap } from "@/components/ThemeConceptMap";
 import { EvidenceExplorer } from "@/components/EvidenceExplorer";
@@ -12,7 +12,7 @@ import { getAtlas } from "@/lib/atlas.static";
 import { AtlasExperience } from "@/components/AtlasExperience";
 import { RadialAtlas } from "@/components/RadialAtlas";
 import { AxisField } from "@/components/AxisField";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const atlasQuery = queryOptions({
   queryKey: ["atlas"],
@@ -64,13 +64,15 @@ export function AtlasPage() {
     | "routes"
     | "themes"
     | "network"
-    | "impact"
-  >(() =>
-    typeof window !== "undefined" && window.location.hash === "#vaikutusketjut"
-      ? "impact"
-      : "sphere",
-  );
+  >("sphere");
+  const [space, setSpace] = useState(false);
   const [visited, setVisited] = useState<Set<string>>(new Set([view]));
+  useEffect(() => {
+    if (window.location.hash === "#vaikutusketjut") {
+      setView("themes");
+      setVisited((v) => new Set(v).add("themes"));
+    }
+  }, []);
   return (
     <GraphExploreProvider data={data}>
       <div className="min-h-screen bg-background text-foreground">
@@ -107,7 +109,6 @@ export function AtlasPage() {
               ["routes", "⌁ Reittikartta"],
               ["themes", "☊ Teemaverkko"],
               ["network", "☍ Solmuverkko"],
-              ["impact", "↝ Vaikutusketjut"],
             ] as const
           ).map(([k, l]) => (
             <button
@@ -121,7 +122,7 @@ export function AtlasPage() {
                   "",
                   window.location.pathname +
                     window.location.search +
-                    (k === "impact" ? "#vaikutusketjut" : ""),
+                    "",
                 );
                 setVisited((previous) => new Set([...previous, k]));
               }}
@@ -129,7 +130,11 @@ export function AtlasPage() {
               {l}
             </button>
           ))}
+          <button type="button" onClick={() => setSpace(true)}>
+            ✦ Päättelyavaruus
+          </button>
         </nav>
+        {space && <ReasoningSpace data={data} onClose={() => setSpace(false)} />}
         <div hidden={view !== "sphere"}>
           <AtlasExperience data={data} active={view === "sphere"} />
         </div>
@@ -165,11 +170,6 @@ export function AtlasPage() {
         {visited.has("network") && (
           <div hidden={view !== "network"}>
             <OrganicNodeGraph data={data} active={view === "network"} />
-          </div>
-        )}
-        {visited.has("impact") && (
-          <div hidden={view !== "impact"}>
-            <ImpactAtlas data={data} active={view === "impact"} />
           </div>
         )}
         <details className="border-t border-border">

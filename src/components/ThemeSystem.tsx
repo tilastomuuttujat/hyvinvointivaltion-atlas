@@ -29,6 +29,8 @@ import {
   type Orbit,
 } from "@/lib/teema.camera";
 import "@/styles/teema-system.css";
+import "@/styles/impact-atlas.css";
+import { ImpactInsight } from "./ImpactInsight";
 import { frameGraph } from "@/lib/atlas.explore";
 
 const W = 2600,
@@ -973,6 +975,7 @@ export function ThemeSystem({
           )}
         </aside>
       </div>
+      <ImpactInsight data={data} e={exploration} />
       <p className="ts-note">
         Valitse käsite ja jatka vihjatuista pisteistä. Muu piste aloittaa uuden
         polun. Syy-seurausviivat perustuvat kirjattuihin mekanismeihin ja

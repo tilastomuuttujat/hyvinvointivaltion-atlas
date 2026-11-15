@@ -132,6 +132,17 @@ function useExplorationState(data: AtlasData) {
       }));
       setInspection([]);
     },
+    load: (route: { id: string; via?: string }[]) => {
+      if (!route.length) return;
+      setHistory((h) => ({
+        steps: route.map((s) => (s.via ? { id: s.id, via: s.via } : { id: s.id })),
+        past: [...h.past, h.steps],
+        future: [],
+      }));
+      setInspection([]);
+      setPreview(null);
+      setScopeChoice(null);
+    },
     current,
     options,
     history,
