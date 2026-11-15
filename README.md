@@ -178,3 +178,26 @@ Seuraava askel -valikon osoitus tai näppäimistökohdistus esikatselee juuri ky
 Kuljetut mekanismit piirretään myös sen jälkeen, kun ne eivät enää ole nykyisen pisteen välittömiä jatkoja. Molemmat kuvaajat sovittavat valitun polun pisteet ja nykyisen pisteen välittömät jatkot näkyviin ensisijaisesti pienellä siirrolla, tarvittaessa loitonnuksella. Eteneminen ei kierrä teemataivasta uudelleen. Jokaisen näkymän kamera säilyy erikseen.
 
 Oma polku -yhteenveto kertoo myös tutkimissuunnan, selitysehdotusten määrän ja havaintokytkentöjen puutteet. Se ei muodosta uusia päätelmiä yhteyksien yhdistämisestä. Reitti ja historia säilyvät tämän sivun istunnon ajan; ne eivät tallennu tietokantaan tai selaimen pysyvään tallennustilaan.
+
+
+## Laajempi Neon-julkaisumalli ja tilannekohtainen polku
+
+Selain lukee edelleen yhtä `data/atlas.json`-julkaisua. Uusi valinnainen `publication`-osa (malliversio 1) sisältää julkaistavat teemajäsenyydet, päätöstapaukset, tapausreitit, palvelukehykset ja -siirtymät, vastuut, mittarimääritelmät, vertailut, aineistoaukot sekä tilastosarjojen määritelmät ja ulottuvuudet. Palvelumenettely ei muutu kausaaliseksi mekanismiksi. Mittarimääritelmä ei ole mitattu havainto.
+
+`export-atlas.mjs` lukee perusaineiston, toimitukselliset oivallukset ja `export-publication.sql`-osan samassa toistettavan lukemisen, vain lukevassa transaktiossa. Julkaisuosa rajataan perusviennin julkaistuihin havainto-, polku- ja evidenssitunnisteisiin. Hylätyt ja vanhentuneet viitteet sekä julkaisemattomiin havaintoihin viittaavat rivit eivät tule mukaan. Artikkelien tekstejä, raakatuonteja ja yksityisiä lähdesnapshotteja ei viedä. Viite- ja versiotarkistus keskeyttää epäkelvon viennin ennen tiedoston vaihtoa.
+
+Neonin `editorial_synthesis_12_v1`-luokituksen nimet ja julkaistavat käsitejäsenyydet ovat ensisijaisia. Sama käsite voi kuulua useaan teemaan, mutta solmuverkossa sillä on yksi pysyvä tunniste. Käsitteelle, jolla ei ole tietokannan teemakirjausta, säilytetään merkitty aiempi toimituksellinen sijoittelu. Pelkästään hylättyä jäsenyyttä ei elvytetä varamäärityksellä: vienti vaatii korvaavan määrityksen. Alkuperäinen 32 teeman aineisto ei muutu tämän 12 teeman toimitukselliseksi luokitukseksi.
+
+**Rajaa tilannetta** antaa valita vuodet 1850–2050, havaintoihin kirjatun kohderyhmän ja tapauksen. Kirjatun aikarajauksen ulkopuolista tai valittuun julkaistuun tapausreittiin kuulumatonta mekanismia ei jatketa vahingossa. Erilliset ajanjaksot tai varmistamaton kohderyhmän vastaavuus vaativat nimenomaisen tarkastelutilanteen vaihdon; se kirjataan polun yhteenvetoon. Avoin ajoitus ja tekstimuotoiset ehdot näytetään avoimina, ei automaattisesti täyttyvinä. Tekstiehtojen loogista yhteensopivuutta ei päätellä avainsanoista tai samankaltaisuudesta.
+
+**Tutki perustetta ja lähteitä** avaa erillisen, käyttäjän hallitseman porautumisen: mekanismi → väite → tukeva/haastava/rajaava havainto → lähdekortti. Argumenttisuhteet pysyvät erillään kausaalisista mekanismeista. Tapaukset, palveluvaiheet, vastuut, määritellyt mittarit, vertailuasetelmat, sarjojen menetelmät ja aineistoaukot löytyvät samasta taustatarkastelusta. Niitä ei liitetä mekanismiin nimen samankaltaisuuden perusteella.
+
+Julkaistavat tapausreitit voivat olla pienempi joukko kuin tietokannan kaikki reitit: esimerkiksi hylätty vaihe tai puuttuva ajantasainen mekanismi katkaisee julkaisemisen. Viennin `exclusions` ilmoittaa pois jääneiden reittien ja palvelusiirtymien lukumäärät paljastamatta niiden sisältöä.
+
+### Automaattinen aineistopäivitys
+
+Pages-työnkulku lukee Neonin uuden julkaisun jokaisessa päähaaran pushissa ja päivittäin kello 04.17 UTC. Manuaalisen ajon `refresh_data` on oletuksena true; eksplisiittinen false käyttää repositorion aiempaa snapshotia. PR-ajot käyttävät vain repositorion aineistoa eivätkä saa tietokantasalaisuutta. Uusi vienti validoidaan, testataan ja rakennetaan ennen Pages-julkaisua. Epäonnistunut ajo ei korvaa toimivaa Pages-julkaisua. Aineistotiedostoja ei commitoida automaattisesti takaisin päähaaraan.
+
+`data/atlas-version.json` julkaistaan saman koonnin mukana. Selain tarkistaa viiden minuutin välein, onko uudempi vienti saatavilla, ja tarjoaa käyttäjälle latauspainikkeen. Aktiivista aineistoa tai käyttäjän polkua ei vaihdeta taustalla, eikä eri vientien osia yhdistetä.
+
+Testit: `npm run test:pages`, `npm run build:pages`, `npm run test:experience`. `scripts/fixtures/publication.json` ja sitä vastaava `publication-input.json` ovat 15.11.2026 tallennettuja, julkaistaviin tunnisteisiin rajattuja testiaineistoja (syötteessä on 39 testattavien lähdeketjujen havaintoa); sitä ei kopioida sivuston julkiseen hakemistoon. Varsinainen yhtenäinen julkaisu muodostuu luotetussa vientiajossa.

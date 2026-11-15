@@ -1,3 +1,8 @@
+import { createHash } from "node:crypto";
+import {
+  publicationManifest,
+  validatePublication,
+} from "../src/lib/atlas.publication.ts";
 import { buildThemeCatalog } from "../src/lib/atlas.catalogue.ts";
 import { validateReasoning } from "../src/lib/atlas.reasoning.ts";
 // Runs only in Node / Actions. Never import this module into the browser.
@@ -51,8 +56,26 @@ try {
       ),
     )
   ).rows[0].editorial;
+  snapshot.publication = (
+    await client.query(
+      await readFile(
+        new URL("./export-publication.sql", import.meta.url),
+        "utf8",
+      ),
+      [JSON.stringify(publicationManifest(snapshot))],
+    )
+  ).rows[0].publication;
+  validatePublication(snapshot.publication, {
+    ...snapshot.atlas,
+    evidence: snapshot.evidence,
+    generatedAt: snapshot.generatedAt,
+  });
   snapshot.themeCatalog = buildThemeCatalog(
-    { ...snapshot.atlas, evidence: snapshot.evidence },
+    {
+      ...snapshot.atlas,
+      evidence: snapshot.evidence,
+      publication: snapshot.publication,
+    },
     template,
     snapshot.generatedAt,
     editorial,
@@ -65,8 +88,19 @@ try {
   const target = fileURLToPath(
     new URL("../public/data/atlas.json", import.meta.url),
   );
-  await writeFile(target + ".tmp", JSON.stringify(snapshot) + "\n");
+  const payload = JSON.stringify(snapshot) + "\n";
+  const versionTarget = fileURLToPath(
+    new URL("../public/data/atlas-version.json", import.meta.url),
+  );
+  const version = {
+    schemaVersion: 1,
+    generatedAt: snapshot.generatedAt,
+    version: createHash("sha256").update(payload).digest("hex"),
+  };
+  await writeFile(target + ".tmp", payload);
+  await writeFile(versionTarget + ".tmp", JSON.stringify(version) + "\n");
   await rename(target + ".tmp", target);
+  await rename(versionTarget + ".tmp", versionTarget);
   console.log(
     `Exported ${snapshot.atlas.articleCount} articles and ${snapshot.treatments.length} links.`,
   );

@@ -1,3 +1,5 @@
+import { assessMechanism, type ExploreContext } from "@/lib/atlas.context";
+import { GraphEvidence } from "./GraphEvidence";
 import {
   createContext,
   useEffect,
@@ -29,16 +31,57 @@ function useExplorationState(data: AtlasData) {
   useEffect(() => {
     if (!nextOpen) setPreview(null);
   }, [nextOpen]);
+  const [context, setContext] = useState<ExploreContext>({});
+  const [contextOpen, setContextOpen] = useState(false);
+  const [scopeChoice, setScopeChoice] = useState<{
+    id: string;
+    via: string;
+    messages: string[];
+  } | null>(null);
+  const [inspection, setInspection] = useState<{ kind: string; id: string }[]>(
+    [],
+  );
   const { steps, pending } = history;
   const current = steps.at(-1)?.id;
-  const options = current ? exploreOptions(data, current, "how") : [];
+  const options = (current ? exploreOptions(data, current, "how") : []).map(
+    (o) => ({
+      ...o,
+      assessment: assessMechanism(data, o.mechanism, context, steps),
+    }),
+  );
   const chosen = (id: string) => steps.some((s) => s.via === id);
   const candidate = (id: string) =>
     id !== current &&
-    options.some((o) => o.target.id === id) &&
+    options.some(
+      (o) => o.target.id === id && o.assessment.status !== "outside",
+    ) &&
     !steps.some((s) => s.id === id);
-  const pick = (id: string, via?: string) => {
+  const pick = (id: string, via?: string, confirmScope = false) => {
     const next = exploreTransition(history, { type: "pick", id, via }, data);
+    const appended =
+      next.steps.length > steps.length ? next.steps.at(-1) : undefined;
+    const option = appended?.via
+      ? options.find((o) => o.mechanism.id === appended.via)
+      : undefined;
+    if (option?.assessment.status === "outside") {
+      setScopeChoice({
+        id,
+        via: option.mechanism.id,
+        messages: option.assessment.messages,
+      });
+      return false;
+    }
+    if (option?.assessment.status === "context_change" && !confirmScope) {
+      setScopeChoice({
+        id,
+        via: option.mechanism.id,
+        messages: option.assessment.messages,
+      });
+      return false;
+    }
+    if (option?.assessment.status === "context_change" && appended)
+      appended.contextNote = option.assessment.messages.join(" ");
+    setScopeChoice(null);
     setHistory(next);
     setPreview(null);
     return !next.pending && next !== history;
@@ -61,6 +104,34 @@ function useExplorationState(data: AtlasData) {
     );
   return {
     steps,
+    context,
+    setContext,
+    contextOpen,
+    setContextOpen,
+    scopeChoice,
+    setScopeChoice,
+    inspection,
+    inspect: (kind: string, id: string) => {
+      setInspection((previous) => {
+        const at = previous.findIndex((x) => x.kind === kind && x.id === id);
+        return at >= 0
+          ? previous.slice(0, at + 1)
+          : [...previous, { kind, id }];
+      });
+      setSummaryOpen(false);
+      setNextOpen(false);
+    },
+    inspectBack: () => setInspection((p) => p.slice(0, -1)),
+    closeInspection: () => setInspection([]),
+    start: (id: string) => {
+      if (!data.evidence?.concepts.some((c) => c.id === id)) return;
+      setHistory((h) => ({
+        steps: [{ id }],
+        past: [...h.past, h.steps],
+        future: [],
+      }));
+      setInspection([]);
+    },
     current,
     options,
     history,
@@ -84,6 +155,8 @@ function useExplorationState(data: AtlasData) {
       setSummaryOpen(false);
       setNextOpen(false);
       setPreview(null);
+      setScopeChoice(null);
+      setInspection([]);
     },
     lit: (id: string) =>
       !current ||
@@ -91,7 +164,11 @@ function useExplorationState(data: AtlasData) {
       (preview ? preview.target === id : candidate(id)),
     edgeLit: (id: string) =>
       chosen(id) ||
-      (preview ? edgePreview(id) : options.some((o) => o.mechanism.id === id)),
+      (preview
+        ? edgePreview(id)
+        : options.some(
+            (o) => o.mechanism.id === id && o.assessment.status !== "outside",
+          )),
     displayedMechanisms: [
       ...new Set([
         ...options.map((o) => o.mechanism.id),
@@ -220,7 +297,7 @@ export function GraphPointHint({
   );
 }
 
-/** Only lightweight back/reset controls remain; the route itself lives in the graph. */
+/** Shared route controls with optional context and reader-opened evidence panels. */
 export function GraphExplore({
   data,
   exploration: e,
@@ -235,16 +312,28 @@ export function GraphExplore({
   const summaryId = useId();
   const nextId = useId();
   if (!e.current)
-    return e.history.future.length || e.history.past.length ? (
-      <nav className="graph-trail" aria-label="Oma tutkimuspolku">
+    return (
+      <>
+        <GraphEvidence data={data} exploration={e} />
         <button
           type="button"
-          onClick={e.history.future.length ? e.forward : e.back}
+          className="graph-catalogue-open"
+          onClick={() => e.inspect("catalogue", "all")}
         >
-          Palauta polku
+          Tapaukset, palveluketjut ja aineisto
         </button>
-      </nav>
-    ) : null;
+        {e.history.future.length || e.history.past.length ? (
+          <nav className="graph-trail" aria-label="Oma tutkimuspolku">
+            <button
+              type="button"
+              onClick={e.history.future.length ? e.forward : e.back}
+            >
+              Palauta polku
+            </button>
+          </nav>
+        ) : null}
+      </>
+    );
   const previous = e.steps.at(-2);
   const conceptLabel = (id: string) =>
     data.evidence?.concepts.find((c) => c.id === id)?.label ?? id;
@@ -259,6 +348,135 @@ export function GraphExplore({
     !t ? "" : t.length > n ? t.slice(0, n).trimEnd() + "…" : t;
   return (
     <>
+      <GraphEvidence data={data} exploration={e} />
+      <div className="graph-context-tools">
+        <button
+          type="button"
+          aria-expanded={e.contextOpen}
+          onClick={() => e.setContextOpen(!e.contextOpen)}
+        >
+          Rajaa tilannetta
+        </button>
+        <button type="button" onClick={() => e.inspect("catalogue", "all")}>
+          Tapaukset ja aineisto
+        </button>
+      </div>
+      {e.contextOpen && (
+        <div
+          className="graph-context-fields"
+          role="group"
+          aria-label="Polun tarkastelutilanne"
+        >
+          <label>
+            Alkuvuosi
+            <input
+              type="number"
+              min="1850"
+              max="2050"
+              value={e.context.start ?? 1850}
+              onChange={(event) =>
+                e.setContext({
+                  ...e.context,
+                  start: event.target.value
+                    ? Number(event.target.value)
+                    : undefined,
+                })
+              }
+            />
+          </label>
+          <label>
+            Loppuvuosi
+            <input
+              type="number"
+              min="1850"
+              max="2050"
+              value={e.context.end ?? 2050}
+              onChange={(event) =>
+                e.setContext({
+                  ...e.context,
+                  end: event.target.value
+                    ? Number(event.target.value)
+                    : undefined,
+                })
+              }
+            />
+          </label>
+          <label>
+            Kohderyhmä
+            <select
+              value={e.context.population ?? ""}
+              onChange={(event) =>
+                e.setContext({
+                  ...e.context,
+                  population: event.target.value || undefined,
+                })
+              }
+            >
+              <option value="">Kaikki / ei rajausta</option>
+              {[
+                ...new Set(
+                  data.evidence?.observations
+                    .map((o) => o.population)
+                    .filter(Boolean),
+                ),
+              ]
+                .sort()
+                .map((p) => (
+                  <option value={p} key={p}>
+                    {p}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            Tapaus
+            <select
+              value={e.context.caseId ?? ""}
+              onChange={(event) =>
+                e.setContext({
+                  ...e.context,
+                  caseId: event.target.value || undefined,
+                })
+              }
+            >
+              <option value="">Kaikki / ei tapausrajausta</option>
+              {data.publication?.cases.map((c) => (
+                <option key={c.case_id} value={c.case_id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p>
+            Tekstimuotoisten ehtojen toteutumista ei päätellä automaattisesti.
+            Avoimet ajoitukset merkitään.
+          </p>
+        </div>
+      )}
+      {e.scopeChoice && (
+        <div
+          className="graph-mechanism-choice"
+          role="group"
+          aria-label="Tarkastelutilanteen muutos"
+        >
+          <p>{e.scopeChoice.messages.join(" ")}</p>
+          {e.options.find((o) => o.mechanism.id === e.scopeChoice?.via)
+            ?.assessment.status !== "outside" && (
+            <button
+              type="button"
+              onClick={() => {
+                const s = e.scopeChoice!;
+                if (e.pick(s.id, s.via, true)) onPick(s.id);
+              }}
+            >
+              Jatka eri tarkastelutilanteeseen
+            </button>
+          )}
+          <button type="button" onClick={() => e.setScopeChoice(null)}>
+            Palaa valintaan
+          </button>
+        </div>
+      )}
       {e.pending && (
         <div
           className="graph-mechanism-choice"
@@ -359,6 +577,7 @@ export function GraphExplore({
                   <li key={o.mechanism.id}>
                     <button
                       type="button"
+                      disabled={o.assessment.status === "outside"}
                       onMouseEnter={() =>
                         e.setPreview({
                           target: o.target.id,
@@ -397,6 +616,15 @@ export function GraphExplore({
                           ? " · kausaaliseksi arvioitu"
                           : " · selitysehdotus"}
                       </span>
+                      <span className="graph-context-status">
+                        {o.assessment.status === "outside"
+                          ? "Rajauksen ulkopuolella"
+                          : o.assessment.status === "context_change"
+                            ? "Tarkastelutilanne vaihtuu"
+                            : o.assessment.status === "unknown"
+                              ? "Soveltaminen tarkistettava"
+                              : "Aikarajaus sopii"}
+                      </span>
                       <span className="graph-next-why">
                         {short(o.mechanism.explanation)}
                       </span>
@@ -406,6 +634,16 @@ export function GraphExplore({
                           "tilannetta ei ole kirjattu."}
                         {theme && <> · Teema: {theme}</>}
                       </span>
+                    </button>
+                    <p className="graph-context-status">
+                      {o.assessment.messages.join(" ")}
+                    </p>
+                    <button
+                      type="button"
+                      className="graph-evidence-link"
+                      onClick={() => e.inspect("mechanism", o.mechanism.id)}
+                    >
+                      Tutki perustetta ja lähteitä
                     </button>
                   </li>
                 );
@@ -578,6 +816,29 @@ export function GraphExplore({
                 {m && (
                   <>
                     <h4>{m.label}</h4>
+                    <button
+                      type="button"
+                      className="graph-evidence-link"
+                      onClick={() => e.inspect("mechanism", m.id)}
+                    >
+                      Avaa väite → havainnot → lähteet
+                    </button>
+                    {Object.keys(e.context).length > 0 && (
+                      <p className="graph-context-status">
+                        Nykyinen rajaus:{" "}
+                        {assessMechanism(
+                          data,
+                          m,
+                          e.context,
+                          e.steps.slice(0, i),
+                        ).messages.join(" ") || "Ajallinen rajaus sopii."}
+                      </p>
+                    )}
+                    {s.contextNote && (
+                      <p className="graph-context-status">
+                        Tarkastelutilanne vaihtui: {s.contextNote}
+                      </p>
+                    )}
                     <p>{m.explanation}</p>
                     <p className="graph-summary-note">
                       {m.to === e.steps[i - 1]?.id

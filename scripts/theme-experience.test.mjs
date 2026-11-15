@@ -492,3 +492,235 @@ test(
     }
   },
 );
+
+test(
+  "published cases, source depth, contextual choices and release notice work together",
+  { timeout: 60000 },
+  async () => {
+    const { buildThemeCatalog } = await import("../src/lib/atlas.catalogue.ts");
+    const snapshot = JSON.parse(
+      await readFile(
+        new URL("./fixtures/publication-input.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    snapshot.publication = JSON.parse(
+      await readFile(
+        new URL("./fixtures/publication.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    snapshot.generatedAt = snapshot.publication.generatedAt;
+    snapshot.themeCatalog = buildThemeCatalog(
+      {
+        ...snapshot.atlas,
+        evidence: snapshot.evidence,
+        publication: snapshot.publication,
+      },
+      snapshot.themeCatalog,
+      snapshot.generatedAt,
+    );
+    const dir = new URL("../dist-pages/assets/", import.meta.url),
+      entry = (await readdir(dir)).find((n) => /^index-.*\.js$/.test(n));
+    const errors = [],
+      vc = new VirtualConsole();
+    vc.on("jsdomError", (e) => errors.push(e.message));
+    const dom = new JSDOM('<div id="root"></div>', {
+      url: "https://example.org/hyvinvointivaltion-atlas/",
+      runScripts: "outside-only",
+      pretendToBeVisual: true,
+      virtualConsole: vc,
+    });
+    const w = dom.window,
+      checks = [];
+    w.matchMedia = () => ({
+      matches: true,
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    w.requestAnimationFrame = () => 1;
+    w.cancelAnimationFrame = () => {};
+    const setInterval = w.setInterval.bind(w);
+    w.setInterval = (fn, delay) =>
+      delay === 300000 ? (checks.push(fn), 999) : setInterval(fn, delay);
+    w.fetch = async (url) => ({
+      ok: true,
+      json: async () =>
+        String(url).includes("atlas-version.json")
+          ? {
+              schemaVersion: 1,
+              generatedAt: "2026-11-16T12:00:00Z",
+              version: "new",
+            }
+          : snapshot,
+    });
+    try {
+      w.eval(await readFile(new URL(entry, dir), "utf8"));
+      await until(() => w.document.querySelector(".view-switch"));
+      const click = (node) => {
+        assert.ok(node);
+        node.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+      };
+      const button = (scope, text) =>
+        [...scope.querySelectorAll("button")].find(
+          (b) => b.textContent.trim() === text,
+        );
+      click(button(w.document.querySelector(".view-switch"), "☍ Solmuverkko"));
+      await until(() => w.document.querySelector(".organic-graph"));
+      const graph = w.document.querySelector(".organic-graph"),
+        panel = () => graph.querySelector(".graph-evidence");
+      click(
+        graph.querySelector('[role="button"][aria-label="Työn mukauttaminen"]'),
+      );
+      await until(() => graph.querySelector(".graph-next-open"));
+      click(graph.querySelector(".graph-next-open"));
+      await until(() => graph.querySelector(".graph-next.open"));
+      click(graph.querySelector(".graph-next .graph-evidence-link"));
+      await until(() =>
+        panel()?.textContent.includes("Tutki mekanismiin kirjattua väitettä"),
+      );
+      click(button(panel(), "Tutki mekanismiin kirjattua väitettä →"));
+      await until(() =>
+        panel()?.textContent.includes("Tukeva, haastava ja rajaava näyttö"),
+      );
+      const support = [...panel().querySelectorAll("article")].find(
+        (a) => a.querySelector("h4")?.textContent === "Tukee",
+      );
+      assert.ok(support);
+      click(support.querySelector("button"));
+      await until(() => panel()?.textContent.includes("Tutkimusasetelma:"));
+      const sourceButton = [...panel().querySelectorAll("button")].find(
+        (b) =>
+          !["Sulje perusteen tarkastelu", "← Edellinen taso"].includes(
+            b.getAttribute("aria-label") ?? b.textContent.trim(),
+          ),
+      );
+      click(sourceButton);
+      await until(() =>
+        panel()?.querySelector('a[href="https://www.sjweh.fi/article/3664"]'),
+      );
+      assert.equal(
+        graph.querySelectorAll(".graph-summary:not(.graph-evidence) li").length,
+        1,
+        "source inspection preserves the graph route",
+      );
+      click(panel().querySelector('[aria-label="Sulje perusteen tarkastelu"]'));
+      await until(() => !panel());
+      click(
+        button(
+          graph.querySelector(".graph-context-tools"),
+          "Tapaukset ja aineisto",
+        ),
+      );
+      await until(() =>
+        panel()?.textContent.includes("Dokumentoidut tapaukset"),
+      );
+      const documented = snapshot.publication.cases.find(
+        (c) => c.case_id === "bsa-application-20261112",
+      );
+      click(button(panel(), documented.title + " →"));
+      await until(() =>
+        panel()?.textContent.includes("Helsingin historiallista havaintoa"),
+      );
+      const framework = snapshot.publication.frameworks[0];
+      click(button(panel(), framework.title + " →"));
+      await until(() =>
+        panel()?.textContent.includes("Menettelyvaiheet ja niiden siirtymät"),
+      );
+      click(button(panel(), "Tieto ja ymmärtäminen →"));
+      await until(() =>
+        panel()?.textContent.includes("Kirjatut menettelysiirtymät"),
+      );
+      assert.ok(panel().textContent.includes("Tapauksiin kirjatut vastuut"));
+      click(panel().querySelector('[aria-label="Sulje perusteen tarkastelu"]'));
+      await until(() => !panel());
+      click(
+        button(graph.querySelector(".graph-context-tools"), "Rajaa tilannetta"),
+      );
+      await until(() => graph.querySelector(".graph-context-fields"));
+      const fields = graph.querySelector(".graph-context-fields"),
+        inputs = fields.querySelectorAll("input");
+      const change = (el, value) => {
+        const setter = Object.getOwnPropertyDescriptor(
+          w.HTMLInputElement.prototype,
+          "value",
+        ).set;
+        setter.call(el, value);
+        el.dispatchEvent(new w.Event("input", { bubbles: true }));
+        el.dispatchEvent(new w.Event("change", { bubbles: true }));
+      };
+      change(inputs[0], "1900");
+      change(inputs[1], "1901");
+      await pause(80);
+      const target = graph.querySelector(
+        '[role="button"][aria-label="Kestävä työhönpaluu"]',
+      );
+      assert.equal(target.getAttribute("data-path-candidate"), "false");
+      click(graph.querySelector(".graph-next-open"));
+      await until(() => graph.querySelector(".graph-next.open"));
+      const outgoing = [
+        ...graph.querySelectorAll(".graph-next li button"),
+      ].find((b) =>
+        b
+          .querySelector(".graph-next-target")
+          ?.textContent.includes("Kestävä työhönpaluu"),
+      );
+      assert.ok(outgoing.disabled);
+      assert.ok(
+        graph
+          .querySelector(".graph-next")
+          .textContent.includes("Rajauksen ulkopuolella"),
+      );
+      click(graph.querySelector('[aria-label="Piilota etenemissuunnat"]'));
+      change(inputs[0], "1850");
+      change(inputs[1], "2050");
+      await until(() => target.getAttribute("data-path-candidate") === "true");
+      const populationSelect = fields.querySelectorAll("select")[0];
+      populationSelect.value = [...populationSelect.options].find(
+        (o) => o.value && o.value !== "Työlliset sairauspoissaolon alkaessa",
+      ).value;
+      populationSelect.dispatchEvent(new w.Event("change", { bubbles: true }));
+      await pause(80);
+      click(target);
+      await until(() =>
+        graph.querySelector('[aria-label="Tarkastelutilanteen muutos"]'),
+      );
+      click(
+        button(
+          graph.querySelector('[aria-label="Tarkastelutilanteen muutos"]'),
+          "Jatka eri tarkastelutilanteeseen",
+        ),
+      );
+      await until(() => target.getAttribute("data-path-active") === "true");
+      click(graph.querySelector(".graph-summary-open"));
+      await until(() =>
+        graph.querySelector(".graph-summary.open:not(.graph-evidence)"),
+      );
+      assert.ok(
+        graph
+          .querySelector(".graph-summary.open")
+          .textContent.includes("Tarkastelutilanne vaihtui"),
+      );
+      assert.equal(
+        graph.querySelector("aside").getAttribute("aria-hidden"),
+        "true",
+      );
+      assert.ok(checks.length > 0);
+      await checks[0]();
+      await until(() => w.document.querySelector(".atlas-release-notice"));
+      assert.ok(
+        w.document
+          .querySelector(".atlas-release-notice")
+          .textContent.includes("Lataa uusi aineistoversio"),
+      );
+      assert.equal(
+        graph.querySelectorAll(".graph-summary:not(.graph-evidence) li").length,
+        2,
+        "a release notice does not replace the active snapshot",
+      );
+      assert.deepEqual(errors, []);
+    } finally {
+      dom.window.close();
+    }
+  },
+);

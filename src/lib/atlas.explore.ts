@@ -40,7 +40,7 @@ export function exploreOptions(
     }));
 }
 
-export type ExploreStep = { id: string; via?: string };
+export type ExploreStep = { id: string; via?: string; contextNote?: string };
 export type ExploreHistory = {
   steps: ExploreStep[];
   past: ExploreStep[][];

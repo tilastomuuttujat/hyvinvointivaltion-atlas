@@ -99,6 +99,22 @@ export function ThemeSelectionDetails({
       </p>
       <h3>{title}</h3>
       {meaning && <p>{meaning}</p>}
+      {concept?.membershipSource === "editorial_fallback" && (
+        <p className="ts-muted">
+          Tämän käsitteen teemasijoittelu on toimituksellinen ehdotus. Se ei ole
+          vahvistettu vaikutusyhteys.
+        </p>
+      )}
+      {concept &&
+        data.publication?.memberships
+          .filter((m) => m.conceptId === concept.id)
+          .map((m) => (
+            <p className="ts-muted" key={m.themeId}>
+              Kirjattu teema:{" "}
+              {data.publication?.themes.find((t) => t.id === m.themeId)?.label}.{" "}
+              {m.rationale}
+            </p>
+          ))}
       {mechanism && (
         <p>
           <strong>Kirjattu mekanismi:</strong> {mechanism.from} → {mechanism.to}
