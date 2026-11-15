@@ -1,3 +1,4 @@
+import { spotlightRoutes, orientationSpotlight } from "@/lib/atlas.spotlight";
 import { ReaderJourney } from "./ReaderJourney";
 import { GraphExplore, useGraphExplore } from "./GraphExplore";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,18 +12,24 @@ import {
 import { rotate, perspective, type Orbit } from "@/lib/teema.camera";
 
 const RS_CSS = `
+.reasoning-space{--rs-9:oklch(.83 .12 200);--rs-10:oklch(.85 .13 115);--rs-11:oklch(.82 .12 315);--rs-12:oklch(.85 .10 45)}
+.reasoning-space .rs-mechanism{transition:opacity .45s ease}
+.reasoning-space .rs-start-ring{fill:none;stroke:currentColor;stroke-width:1.5;stroke-dasharray:2 6}
+.reasoning-space .rs-flow-target{cursor:pointer}
+.reasoning-space .rs-guide{position:absolute;bottom:95px;left:18px;font-size:12px;opacity:.65;pointer-events:none;max-width:300px}
+
 .reasoning-space{--rs-1:oklch(0.82 0.10 180);--rs-2:oklch(0.82 0.11 145);--rs-3:oklch(0.84 0.12 95);--rs-4:oklch(0.82 0.12 65);--rs-5:oklch(0.78 0.12 25);--rs-6:oklch(0.80 0.10 335);--rs-7:oklch(0.78 0.10 295);--rs-8:oklch(0.80 0.10 230);color:oklch(0.93 0.015 230);background:oklch(0.11 0.03 260)}
-.reasoning-space .rs-label{fill:oklch(0.95 0.015 230);paint-order:stroke;stroke:oklch(0.11 0.03 260);stroke-width:3px;pointer-events:none}
+.reasoning-space .rs-label{fill:currentColor;paint-order:stroke;stroke:oklch(0.11 0.03 260);stroke-width:3px;pointer-events:none}
 .reasoning-space .rs-flow{animation:rs-flow 2.4s linear infinite}
 .reasoning-space .rs-fast{animation-duration:1.1s}
 .reasoning-space .rs-pulse{animation:rs-pulse 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes rs-flow{to{stroke-dashoffset:-24}}
 @keyframes rs-pulse{50%{transform:scale(1.5);opacity:.6}}
-@media (prefers-reduced-motion:reduce){.reasoning-space .rs-flow,.reasoning-space .rs-pulse{animation:none}}
+@media (prefers-reduced-motion:reduce){.reasoning-space .rs-flow,.reasoning-space .rs-pulse{animation:none}.reasoning-space .rs-mechanism{transition:none}}
 `;
 const W = 1600,
   H = 1000,
-  PALETTE = 8;
+  PALETTE = 12;
 
 /**
  * Persistent visual network with optional inquiry, source and path-summary controls.
@@ -51,6 +58,23 @@ export function ReasoningSpace({
   const origin = useRef({ x: 0, y: 0 });
   const moved = useRef(false);
   const idle = useRef(0);
+  const routes = useMemo(() => spotlightRoutes(data), [data]);
+  const previousSpotlight = useRef<string | undefined>(undefined);
+  const rotated = graph.nodes.map((n) => rotate(n.p, orbit));
+  const spotlight = orientationSpotlight(
+    routes,
+    graph,
+    rotated,
+    previousSpotlight.current,
+  );
+  useEffect(() => {
+    previousSpotlight.current = spotlight?.start;
+  }, [spotlight?.start]);
+  const spotlightNodes = new Set(spotlight?.nodes.map((id) => `K:${id}`));
+  const spotlightEdges = new Set(spotlight?.mechanisms);
+  const reducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
   useEffect(() => {
     let raf = 0,
@@ -58,7 +82,11 @@ export function ReasoningSpace({
     const tick = (t: number) => {
       const dt = Math.min(t - last, 50);
       last = t;
-      if (t - idle.current > 2500 && pointers.current.size === 0)
+      if (
+        !reducedMotion &&
+        t - idle.current > 2500 &&
+        pointers.current.size === 0
+      )
         setOrbit((o) => ({
           ...o,
           yaw: o.yaw + dt * (sel === null ? 0.00006 : 0.00002),
@@ -72,7 +100,7 @@ export function ReasoningSpace({
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", k);
     };
-  }, [sel, onClose]);
+  }, [sel, onClose, reducedMotion]);
 
   const proj = graph.nodes.map((n) => {
     const r = rotate(n.p, orbit),
@@ -137,6 +165,9 @@ export function ReasoningSpace({
     )
       moved.current = true;
     if (!moved.current) return;
+    setSel(null);
+    setHover(null);
+    exploration.setPreview(null);
     setOrbit((o) => ({
       yaw: o.yaw + (e.clientX - prev.x) * 0.005,
       pitch: Math.max(
@@ -163,9 +194,17 @@ export function ReasoningSpace({
     const node = graph.nodes[i]!;
     if (node.kind === "concept") {
       const id = node.id.slice(2);
-      if (exploration.current && exploration.candidate(id))
-        exploration.pick(id);
-      else exploration.start(id);
+      if (exploration.current && exploration.candidate(id)) {
+        const choices = exploration.options.filter(
+          (o) => o.target.id === id && o.assessment.status !== "outside",
+        );
+        if (choices.length === 1)
+          exploration.pick(id, choices[0]!.mechanism.id);
+        else {
+          setSel(i);
+          exploration.setPreview({ target: id });
+        }
+      } else exploration.start(id);
     } else setSel(i);
   };
 
@@ -184,20 +223,74 @@ export function ReasoningSpace({
     <section
       className="reasoning-space fixed inset-0 z-50 bg-background"
       aria-label="Päättelyavaruus"
+      data-spotlight={spotlight?.start ?? ""}
     >
       <style>{RS_CSS}</style>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
-        className="block h-full w-full touch-none select-none"
+        className="rs-canvas block h-full w-full touch-none select-none"
+        tabIndex={0}
+        role="group"
+        aria-label="Pyöritä vaikutusavaruutta nuolinäppäimillä tai vetämällä"
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (
+            ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
+              event.key,
+            )
+          ) {
+            event.preventDefault();
+            idle.current = performance.now();
+            setSel(null);
+            setHover(null);
+            setOrbit((o) => ({
+              yaw:
+                o.yaw +
+                (event.key === "ArrowLeft"
+                  ? -0.3
+                  : event.key === "ArrowRight"
+                    ? 0.3
+                    : 0),
+              pitch: Math.max(
+                -1.4,
+                Math.min(
+                  1.4,
+                  o.pitch +
+                    (event.key === "ArrowUp"
+                      ? 0.2
+                      : event.key === "ArrowDown"
+                        ? -0.2
+                        : 0),
+                ),
+              ),
+            }));
+          }
+        }}
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={(e) => {
           up(e);
           if (moved.current) return;
-          const hit = (
-            document.elementFromPoint(e.clientX, e.clientY) as Element | null
-          )?.closest("[data-i]");
+          const element = document.elementFromPoint(
+            e.clientX,
+            e.clientY,
+          ) as Element | null;
+          const flow = element?.closest("[data-rs-follow]");
+          if (flow) {
+            const mechanism = exploration.describe(
+              flow.getAttribute("data-rs-follow")!,
+            );
+            if (mechanism)
+              exploration.pick(
+                mechanism.from === exploration.current
+                  ? mechanism.to
+                  : mechanism.from,
+                mechanism.id,
+              );
+            return;
+          }
+          const hit = element?.closest("[data-i]");
           if (hit) choose(Number(hit.getAttribute("data-i")));
           else setSel(null);
         }}
@@ -245,7 +338,10 @@ export function ReasoningSpace({
           const causal =
             mechanism?.basis === "causal" &&
             mechanism.reviewStatus === "accepted";
+          const inSpotlight =
+            !!e.referenceId && spotlightEdges.has(e.referenceId);
           const lit =
+            inSpotlight ||
             chosen ||
             exploration.edgePreview(e.referenceId ?? "") ||
             (focus !== null && (e.a === focus || e.b === focus));
@@ -273,10 +369,24 @@ export function ReasoningSpace({
               key={k}
               style={{ color: color(e.a) }}
               pointerEvents="none"
+              className="rs-mechanism"
+              opacity={
+                inSpotlight ||
+                chosen ||
+                exploration.edgePreview(e.referenceId ?? "")
+                  ? 1
+                  : 0.12
+              }
+              data-spotlit={inSpotlight}
               data-rs-mechanism={e.referenceId}
               data-chosen={chosen}
             >
-              {exploration.edgePreview(e.referenceId ?? "") && (
+              <title>
+                {e.label} — {mechanism?.explanation}
+              </title>
+              {(chosen ||
+                exploration.edgePreview(e.referenceId ?? "") ||
+                (inSpotlight && mechanism?.from === spotlight?.start)) && (
                 <text
                   x={mx}
                   y={my - 12}
@@ -296,16 +406,57 @@ export function ReasoningSpace({
                 strokeWidth={chosen ? 4 : lit ? 2.4 : 1.1}
                 opacity={chosen ? 1 : alpha * 0.5}
               />
-              <path
-                d={d}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={lit ? 3.2 : 1.6}
-                strokeLinecap="round"
-                strokeDasharray="2 22"
-                opacity={Math.min(1, alpha)}
-                className={lit ? "rs-flow rs-fast" : "rs-flow"}
-              />
+              {lit &&
+                mechanism &&
+                (mechanism.from === exploration.current ||
+                  mechanism.to === exploration.current) && (
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={20}
+                    pointerEvents="stroke"
+                    className="rs-flow-target"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Seuraa: ${mechanism.label}`}
+                    data-rs-follow={mechanism.id}
+                    onPointerUp={(event) => {
+                      event.stopPropagation();
+                      if (!moved.current)
+                        exploration.pick(
+                          mechanism.from === exploration.current
+                            ? mechanism.to
+                            : mechanism.from,
+                          mechanism.id,
+                        );
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        exploration.pick(
+                          mechanism.from === exploration.current
+                            ? mechanism.to
+                            : mechanism.from,
+                          mechanism.id,
+                        );
+                      }
+                    }}
+                  />
+                )}
+              {lit && (
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={lit ? 3.2 : 1.6}
+                  strokeLinecap="round"
+                  strokeDasharray="2 22"
+                  opacity={Math.min(1, alpha)}
+                  className="rs-flow rs-fast"
+                />
+              )}
             </g>
           );
         })}
@@ -326,16 +477,27 @@ export function ReasoningSpace({
           const showLabel =
             i === sel ||
             i === hover ||
-            (focus === null ? n.kind === "concept" && p.z < 250 : w >= 0.45);
+            (focus === null
+              ? spotlightNodes.has(n.id) && p.z < 250
+              : w >= 0.45);
           const label = n.label.trim() || n.id;
           return (
             <g
               key={i}
               style={{ color: color(i) }}
               className="cursor-pointer"
-              onPointerEnter={() => setHover(i)}
-              onPointerLeave={() => setHover((h) => (h === i ? null : h))}
+              onPointerEnter={() => {
+                setHover(i);
+                const id = n.id.slice(2);
+                if (n.kind === "concept" && exploration.candidate(id))
+                  exploration.setPreview({ target: id });
+              }}
+              onPointerLeave={() => {
+                setHover((h) => (h === i ? null : h));
+                exploration.setPreview(null);
+              }}
               data-i={i}
+              data-spotlight-start={n.id === `K:${spotlight?.start}`}
               data-node-kind={n.kind}
               data-label-context={
                 focus === null ? "overview" : w >= 0.45 ? "local" : "background"
@@ -356,6 +518,26 @@ export function ReasoningSpace({
               }}
             >
               <title>{label}</title>
+              {n.id === `K:${spotlight?.start}` && (
+                <g pointerEvents="none">
+                  <circle
+                    className="rs-start-ring"
+                    cx={p.x}
+                    cy={p.y}
+                    r={Math.max(18, r + 10)}
+                  />
+                  <text
+                    x={p.x}
+                    y={p.y - r - 33}
+                    textAnchor="middle"
+                    className="rs-label"
+                    fontSize="12"
+                  >
+                    {catalog.themes[n.themes[0] ?? 0]?.label} · vaikutusketjun
+                    alku
+                  </text>
+                </g>
+              )}
               <circle
                 cx={p.x}
                 cy={p.y}
@@ -450,6 +632,10 @@ export function ReasoningSpace({
           />
         ))}
       </svg>
+      <p className="rs-guide">
+        Pyöritä: uusi vaikutusketju nousee esiin. Valitse sen alku ja seuraa
+        virtaa.
+      </p>
       <ReaderJourney data={data} />
       <GraphExplore
         data={data}

@@ -4,41 +4,13 @@ import type { ExploreStep } from "@/lib/atlas.explore";
 import { readerPath, compareReaderPaths } from "@/lib/atlas.reader";
 import { useGraphExplore } from "./GraphExplore";
 import "@/styles/reader-journey.css";
-const questions = [
-  {
-    id: "labour_productivity",
-    title: "Miten tuottavuuden muutos välittyy ihmisten toimeentuloon?",
-  },
-  {
-    id: "work_accommodation",
-    title: "Millä ehdoilla työ tukee toimintakykyä?",
-  },
-  {
-    id: "service_digitalisation",
-    title: "Kenelle palvelujen digitalisoituminen avaa mahdollisuuksia?",
-  },
-];
 export function ReaderJourney({ data }: { data: AtlasData }) {
   const e = useGraphExplore(data),
     [open, setOpen] = useState(false),
-    [question, setQuestion] = useState(""),
-    [saved, setSaved] = useState<ExploreStep[] | null>(null),
-    [menu, setMenu] = useState(false),
-    [direction, setDirection] = useState<"effects" | "causes">("effects");
+    [saved, setSaved] = useState<ExploreStep[] | null>(null);
   const path = useMemo(() => readerPath(data, e.steps), [data, e.steps]);
   const compared = saved ? readerPath(data, saved) : null,
     comparison = saved ? compareReaderPaths(saved, e.steps) : null;
-  const options = e.options.filter(
-    (o) =>
-      o.assessment.status !== "outside" &&
-      (direction === "effects" ? !o.incoming : o.incoming),
-  );
-  const begin = (id: string, title: string) => {
-    setQuestion(title);
-    e.start(id);
-    setMenu(false);
-    setOpen(false);
-  };
   const timeline = (p: typeof path) => (
     <svg
       className="reader-timeline"
@@ -255,75 +227,10 @@ export function ReaderJourney({ data }: { data: AtlasData }) {
   return (
     <>
       <div className="reader-entry">
-        <button onClick={() => setMenu(!menu)} aria-expanded={menu}>
-          Aloita kysymyksestä
-        </button>
         <button onClick={() => setOpen(!open)} aria-expanded={open}>
           Oma tulkintapolku ({e.steps.length})
         </button>
       </div>
-      {(menu || !e.current) && (
-        <div className="reader-questions">
-          <h2>Mitä haluaisit ymmärtää?</h2>
-          {questions
-            .filter((q) => data.evidence?.concepts.some((c) => c.id === q.id))
-            .map((q) => (
-              <button key={q.id} onClick={() => begin(q.id, q.title)}>
-                {q.title}
-              </button>
-            ))}
-          <p>
-            Himmeät langat näyttävät teemajäsenyyksiä. Nuoliviivat näyttävät
-            kirjatut mekanismit; katkoviiva selitysehdotuksen ja vahva viiva
-            oman valinnan. Kysymykset ovat lähtökohtia tutkimiselle, eivät
-            aineiston valmiita johtopäätöksiä. Voit aloittaa myös mistä tahansa
-            käsitepisteestä.
-          </p>
-        </div>
-      )}
-      {e.current && !open && !menu && (
-        <div className="reader-next">
-          <strong>
-            {question || "Miten tämä muutos liittyy kokonaisuuteen?"}
-          </strong>
-          <div role="group" aria-label="Polun tutkimissuunta">
-            <button
-              aria-pressed={direction === "effects"}
-              onClick={() => setDirection("effects")}
-            >
-              Mihin tämä vaikuttaa?
-            </button>
-            <button
-              aria-pressed={direction === "causes"}
-              onClick={() => setDirection("causes")}
-            >
-              Mikä tähän johti?
-            </button>
-          </div>
-          <div className="reader-next-list">
-            {options.map((o) => (
-              <button
-                key={o.mechanism.id}
-                data-reader-via={o.mechanism.id}
-                onPointerEnter={() =>
-                  e.setPreview({ target: o.target.id, via: o.mechanism.id })
-                }
-                onPointerLeave={() => e.setPreview(null)}
-                onClick={() => e.pick(o.target.id, o.mechanism.id)}
-              >
-                <b>{o.target.label}</b>
-                <span>{o.mechanism.label}</span>
-                <small>{o.mechanism.explanation}</small>
-              </button>
-            ))}
-          </div>
-          {!options.length && (
-            <p>
-              Tähän suuntaan ei ole julkaistavaa jatkoa nykyisellä rajauksella.
-            </p>
-          )}
-        </div>
-      )}
       <aside
         className={`reader-summary${open ? " open" : ""}`}
         aria-label="Lukijan tulkintapolku"
@@ -331,9 +238,9 @@ export function ReaderJourney({ data }: { data: AtlasData }) {
         inert={!open}
       >
         <button onClick={() => setOpen(false)}>Sulje yhteenveto</button>
-        <h2>{question || "Oma tulkintapolku"}</h2>
+        <h2>Oma tulkintapolku</h2>
         {!e.steps.length ? (
-          <p>Valitse ensin kysymys tai käsite kartalta.</p>
+          <p>Pyöritä avaruutta ja valitse virtaavan ketjun aloituspiste.</p>
         ) : (
           <>
             {report(path)}
