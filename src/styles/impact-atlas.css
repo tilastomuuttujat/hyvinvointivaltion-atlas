@@ -1,0 +1,379 @@
+.impact-atlas {
+  --impact-line: color-mix(in srgb, var(--foreground) 28%, transparent);
+  padding: 28px clamp(12px, 3vw, 44px);
+  max-width: 1800px;
+  margin: auto;
+}
+.impact-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.impact-heading p {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.impact-heading h2 {
+  font-family: var(--font-display, Georgia, serif);
+  font-size: clamp(24px, 3vw, 38px);
+  margin: 8px 0;
+}
+.impact-heading span,
+.impact-count {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.impact-count {
+  white-space: nowrap;
+}
+.impact-start,
+.impact-toolbar,
+.impact-theme-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.impact-start {
+  position: relative;
+  margin-bottom: 16px;
+}
+.impact-start label {
+  display: grid;
+  font-size: 11px;
+  gap: 5px;
+  margin-right: 12px;
+}
+.impact-start input {
+  width: min(360px, 80vw);
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--background);
+  font-size: 13px;
+}
+.impact-start > span {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.impact-atlas button {
+  cursor: pointer;
+}
+.impact-start button,
+.impact-toolbar button,
+.impact-theme-key button,
+.impact-current button,
+.impact-zoom button,
+.impact-minimap button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  padding: 8px 11px;
+  font-size: 12px;
+  min-height: 36px;
+}
+.impact-atlas button:hover,
+.impact-atlas button[aria-pressed="true"] {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.impact-atlas button:focus-visible,
+.impact-canvas [role="button"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+}
+.impact-search-results {
+  position: absolute;
+  z-index: 30;
+  top: 65px;
+  left: 0;
+  display: grid;
+  background: var(--background);
+  box-shadow: 0 8px 24px #0003;
+  padding: 8px;
+  min-width: 280px;
+}
+.impact-toolbar {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.impact-toolbar > div {
+  display: flex;
+  gap: 4px;
+}
+.impact-stage {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: radial-gradient(
+    ellipse at 35% 30%,
+    color-mix(in srgb, var(--primary) 4%, var(--background)),
+    var(--background)
+  );
+}
+.impact-canvas {
+  display: block;
+  width: 100%;
+  height: clamp(620px, 76vh, 860px);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+.impact-canvas:active {
+  cursor: grabbing;
+}
+.impact-edge-line {
+  fill: none;
+  stroke: var(--impact-line);
+  stroke-width: 1.4;
+}
+.impact-edge.proposed .impact-edge-line {
+  stroke-dasharray: 5 5;
+}
+.impact-edge.selected .impact-edge-line {
+  stroke: var(--primary);
+  stroke-width: 3.5;
+  stroke-dasharray: none;
+}
+.impact-edge.preview .impact-edge-line {
+  stroke: var(--primary);
+  stroke-width: 2.5;
+}
+.impact-edge.background {
+  opacity: 0.09;
+  pointer-events: none;
+}
+.impact-edge-flow {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1.6;
+  stroke-dasharray: 2 18;
+  opacity: 0.5;
+  animation: impact-flow 3s linear infinite;
+  pointer-events: none;
+}
+.impact-edge-hit {
+  fill: none;
+  stroke: transparent;
+  cursor: pointer;
+}
+.impact-edge-label,
+.impact-node-label,
+.impact-node-number {
+  fill: var(--foreground);
+  paint-order: stroke;
+  stroke: var(--background);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.impact-edge-label {
+  fill: var(--muted-foreground);
+}
+.impact-node {
+  cursor: pointer;
+}
+.impact-node.background {
+  opacity: 0.12;
+  pointer-events: none;
+}
+.impact-node.future {
+  opacity: 0.45;
+  cursor: default;
+}
+.impact-node-ring {
+  fill: none;
+  stroke: var(--primary);
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}
+.impact-node.current .impact-node-ring {
+  stroke-dasharray: none;
+}
+.impact-node.selected .impact-node-label,
+.impact-node.current .impact-node-label {
+  font-weight: 650;
+}
+.impact-node-number {
+  font-weight: bold;
+  fill: var(--primary);
+}
+.impact-zoom {
+  position: absolute;
+  left: 12px;
+  top: 110px;
+  display: grid;
+  gap: 4px;
+}
+.impact-zoom button {
+  font-size: 19px;
+  width: 38px;
+  padding: 2px;
+}
+.impact-minimap {
+  position: absolute;
+  right: 12px;
+  bottom: 100px;
+  width: 170px;
+  background: color-mix(in srgb, var(--background) 94%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.impact-minimap button {
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font-size: 11px;
+}
+.impact-minimap svg {
+  width: 100%;
+  height: 150px;
+  display: block;
+}
+.impact-minimap line {
+  stroke: var(--muted-foreground);
+  stroke-width: 5;
+  opacity: 0.35;
+}
+.impact-minimap line.chosen {
+  stroke: var(--primary);
+  stroke-width: 16;
+  opacity: 1;
+}
+.impact-viewport {
+  fill: color-mix(in srgb, var(--primary) 6%, transparent);
+  stroke: var(--primary);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 4 3;
+}
+.impact-current {
+  position: absolute;
+  left: 12px;
+  bottom: 98px;
+  max-width: min(450px, calc(100% - 210px));
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--background) 94%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.impact-current span {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.impact-current button {
+  justify-self: start;
+}
+.impact-theme-key {
+  padding: 16px 0;
+  gap: 6px;
+}
+.impact-theme-key button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.impact-theme-key i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.impact-timeline {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.impact-timeline svg {
+  width: min(800px, 80%);
+  height: 55px;
+}
+.impact-timeline line {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.impact-timeline text {
+  fill: var(--muted-foreground);
+  font-size: 12px;
+}
+.impact-timeline line.impact-period {
+  stroke: var(--primary);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.impact-timeline > span,
+.impact-note {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.impact-note {
+  line-height: 1.7;
+  margin-top: 12px;
+}
+.impact-legend-chosen,
+.impact-legend-proposed {
+  display: inline-block;
+  width: 22px;
+  border-top: 3px solid var(--primary);
+  vertical-align: middle;
+  margin: 0 5px;
+}
+.impact-legend-proposed {
+  border-top: 1px dashed var(--muted-foreground);
+  margin-left: 15px;
+}
+@keyframes impact-flow {
+  to {
+    stroke-dashoffset: -60;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .impact-edge-flow {
+    animation: none;
+  }
+}
+@media (max-width: 650px) {
+  .impact-heading {
+    display: block;
+  }
+  .impact-count {
+    margin-top: 12px;
+  }
+  .impact-toolbar {
+    justify-content: flex-start;
+  }
+  .impact-toolbar button {
+    font-size: 11px;
+    padding: 7px;
+  }
+  .impact-current {
+    max-width: calc(100% - 24px);
+    bottom: 100px;
+  }
+  .impact-minimap {
+    bottom: 240px;
+    width: 115px;
+  }
+  .impact-minimap svg {
+    height: 95px;
+  }
+  .impact-timeline {
+    display: block;
+  }
+  .impact-timeline svg {
+    width: 100%;
+  }
+  .impact-canvas {
+    height: 720px;
+  }
+}

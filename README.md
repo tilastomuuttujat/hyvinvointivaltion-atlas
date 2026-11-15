@@ -201,3 +201,11 @@ Pages-työnkulku lukee Neonin uuden julkaisun jokaisessa päähaaran pushissa ja
 `data/atlas-version.json` julkaistaan saman koonnin mukana. Selain tarkistaa viiden minuutin välein, onko uudempi vienti saatavilla, ja tarjoaa käyttäjälle latauspainikkeen. Aktiivista aineistoa tai käyttäjän polkua ei vaihdeta taustalla, eikä eri vientien osia yhdistetä.
 
 Testit: `npm run test:pages`, `npm run build:pages`, `npm run test:experience`. `scripts/fixtures/publication.json` ja sitä vastaava `publication-input.json` ovat 15.11.2026 tallennettuja, julkaistaviin tunnisteisiin rajattuja testiaineistoja (syötteessä on 39 testattavien lähdeketjujen havaintoa); sitä ei kopioida sivuston julkiseen hakemistoon. Varsinainen yhtenäinen julkaisu muodostuu luotetussa vientiajossa.
+
+### Vaikutusketjut
+
+Erillinen **↝ Vaikutusketjut**-välilehti avautuu myös osoitteen päätteellä `#vaikutusketjut`. Aloituspisteen voi hakea, valita esimerkeistä tai kokonaiskartasta. Seuraukset, taustatekijät ja 1–3 askeleen esikatselu näyttävät vain aineistoon kirjatut, voimassa olevat mekanismit. Kauempana näkyviin pisteisiin edetään väliaskeleiden kautta. Rinnakkaiset mekanismit säilyvät erillisinä valintoina.
+
+Valittu reitti korostuu samassa kuvaajassa. Vedä, lähennä tai käytä pienoiskarttaa kokonaisuuden seuraamiseen. Teemavärit perustuvat yhteiseen teemaluokitukseen; myös käsitteet ilman mekanismia ovat mukana. Niiden teemajäsenyys ei muodosta vaikutusyhteyttä. Solmujen paikat pysyvät samoina porautuessa: sijainti, etäisyys ja viivan pituus eivät mittaa aikaa tai vaikutuksen voimakkuutta. Nuolenkärki näyttää aina kirjatun vaikutussuunnan myös taustatekijöitä tutkittaessa. Katkoviiva erottaa ehdotetut yhteydet hyväksytyistä kausaalisista yhteyksistä, ja vahva viiva ilmaisee lukijan valitseman reitin, ei koko ketjun todistusvoimaa.
+
+Oma polku, tarkastelurajaukset sekä perustelut ja lähteet avautuvat vain painikkeista. Polku säilyy teemaverkkoon ja solmuverkkoon siirryttäessä. Aikajana 1850–2050 näyttää vain kirjattujen väitteiden ajoitukset ja ilmoittaa avoimet ajoitukset. Näkymä käyttää samaa versionoitua julkista JSON-vientiä ja yhteistä tutkimuspolkua kuin muut näkymät; uusia tietokantakyselyitä tai pääteltyjä syy-yhteyksiä ei lisätä.
