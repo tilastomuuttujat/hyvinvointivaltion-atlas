@@ -239,17 +239,41 @@ test(
         0,
       );
       for (const p of wall.querySelectorAll("[data-history-item]")) {
+        assert.ok(p.closest(".history-surface-scroll"));
+        const name = p.querySelector(".history-title");
+        assert.ok(name.textContent.length > 0);
         assert.equal(
-          p.getAttribute("clip-path"),
-          `url(#history-${p.dataset.historySide}-surface)`,
+          name.textContent,
+          p.getAttribute("aria-label").split(", ").slice(0, -1).join(", "),
         );
         assert.equal(
           p.dataset.historyLit,
           p.dataset.historyContext !== "none" ? "true" : "false",
         );
       }
-      for (const line of wall.querySelectorAll(".history-link"))
-        assert.ok(Number(line.getAttribute("opacity")) <= 0.25);
+      assert.equal(wall.querySelectorAll("line,polyline").length, 0);
+      assert.ok(
+        w.document.querySelector(
+          '.rs-central-network[clip-path="url(#rs-central-network)"]',
+        ),
+      );
+      assert.equal(wall.querySelectorAll(".history-surface-scroll").length, 2);
+      const svg = wall.ownerSVGElement;
+      svg.getBoundingClientRect = () => ({
+        width: 800,
+        height: 500,
+        left: 0,
+        top: 0,
+        right: 800,
+        bottom: 500,
+      });
+      w.dispatchEvent(new w.Event("resize"));
+      await until(
+        () =>
+          Number.parseFloat(
+            wall.querySelector(".history-surface").style.fontSize,
+          ) >= 32,
+      );
 
       assert.ok(wall.querySelector('[data-history-lit="true"]'));
       assert.ok(!wall.querySelector("[data-history-detail]"));
