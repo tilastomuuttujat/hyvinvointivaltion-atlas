@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import raw from "@/content/history-wall.json";
 import type { AtlasData } from "@/lib/atlas.functions";
 import { catalogueFor } from "@/lib/teema.system";
@@ -7,12 +7,18 @@ import {
   corridorLayout,
   historyThemes,
   validateHistory,
-  CORRIDOR,
-  corridorScale,
   type HistoryBundle,
 } from "@/lib/atlas.history";
 const history = raw as HistoryBundle;
 validateHistory(history);
+// Clock ring: 1850 at -150deg, 2050 at +150deg (clockwise from top), gap at the bottom.
+const RING = { cx: 800, cy: 500, r: 455 };
+const yearAngle = (year: number) =>
+  -150 + (300 * (Math.min(2050, Math.max(1850, year)) - 1850)) / 200;
+const ringPoint = (deg: number, r = RING.r) => {
+  const a = (deg * Math.PI) / 180;
+  return { x: RING.cx + r * Math.sin(a), y: RING.cy - r * Math.cos(a) };
+};
 export function HistoryWall({
   data,
   mechanismIds,
@@ -73,71 +79,95 @@ export function HistoryWall({
   );
   const color = (theme: string | undefined) =>
     theme ? `var(--rs-${themeOrder.indexOf(theme) + 1})` : "oklch(.65 .02 230)";
-  const selectedPoint = layout.find((p) => p.item.id === selected),
+  const labels: { deg: number; r: number }[] = [];
+  // The ring turns gently so the lit era drifts toward the top of the clock.
+  const litYears = lit.slice(0, 6).map((c) => c.item.start).sort((a, b) => a - b);
+  const target = litYears.length
+    ? -yearAngle(litYears[Math.floor(litYears.length / 2)]!) * 0.6
+    : 0;
+  const [rot, setRot] = useState(0),
+    rotRef = useRef(0);
+  useEffect(() => {
+    let raf = 0;
+    const step = () => {
+      const d = target - rotRef.current;
+      if (Math.abs(d) < 0.05) {
+        rotRef.current = target;
+        setRot(target);
+        return;
+      }
+      rotRef.current += d * 0.08;
+      setRot(rotRef.current);
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  const place = (start: number, id: string) => {
+    let h = 0;
+    for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) | 0;
+    const deg = yearAngle(start) + rot,
+      r = RING.r - 6 - (Math.abs(h) % 4) * 9;
+    return { deg, r, ...ringPoint(deg, r) };
+  };
+  const selectedRaw = layout.find((p) => p.item.id === selected),
+    selectedPoint = selectedRaw
+      ? (() => {
+          const q = place(selectedRaw.item.start, selectedRaw.item.id);
+          return { ...selectedRaw, x: q.x, y: q.y, side: q.deg < 0 ? "left" : "right" };
+        })()
+      : undefined,
     item = selectedPoint?.item,
     connection = item ? byId.get(item.id) : null;
-  const labels: { x: number; y: number; width: number }[] = [];
   return (
     <g className="history-wall" data-history-count={history.items.length}>
-      <g pointerEvents="none" data-history-corridor="true">
-        {(() => {
-          const { cx, cy, halfW, halfH } = CORRIDOR,
-            far = corridorScale(2050),
-            corner = (sx: number, sy: number, k: number) =>
-              `${cx + sx * halfW * k} ${cy + sy * halfH * k}`;
+      <g pointerEvents="none" data-history-corridor="true" data-history-clock="true">
+        <radialGradient id="history-clock-glow">
+          <stop offset="80%" stopColor="oklch(.55 .08 230)" stopOpacity="0" />
+          <stop offset="96%" stopColor="oklch(.55 .08 230)" stopOpacity=".14" />
+          <stop offset="100%" stopColor="oklch(.55 .08 230)" stopOpacity="0" />
+        </radialGradient>
+        <circle cx={RING.cx} cy={RING.cy} r={RING.r + 30} fill="url(#history-clock-glow)" />
+        {[RING.r + 6, RING.r - 44].map((r) => {
+          const s0 = ringPoint(-150 + rot, r), s1 = ringPoint(150 + rot, r);
+          return <path key={r} d={`M${s0.x} ${s0.y} A${r} ${r} 0 1 1 ${s1.x} ${s1.y}`} fill="none" stroke="currentColor" opacity=".14" />;
+        })}
+        {Array.from({ length: 41 }, (_, i) => 1850 + i * 5).map((year) => {
+          const major = year % 50 === 0 || year === 2025,
+            deg = yearAngle(year) + rot,
+            o = ringPoint(deg, RING.r + 6),
+            n = ringPoint(deg, RING.r + (major ? 22 : 12));
+          return <line key={year} x1={o.x} y1={o.y} x2={n.x} y2={n.y} stroke="currentColor" opacity={major ? 0.4 : 0.15} strokeDasharray={year > 2026 ? "2 2" : undefined} />;
+        })}
+        {[1850, 1900, 1950, 2000, 2026, 2050].map((year) => {
+          const deg = yearAngle(year) + rot, t = ringPoint(deg, RING.r + 40);
           return (
-            <>
-              <radialGradient id="history-horizon">
-                <stop offset="0%" stopColor="oklch(.55 .08 230)" stopOpacity=".22" />
-                <stop offset="100%" stopColor="oklch(.55 .08 230)" stopOpacity="0" />
-              </radialGradient>
-              <ellipse cx={cx} cy={cy} rx={halfW * far * 1.6} ry={halfH * far * 1.4} fill="url(#history-horizon)" />
-              {[-1, 1].map((sx) => (
-                <path
-                  key={sx}
-                  d={`M${corner(sx, -1, 1)} L${corner(sx, -1, far)} L${corner(sx, 1, far)} L${corner(sx, 1, 1)}Z`}
-                  fill="oklch(.24 .04 250)"
-                  opacity=".28"
-                />
-              ))}
-              {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sy]) => (
-                <path key={`${sx}${sy}`} d={`M${corner(sx!, sy!, 1)} L${corner(sx!, sy!, far)}`} stroke="currentColor" opacity=".12" />
-              ))}
-              {[1850, 1900, 1950, 2000, 2026, 2050].map((year) => {
-                const k = corridorScale(year);
-                return (
-                  <g key={year} opacity={year === 2026 ? 0.22 : 0.1}>
-                    <path
-                      d={`M${corner(-1, -1, k)} L${corner(1, -1, k)} L${corner(1, 1, k)} L${corner(-1, 1, k)}Z`}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeDasharray={year > 2026 ? "4 6" : undefined}
-                    />
-                    <text x={cx - halfW * k + 8} y={cy + halfH * k - 8 * k} textAnchor="start" fill="currentColor" fontSize={11 + 6 * k} opacity="1.6">
-                      {year === 2026 ? "nyt" : year}
-                    </text>
-                  </g>
-                );
-              })}
-            </>
+            <text key={year} x={t.x} y={t.y} textAnchor="middle" dominantBaseline="middle" fill="currentColor" fontSize="15" letterSpacing=".1em" opacity={year === 2026 ? 0.7 : 0.4} transform={`rotate(${deg > 90 || deg < -90 ? deg + 180 : deg} ${t.x} ${t.y})`}>
+              {year === 2026 ? "nyt" : year}
+            </text>
           );
-        })()}
+        })}
+        {origin && visible.filter((p) => illuminated.has(p.item.id)).map((p) => {
+          const q = place(p.item.start, p.item.id);
+          return (
+            <path key={p.item.id} d={`M${origin.x} ${origin.y} Q${(origin.x + RING.cx) / 2} ${(origin.y + RING.cy) / 2} ${q.x} ${q.y}`} fill="none" stroke={color(p.theme)} strokeWidth=".8" opacity=".3" className="history-thread" />
+          );
+        })}
       </g>
       {visible.map((p) => {
         const light = illuminated.has(p.item.id),
           active = selected === p.item.id || hover === p.item.id;
-        const k = p.depth,
-          width = 250,
-          x = p.x + (p.side === "left" ? 8 : -8) * k,
-          y = p.y - 6 * k;
-        const label =
-          !labels.some((l) => Math.abs(l.y - y) < 14 * k && Math.abs(l.x - x) < 150 * k);
-        if (label) labels.push({ x, y, width });
+        const q = place(p.item.start, p.item.id),
+          side = q.deg < 0 ? "left" : "right";
+        const label = !labels.some(
+          (l) => Math.abs(l.deg - q.deg) < 1.6 && Math.abs(l.r - q.r) < 10,
+        );
+        if (label || light || active) labels.push({ deg: q.deg, r: q.r });
         return (
           <g
             key={p.item.id}
             data-history-item={p.item.id}
-            data-history-side={p.side}
+            data-history-side={side}
             data-history-lit={light}
             data-history-context={byId.get(p.item.id)?.relation}
             role="button"
@@ -170,19 +200,17 @@ export function HistoryWall({
                 ? "Aiheeseen sopiva taustakohde; ei kausaalivahvistus."
                 : ""}
             </title>
-            <circle cx={p.x} cy={p.y} r="12" fill="transparent" />
-            {label && (() => {
-              const { cx, cy } = CORRIDOR;
-              const lx = p.x + (p.side === "left" ? 6 : -6) * k,
-                ly = p.y - 7 * k,
-                deg = (Math.atan((cy - ly) / (cx - lx || 1)) * 180) / Math.PI,
-                on = light || active,
-                txt = p.item.title.length > 37 ? p.item.title.slice(0, 35) + "…" : p.item.title,
-                fs = on ? 11 + 7 * k : 11 * Math.max(0.6, k);
+            <circle cx={q.x} cy={q.y} r="10" fill="transparent" />
+            <circle cx={q.x} cy={q.y} r={light || active ? 3 : 1.4} fill="currentColor" opacity={light || active ? 0.95 : 0.35} />
+            {(label || light || active) && (() => {
+              const on = light || active,
+                flip = q.deg < 0,
+                txt = p.item.title.length > 34 ? p.item.title.slice(0, 32) + "…" : p.item.title,
+                fs = on ? 14 : 9.5,
+                rotDeg = flip ? q.deg + 90 : q.deg - 90;
               return (
-                <g transform={`translate(${lx} ${ly}) skewY(${deg})`} className="history-carving" data-history-carving={on ? "lit" : "dim"}>
-                  <text x={0} y={0.9} fill="oklch(.08 .02 250)" textAnchor={p.side === "left" ? "start" : "end"} fontSize={fs} letterSpacing=".08em" opacity={on ? 0.8 : 0.25}>{txt}</text>
-                  <text x={0} y={0} fill="currentColor" textAnchor={p.side === "left" ? "start" : "end"} fontSize={fs} letterSpacing=".08em" opacity={on ? 0.95 : 0.38} className="history-title" style={on ? { filter: "drop-shadow(0 0 3px currentColor)" } : undefined}>{txt}</text>
+                <g transform={`translate(${q.x} ${q.y}) rotate(${rotDeg})`} className="history-carving" data-history-carving={on ? "lit" : "dim"}>
+                  <text x={flip ? 6 : -6} y={3} fill="currentColor" textAnchor={flip ? "start" : "end"} fontSize={fs} letterSpacing=".06em" opacity={on ? 0.95 : 0.3} className="history-title" style={on ? { filter: "drop-shadow(0 0 3px currentColor)" } : undefined}>{txt}</text>
                 </g>
               );
             })()}
