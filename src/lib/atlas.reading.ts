@@ -38,7 +38,7 @@ export function buildReadingFrame(
       .filter((s) => s.reviewStatus !== "rejected")
       .map((s) => [s.id, s]),
   );
-  const mechanisms = route.mechanisms.flatMap((id) => {
+  const candidates = route.mechanisms.flatMap((id) => {
     const m = r?.mechanisms.find(
       (m) =>
         m.id === id &&
@@ -51,7 +51,12 @@ export function buildReadingFrame(
     return m ? [m] : [];
   });
   const reached = new Set([route.start]);
-  for (const m of mechanisms) if (reached.has(m.from)) reached.add(m.to);
+  const mechanisms: typeof candidates = [];
+  for (const m of candidates)
+    if (reached.has(m.from)) {
+      reached.add(m.to);
+      mechanisms.push(m);
+    }
   const themeIds = themes
     .filter((t) => t.concepts.some((c) => c.id === route.start))
     .map((t) => t.id);
@@ -63,31 +68,39 @@ export function buildReadingFrame(
     new Set(mechanisms.map((m) => m.id)),
     new Set(themeIds),
   )
-    .filter((c) => c.relation !== "none")
+    .filter((c) => c.anchorEligible)
     .sort(
       (a, b) =>
-        (b.relation === "recorded" ? 10 : 0) -
-          (a.relation === "recorded" ? 10 : 0) ||
-        (b.item.importance ?? 0) - (a.item.importance ?? 0) ||
-        a.item.start - b.item.start,
+        a.item.end - a.item.start - (b.item.end - b.item.start) ||
+        a.item.id.localeCompare(b.item.id),
     )
     .slice(0, 3);
   const anchor = highlights[0];
-  const firstStatement = mechanisms[0]
-    ? statements.get(mechanisms[0].statementId)
-    : undefined;
+  const periods = mechanisms.flatMap((m) => {
+    const s = statements.get(m.statementId)!;
+    return s.start != null && s.end != null
+      ? [{ start: s.start, end: s.end }]
+      : [];
+  });
+  const lo = periods.length ? Math.max(...periods.map((p) => p.start)) : null,
+    hi = periods.length ? Math.min(...periods.map((p) => p.end)) : null;
+  const disjoint = lo !== null && hi !== null && lo > hi;
   const year = anchor
     ? `${anchor.item.start}–${anchor.item.end}`
-    : firstStatement?.start != null && firstStatement.end != null
-      ? `${firstStatement.start}–${firstStatement.end}`
-      : "Ajoitus avoin";
+    : disjoint
+      ? "Eri aikaikkunat"
+      : periods.length && periods.length === mechanisms.length
+        ? `${lo}–${hi}`
+        : periods.length
+          ? "Ajoitus osittain avoin"
+          : "Ajoitus avoin";
   items.push({
     id: anchor?.item.id ?? route.start,
     kind: anchor ? "phenomenon" : "concept",
     title: `${year} · ${anchor?.item.title ?? concepts.get(route.start)!.label}`,
     meaning: anchor
-      ? `${anchor.relation === "recorded" ? "Kirjattu taustailmiö" : "Samaan teemaan ja aikaan osuva taustailmiö"}${anchor.item.domains?.length ? ` · ${anchor.item.domains.slice(0, 3).join(", ")}` : ""}. Tästä kokonaisuus lähtee liikkeelle.`
-      : "Ilmiökytkentää ei ole kirjattu.",
+      ? "Kirjattu tapauskonteksti kaikille ketjun yhteyksille; ei koko vaikutuksen vahvistus."
+      : "Yleinen selitysketju. Historiallista tapauskytkentää ei ole varmistettu.",
     context: "",
     theme: themeIds[0] ?? "",
     role: "lähtökohta",
@@ -122,19 +135,27 @@ export function buildReadingFrame(
   return {
     key: `${data.generatedAt ?? ""}:${route.start}:${mechanisms.map((m) => m.id).join("|")}`,
     title: "Mitä tämä kokonaisuus avaa?",
-    synthesis: synthesise(
-      shownLinks.map((m) => ({
-        from: concepts.get(m.from)!.label,
-        to: concepts.get(m.to)!.label,
-        causal: m.basis === "causal" && m.reviewStatus === "accepted",
-        conditional: !!m.conditions?.trim(),
-      })),
-      anchor?.item.title,
-    ),
+    synthesis: shownLinks.length
+      ? synthesise(
+          shownLinks.map((m) => ({
+            from: concepts.get(m.from)!.label,
+            to: concepts.get(m.to)!.label,
+            causal: m.basis === "causal" && m.reviewStatus === "accepted",
+            conditional: !!m.conditions?.trim(),
+          })),
+          anchor?.item.title,
+        ) +
+        (!anchor
+          ? " Yhteistä tapausta ja soveltamistilannetta ei ole varmistettu."
+          : "") +
+        (disjoint ? " Askelten aikaikkunat eivät kohtaa." : "")
+      : undefined,
     items,
     note: anchor
-      ? "Ilmiö on taustakonteksti. Yhteydet voivat haarautua; koko ketjun syyvaikutusta ei ole osoitettu."
-      : "Ajoitus ja ilmiökytkentä jäävät avoimiksi.",
+      ? "Tapauskytkentä on kirjattu erikseen jokaiseen yhteyteen; koko ketjun syyvaikutusta ei ole osoitettu."
+      : disjoint
+        ? "Askelten aikaikkunat eroavat. Yhteinen välikäsite ei vahvista samaa historiallista tilannetta."
+        : "Yleinen selitysketju: yhteinen tapaus, ajoitus ja soveltamistilanne jäävät varmistamatta.",
   };
 }
 /** Conclusion sentence built from recorded link endpoints and their evidence status only. */
@@ -145,11 +166,21 @@ export function synthesise(
   if (!links.length) return undefined;
   const start = links[0]!.from;
   const chain = links.every((l, i) => i === 0 || l.from === links[i - 1]!.to);
-  const ends = chain ? [links.at(-1)!.to] : [...new Set(links.map((l) => l.to))];
-  const via = chain && links.length > 1 ? ` välivaiheen ${links.slice(0, -1).map((l) => l.to).join(" → ")} kautta` : "";
+  const ends = chain
+    ? [links.at(-1)!.to]
+    : [...new Set(links.map((l) => l.to))];
+  const via =
+    chain && links.length > 1
+      ? ` välivaiheen ${links
+          .slice(0, -1)
+          .map((l) => l.to)
+          .join(" → ")} kautta`
+      : "";
   const causal = links.filter((l) => l.causal).length;
   const target =
-    ends.length === 1 ? ends[0] : `${ends.slice(0, -1).join(", ")} ja ${ends.at(-1)}`;
+    ends.length === 1
+      ? ends[0]
+      : `${ends.slice(0, -1).join(", ")} ja ${ends.at(-1)}`;
   const strength =
     causal === links.length
       ? "Kaikki yhteydet arvioitu syysuhteiksi."
@@ -159,7 +190,10 @@ export function synthesise(
   const cond = links.some((l) => l.conditional)
     ? " Vaikutus riippuu kirjatuista ehdoista."
     : "";
-  return `${phenomenon ? `Taustana ${phenomenon.toLocaleLowerCase("fi")}: ` : ""}${start} kytkeytyy${via} kohteeseen ${target}. ${strength}${cond}`;
+  const description = chain
+    ? `${start} kytkeytyy${via} kohteeseen ${target}.`
+    : `Kirjatut yhteydet: ${links.map((l) => `${l.from} → ${l.to}`).join("; ")}. Niitä ei yhdistetä yhdeksi suoraksi ketjuksi.`;
+  return `${phenomenon ? `Kirjattu tapauskonteksti ${phenomenon}: ` : ""}${description} ${strength}${cond}`;
 }
 export const READING_TIMING = { settle: 2000, step: 1300, hold: 14000 };
 export type ReadingState = {

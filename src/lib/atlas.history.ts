@@ -250,12 +250,37 @@ export function historyConnections(
       (l) =>
         l.itemId === item.id &&
         l.reviewStatus === "accepted" &&
-        ids.has(l.mechanismId),
+        ids.has(l.mechanismId) &&
+        l.relation === "documented_context" &&
+        !!l.rationale?.trim() &&
+        /^https?:\/\//.test(l.sourceUrl),
     );
     const topical = historyThemes(item).some((t) => themes.has(t));
     const timed =
       periods.length > 0 &&
       periods.some((p) => p.start <= item.end && p.end >= item.start);
+    const knownDisjoint =
+      periods.length > 1 &&
+      Math.max(...periods.map((p) => p.start)) >
+        Math.min(...periods.map((p) => p.end));
+    const dateConflict = periods.some(
+      (p) => p.start > item.end || p.end < item.start,
+    );
+    const covered = new Set(explicit.map((l) => l.mechanismId));
+    const future = item.kind === "tulevaisuusskenaario" || item.start > 2026;
+    const compatibleKind =
+      !future ||
+      current.every((m) => {
+        const s = statements.get(m.statementId)!;
+        return s.kind === "scenario" || (s.start != null && s.start > 2026);
+      });
+    const anchorEligible =
+      ids.size > 0 &&
+      ids.size === mechanismIds.size &&
+      [...ids].every((id) => covered.has(id)) &&
+      !knownDisjoint &&
+      !dateConflict &&
+      compatibleKind;
     return {
       item,
       relation: explicit.length
@@ -264,6 +289,21 @@ export function historyConnections(
           ? "context"
           : "none",
       explicit,
+      anchorEligible,
+      matchLevel: explicit.length
+        ? "recorded"
+        : topical && timed
+          ? "time_and_theme"
+          : topical && !periods.length
+            ? "theme_only"
+            : "none",
+      reasons: anchorEligible
+        ? ["accepted_exact_links_cover_chain"]
+        : explicit.length
+          ? ["incomplete_or_incompatible_case_scope"]
+          : topical
+            ? ["theme_is_not_case_evidence"]
+            : ["no_recorded_connection"],
       timed,
       topical,
     } as const;

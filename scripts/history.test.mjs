@@ -166,3 +166,30 @@ test("dense wall positions and background labels stay fixed while the active cha
     assert.ok(p.y > top && p.y < bottom);
   }
 });
+
+test("theme-only and time-plus-theme matches are never eligible case anchors", () => {
+  const ids = new Set(["structural-hidden-8", "structural-care-6"]);
+  const c = historyConnections(
+    h,
+    data,
+    ids,
+    new Set(["governance", "finance"]),
+  ).find((c) => c.item.id === "suomen-sota-autonomia-1808");
+  assert.equal(c.matchLevel, "theme_only");
+  assert.equal(c.anchorEligible, false);
+  const copy = structuredClone(data);
+  for (const m of copy.evidence.reasoning.mechanisms.filter((m) =>
+    ids.has(m.id),
+  )) {
+    const s = copy.evidence.reasoning.statements.find(
+      (s) => s.id === m.statementId,
+    );
+    s.start = 1991;
+    s.end = 1994;
+  }
+  const timed = historyConnections(h, copy, ids, new Set(["finance"])).find(
+    (c) => c.item.id === "pankkikriisi",
+  );
+  assert.equal(timed.matchLevel, "time_and_theme");
+  assert.equal(timed.anchorEligible, false);
+});
