@@ -233,3 +233,30 @@
     max-height: 34vh;
   }
 }
+
+/* Reserve the caption area so its first line never rises as rows arrive. */
+.reading-landing {
+  height: 40vh;
+  max-height: 40vh;
+  justify-content: flex-start;
+}
+.reading-landing-body {
+  flex: 1;
+  min-height: 0;
+  scroll-behavior: auto;
+  overflow-anchor: none;
+}
+.reading-landing ol {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+.reading-landing footer {
+  flex: none;
+}
+@media (max-width: 650px) {
+  .reading-landing {
+    height: 34vh;
+    max-height: 34vh;
+  }
+}
