@@ -67,28 +67,36 @@ function Arrival({
       }
     }
     row.classList.add("arriving");
-    const timer = setTimeout(() => setFlight(null), 950);
+    const timer = setTimeout(() => setFlight(null), 1500);
     return () => clearTimeout(timer);
   }, [item.id]);
+  // Curved gravity arc from the source star to the caption row.
+  const arc = flight
+    ? (() => {
+        const ex = flight.x + flight.dx,
+          ey = flight.y + flight.dy;
+        const cx = (flight.x + ex) / 2 - flight.dy * 0.35,
+          cy = Math.min(flight.y, ey) - Math.abs(flight.dx) * 0.25;
+        return `M ${flight.x} ${flight.y} Q ${cx} ${cy} ${ex} ${ey}`;
+      })()
+    : "";
   return (
     <>
       {flight &&
         createPortal(
-          <span
+          <div
             aria-hidden="true"
-            className="reading-flight"
-            style={
-              {
-                left: flight.x,
-                top: flight.y,
-                "--flight-x": `${flight.dx}px`,
-                "--flight-y": `${flight.dy}px`,
-                color: flight.color,
-              } as React.CSSProperties
-            }
+            className="reading-flight-layer"
+            style={{ color: flight.color }}
           >
-            {item.title}
-          </span>,
+            <svg className="reading-trail">
+              <path d={arc} pathLength={1} />
+            </svg>
+            <span
+              className="reading-flight"
+              style={{ offsetPath: `path("${arc}")` } as React.CSSProperties}
+            />
+          </div>,
           document.body,
         )}
       <li
@@ -97,6 +105,14 @@ function Arrival({
         data-reading-item={item.id}
         style={{ "--reading-color": color } as React.CSSProperties}
       >
+        {item.role && (
+          <span className="reading-role">
+            {item.role === "lähtökohta" ? "Lähtökohta" : "Vaikutus"}
+            {item.basis && (
+              <em data-basis={item.basis}>{item.basis}</em>
+            )}
+          </span>
+        )}
         {item.inspection ? (
           <button
             className="reading-step-title"
@@ -195,7 +211,15 @@ export function ReadingLanding({
           ))}
         </ol>
         {state.shown === state.frame.items.length && (
-          <p className="reading-landing-note">{state.frame.note}</p>
+          <div className="reading-conclusion">
+            {state.frame.synthesis && (
+              <>
+                <span className="reading-role">Päätelmä</span>
+                <p className="reading-synthesis">{state.frame.synthesis}</p>
+              </>
+            )}
+            <p className="reading-landing-note">{state.frame.note}</p>
+          </div>
         )}
       </div>
       <footer>

@@ -87,3 +87,15 @@ test("reading copies canonical meanings and never includes stale or fabricated r
     ),
   );
 });
+import { synthesise } from "../src/lib/atlas.reading.ts";
+test("conclusion states evidence strength from recorded links only", () => {
+  assert.equal(synthesise([]), undefined);
+  const s = synthesise([
+    { from: "A", to: "B", causal: true, conditional: false },
+    { from: "B", to: "C", causal: false, conditional: true },
+  ], "Peruskoulu");
+  assert.match(s, /^Taustana peruskoulu: A/);
+  assert.match(s, /1\/2 yhteydestä/);
+  assert.match(s, /ehdoista/);
+  assert.match(synthesise([{ from: "A", to: "B", causal: false, conditional: false }]), /eivät todennettuja syitä/);
+});

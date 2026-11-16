@@ -9,6 +9,10 @@ export type ReadingItem = {
   meaning: string;
   context: string;
   theme: string;
+  /** Role in the reasoning arc: background, a mechanism link, or the end point. */
+  role?: "lähtökohta" | "mekanismi";
+  /** Evidence status of a mechanism link, shown as a plain-language badge. */
+  basis?: "arvioitu syy" | "kirjattu yhteys" | "selitysehdotus";
   inspection?: { kind: string; id: string };
 };
 export type ReadingFrame = {
@@ -16,6 +20,8 @@ export type ReadingFrame = {
   title: string;
   items: ReadingItem[];
   note: string;
+  /** Plain-language conclusion assembled only from the recorded links above. */
+  synthesis?: string;
 };
 type Theme = { id: string; label: string; concepts: { id: string }[] };
 export function buildReadingFrame(
@@ -79,19 +85,34 @@ export function buildReadingFrame(
     id: anchor?.item.id ?? route.start,
     kind: anchor ? "phenomenon" : "concept",
     title: `${year} · ${anchor?.item.title ?? concepts.get(route.start)!.label}`,
-    meaning: anchor ? "" : "Ilmiökytkentää ei ole kirjattu.",
+    meaning: anchor
+      ? `${anchor.relation === "recorded" ? "Kirjattu taustailmiö" : "Samaan teemaan ja aikaan osuva taustailmiö"}${anchor.item.domains?.length ? ` · ${anchor.item.domains.slice(0, 3).join(", ")}` : ""}. Tästä kokonaisuus lähtee liikkeelle.`
+      : "Ilmiökytkentää ei ole kirjattu.",
     context: "",
     theme: themeIds[0] ?? "",
+    role: "lähtökohta",
   });
-  for (const m of mechanisms
+  const shownLinks = mechanisms
     .filter((m) => reached.has(m.from) && reached.has(m.to))
-    .slice(0, 3)) {
+    .slice(0, 3);
+  const told = new Set<string>();
+  for (const m of shownLinks) {
+    const causal = m.basis === "causal" && m.reviewStatus === "accepted";
+    let why = m.explanation?.trim();
+    if (why && told.has(why)) why = "";
+    if (why) told.add(why);
     items.push({
       id: m.id,
       sourceId: m.to,
       kind: "concept",
       title: `${concepts.get(m.from)!.label} → ${concepts.get(m.to)!.label}`,
-      meaning: `${m.basis === "causal" && m.reviewStatus === "accepted" ? "" : m.basis === "association" ? "Kirjattu yhteys: " : "Selitysehdotus: "}${m.label}`,
+      meaning: `${m.label}.${m.conditions?.trim() ? ` Ehto: ${m.conditions.trim()}` : why && why !== m.label ? ` ${why}` : ""}`,
+      role: "mekanismi",
+      basis: causal
+        ? "arvioitu syy"
+        : m.basis === "association"
+          ? "kirjattu yhteys"
+          : "selitysehdotus",
       context: "",
       theme:
         themes.find((t) => t.concepts.some((c) => c.id === m.to))?.id ?? "",
@@ -101,11 +122,44 @@ export function buildReadingFrame(
   return {
     key: `${data.generatedAt ?? ""}:${route.start}:${mechanisms.map((m) => m.id).join("|")}`,
     title: "Mitä tämä kokonaisuus avaa?",
+    synthesis: synthesise(
+      shownLinks.map((m) => ({
+        from: concepts.get(m.from)!.label,
+        to: concepts.get(m.to)!.label,
+        causal: m.basis === "causal" && m.reviewStatus === "accepted",
+        conditional: !!m.conditions?.trim(),
+      })),
+      anchor?.item.title,
+    ),
     items,
     note: anchor
       ? "Ilmiö on taustakonteksti. Yhteydet voivat haarautua; koko ketjun syyvaikutusta ei ole osoitettu."
       : "Ajoitus ja ilmiökytkentä jäävät avoimiksi.",
   };
+}
+/** Conclusion sentence built from recorded link endpoints and their evidence status only. */
+export function synthesise(
+  links: { from: string; to: string; causal: boolean; conditional: boolean }[],
+  phenomenon?: string,
+): string | undefined {
+  if (!links.length) return undefined;
+  const start = links[0]!.from;
+  const chain = links.every((l, i) => i === 0 || l.from === links[i - 1]!.to);
+  const ends = chain ? [links.at(-1)!.to] : [...new Set(links.map((l) => l.to))];
+  const via = chain && links.length > 1 ? ` välivaiheen ${links.slice(0, -1).map((l) => l.to).join(" → ")} kautta` : "";
+  const causal = links.filter((l) => l.causal).length;
+  const target =
+    ends.length === 1 ? ends[0] : `${ends.slice(0, -1).join(", ")} ja ${ends.at(-1)}`;
+  const strength =
+    causal === links.length
+      ? "Kaikki yhteydet arvioitu syysuhteiksi."
+      : causal === 0
+        ? "Yhteydet ovat selitysehdotuksia, eivät todennettuja syitä."
+        : `${causal}/${links.length} yhteydestä arvioitu syysuhteiksi, muut selitysehdotuksia.`;
+  const cond = links.some((l) => l.conditional)
+    ? " Vaikutus riippuu kirjatuista ehdoista."
+    : "";
+  return `${phenomenon ? `Taustana ${phenomenon.toLocaleLowerCase("fi")}: ` : ""}${start} kytkeytyy${via} kohteeseen ${target}. ${strength}${cond}`;
 }
 export const READING_TIMING = { settle: 2000, step: 1300, hold: 14000 };
 export type ReadingState = {
