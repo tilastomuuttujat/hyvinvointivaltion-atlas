@@ -232,7 +232,10 @@ test(
       assert.ok(wall.querySelector('[data-history-corridor="true"]'));
       assert.ok(wall.querySelector('[data-history-side="left"]'));
       assert.ok(wall.querySelector('[data-history-side="right"]'));
-      assert.ok(wall.querySelectorAll('[data-history-lit="true"]').length <= 6);
+      const litCount=wall.querySelectorAll('[data-history-lit="true"]').length;
+      assert.ok(litCount>6,'more related phenomena should light up than before');
+      assert.ok(litCount<=12);
+      assert.ok(wall.querySelector('.history-thread'),'thin supporting connections remain');
       assert.ok(!wall.querySelector(".history-link"));
       assert.ok(
         wall.querySelectorAll('[data-history-carving="dim"]').length >= 40,

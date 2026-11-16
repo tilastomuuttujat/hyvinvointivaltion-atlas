@@ -12,6 +12,7 @@ import {
 const history = raw as HistoryBundle;
 validateHistory(history);
 // Clock ring: 1850 at -150deg, 2050 at +150deg (clockwise from top), gap at the bottom.
+const MAX_ILLUMINATED = 12;
 const RING = { cx: 800, cy: 500, r: 455 };
 const yearAngle = (year: number) =>
   -150 + (300 * (Math.min(2050, Math.max(1850, year)) - 1850)) / 200;
@@ -70,7 +71,7 @@ export function HistoryWall({
       .slice(0, Math.ceil(detail / 10)))
       sampled.add(p.item.id);
   }
-  const illuminated = new Set(lit.slice(0, 6).map((c) => c.item.id));
+  const illuminated = new Set(lit.slice(0, MAX_ILLUMINATED).map((c) => c.item.id));
   const visible = layout.filter(
     (p) =>
       sampled.has(p.item.id) ||
@@ -81,7 +82,7 @@ export function HistoryWall({
     theme ? `var(--rs-${themeOrder.indexOf(theme) + 1})` : "oklch(.65 .02 230)";
   const labels: { deg: number; r: number }[] = [];
   // The ring turns gently so the lit era drifts toward the top of the clock.
-  const litYears = lit.slice(0, 6).map((c) => c.item.start).sort((a, b) => a - b);
+  const litYears = lit.slice(0, MAX_ILLUMINATED).map((c) => c.item.start).sort((a, b) => a - b);
   const target = litYears.length
     ? -yearAngle(litYears[Math.floor(litYears.length / 2)]!) * 0.6
     : 0;
