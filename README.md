@@ -241,3 +241,10 @@ Aikaseinän asettelu on käytävämäinen: historialliset ilmiöt ja niiden aika
 Nykyisessä Päättelyavaruudessa ilmiöiden ja käsitteiden välisiä yhdysviivoja ei piirretä. Kaikki 1 111 historiallista kohdetta säilyvät vasemmalla ja oikealla perspektiiviseinällä. Taustanimikkeitä jaetaan runsaasti jokaiseen vuosikymmen-/seinäjaksoon; niiden paikat eivät muutu aktiivisen ketjun vaihtuessa. Tekstit pienenevät syvyyteen, asettuvat seinäpinnan suuntaisesti ja leikataan seinän tarkkaan monikulmioon. Keskikäytävän poikki ei piirretä historiakerroksen ruudukkoa.
 
 Kaikki nykyiseen käsitteeseen tai ketjuun liittyvät ilmiöt valaistaan, muut himmennetään. Aiempi kuuden korostuksen raja ja pieni otanta on poistettu. Valaistus noudattaa edelleen eroteltuja tausta-/aikakonteksteja ja mahdollisia täsmällisesti kirjattuja kytkentöjä; valaistus ei itsessään ole kausaalivahvistus. Ilmiön lähdekortti avataan edelleen pyynnöstä.
+
+
+### Luettavat seinämätekstit
+
+Seinämiltä on poistettu myös ilmiöiden kestoviivat ja pisteviivastot: ajoitus näytetään jokaisen nimikkeen yhteydessä tekstinä. Myöskään ilmiöiden ja käsitteiden välillä ei ole yhdysviivoja. Keskikäytävän käsiteverkko on rajattu omaan alueeseensa, jotta sen viivat eivät piirry ilmiötekstien päälle. Esillä oleva ketju valitaan keskialueella näkyvistä aloituspisteistä.
+
+Kummallakin seinällä on itsenäisesti pystysuunnassa selattava tekstipinta. Kaikki 1 111 nimikettä säilyvät mukana kokonaisina, rivittyvät normaalissa tekstivirrassa ja näyttävät vuodet. Skew-vinoutus, syvyyteen kutistuvat kirjasimet, kaksoistekstit ja päällekkäiset otsikot on poistettu. Fonttikoko kompensoi SVG:n näytölle skaalautumisen; peruskoko on vähintään 16 näyttöpikseliä ennen seinän lievää perspektiiviä. Aiheeseen liittyvät kohteet valaistaan, muut säilyvät himmeämpinä mutta luettavina. Aiheen vaihtuessa seinä tuo ensimmäisen liittyvän kohteen näkyviin. Seinän pyyhkäisy selaa tekstiä eikä pyöritä verkkoa.
