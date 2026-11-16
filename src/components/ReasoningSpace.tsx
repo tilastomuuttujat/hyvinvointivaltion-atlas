@@ -17,8 +17,9 @@ const RS_CSS = `
 .reasoning-space .rs-mechanism{transition:opacity .45s ease}
 .reasoning-space .rs-start-ring{fill:none;stroke:currentColor;stroke-width:1.5;stroke-dasharray:2 6}
 .reasoning-space .rs-flow-target{cursor:pointer}
-.history-title{paint-order:stroke;stroke:oklch(.11 .03 260);stroke-width:.8;stroke-linejoin:round}
+.history-title{paint-order:stroke;stroke:oklch(.11 .03 260);stroke-width:3;stroke-linejoin:round}
 .history-heading{fill:oklch(.75 .02 230);font-size:14px;letter-spacing:.05em}
+.history-link{animation:rs-flow 5s linear infinite;pointer-events:none}
 .history-card{box-sizing:border-box;background:oklch(.13 .025 260);border:1px solid oklch(.45 .03 230);border-radius:10px;padding:14px;color:oklch(.94 .02 230);height:250px;overflow:auto;font:14px/1.5 sans-serif}
 .history-card h3{font-size:18px;margin:8px 0}.history-card p{margin:6px 0}.history-card button,.history-card a{display:inline-block;padding:5px 8px;margin:3px;border:1px solid oklch(.45 .03 230);border-radius:5px;color:inherit;background:transparent}.history-card small{display:block;opacity:.6;margin-top:8px}
 .reasoning-space .rs-guide{position:absolute;bottom:95px;left:18px;font-size:12px;opacity:.65;pointer-events:none;max-width:300px}
@@ -30,11 +31,13 @@ const RS_CSS = `
 .reasoning-space .rs-pulse{animation:rs-pulse 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes rs-flow{to{stroke-dashoffset:-24}}
 @keyframes rs-pulse{50%{transform:scale(1.5);opacity:.6}}
-@media (prefers-reduced-motion:reduce){.reasoning-space .rs-flow,.reasoning-space .rs-pulse{animation:none}.reasoning-space .rs-mechanism{transition:none}}
+@media (prefers-reduced-motion:reduce){.reasoning-space .rs-flow,.reasoning-space .rs-pulse,.history-link{animation:none}.reasoning-space .rs-mechanism{transition:none}}
 `;
 const W = 1600,
   H = 1000,
-  PALETTE = 12;
+  PALETTE = 12,
+  // Horizontal spread so the concept cloud fills wide screens past the clock ring.
+  SPREAD_X = 1.55;
 
 /**
  * Persistent visual network with optional inquiry, source and path-summary controls.
@@ -66,15 +69,8 @@ export function ReasoningSpace({
   const routes = useMemo(() => spotlightRoutes(data), [data]);
   const previousSpotlight = useRef<string | undefined>(undefined);
   const rotated = graph.nodes.map((n) => rotate(n.p, orbit));
-  const visibleRoutes = routes.filter((route) => {
-    const i = graph.nodes.findIndex((n) => n.id === `K:${route.start}`),
-      p = rotated[i];
-    if (!p) return false;
-    const x = 800 + p.x * perspective(p.z * 2.2) * zoom * 0.95;
-    return x >= 480 && x <= 1120;
-  });
   const spotlight = orientationSpotlight(
-    visibleRoutes,
+    routes,
     graph,
     rotated,
     previousSpotlight.current,
@@ -117,7 +113,7 @@ export function ReasoningSpace({
   const proj = graph.nodes.map((n) => {
     const r = rotate(n.p, orbit),
       s = perspective(r.z * 2.2) * zoom * 0.95;
-    return { x: W / 2 + r.x * s, y: H / 2 + r.y * s, z: r.z, s };
+    return { x: W / 2 + r.x * s * SPREAD_X, y: H / 2 + r.y * s, z: r.z, s };
   });
   const focus = sel ?? hover;
   const near = useMemo(
@@ -339,6 +335,7 @@ export function ReasoningSpace({
         </defs>
         <HistoryWall
           data={data}
+          zoom={zoom}
           mechanismIds={
             sel !== null && graph.nodes[sel]?.kind === "concept"
               ? exploration.options
@@ -355,283 +352,281 @@ export function ReasoningSpace({
                   ?.themes
             )?.map((i) => catalog.themes[i]!.id) ?? []
           }
+          origin={(() => {
+            const i =
+              sel !== null && graph.nodes[sel]?.kind === "concept"
+                ? sel
+                : graph.nodes.findIndex(
+                    (n) => n.id === `K:${spotlight?.start}`,
+                  );
+            return i >= 0 ? proj[i]! : null;
+          })()}
           onExplore={(theme) => {
             const i = graph.nodes.findIndex((n) => n.id === `T:${theme}`);
             if (i >= 0) setSel(i);
           }}
         />
-        <defs>
-          <clipPath id="rs-central-network">
-            <rect x="470" y="0" width="660" height="1000" />
-          </clipPath>
-        </defs>
-        <g className="rs-central-network" clipPath="url(#rs-central-network)">
-          {edges.map((e, k) => {
-            const a = proj[e.a]!,
-              b = proj[e.b]!;
-            const chosen =
-              e.kind === "mechanism" &&
-              !!e.referenceId &&
-              exploration.chosen(e.referenceId);
-            const mechanism = e.referenceId
-              ? exploration.describe(e.referenceId)
-              : undefined;
-            const causal =
-              mechanism?.basis === "causal" &&
-              mechanism.reviewStatus === "accepted";
-            const inSpotlight =
-              !!e.referenceId && spotlightEdges.has(e.referenceId);
-            const lit =
-              inSpotlight ||
-              chosen ||
-              exploration.edgePreview(e.referenceId ?? "") ||
-              (focus !== null && (e.a === focus || e.b === focus));
-            const echoed =
-              focus !== null && !lit && echo!.has(e.a) && echo!.has(e.b);
-            const alpha =
-              Math.min(fog(a.z), fog(b.z)) *
-              (focus === null ? 1 : lit ? 1.4 : echoed ? 0.6 : 0.12);
-            const mx = (a.x + b.x) / 2 + (a.y - b.y) * 0.12,
-              my = (a.y + b.y) / 2 + (b.x - a.x) * 0.12;
-            const d = `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`;
-            if (e.kind === "member")
-              return (
-                <path
-                  key={k}
-                  d={d}
-                  fill="none"
-                  stroke={color(e.a)}
-                  strokeWidth={0.5}
-                  opacity={alpha * 0.25}
-                />
-              );
+        {edges.map((e, k) => {
+          const a = proj[e.a]!,
+            b = proj[e.b]!;
+          const chosen =
+            e.kind === "mechanism" &&
+            !!e.referenceId &&
+            exploration.chosen(e.referenceId);
+          const mechanism = e.referenceId
+            ? exploration.describe(e.referenceId)
+            : undefined;
+          const causal =
+            mechanism?.basis === "causal" &&
+            mechanism.reviewStatus === "accepted";
+          const inSpotlight =
+            !!e.referenceId && spotlightEdges.has(e.referenceId);
+          const lit =
+            inSpotlight ||
+            chosen ||
+            exploration.edgePreview(e.referenceId ?? "") ||
+            (focus !== null && (e.a === focus || e.b === focus));
+          const echoed =
+            focus !== null && !lit && echo!.has(e.a) && echo!.has(e.b);
+          const alpha =
+            Math.min(fog(a.z), fog(b.z)) *
+            (focus === null ? 1 : lit ? 1.4 : echoed ? 0.6 : 0.12);
+          const mx = (a.x + b.x) / 2 + (a.y - b.y) * 0.12,
+            my = (a.y + b.y) / 2 + (b.x - a.x) * 0.12;
+          const d = `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`;
+          if (e.kind === "member")
             return (
-              <g
+              <path
                 key={k}
-                style={{ color: color(e.a) }}
-                pointerEvents="none"
-                className="rs-mechanism"
-                opacity={
-                  inSpotlight ||
-                  chosen ||
-                  exploration.edgePreview(e.referenceId ?? "")
-                    ? 1
-                    : 0.12
-                }
-                data-spotlit={inSpotlight}
-                data-rs-mechanism={e.referenceId}
-                data-chosen={chosen}
-              >
-                <title>
-                  {e.label} — {mechanism?.explanation}
-                </title>
-                {(chosen ||
-                  exploration.edgePreview(e.referenceId ?? "") ||
-                  (inSpotlight && mechanism?.from === spotlight?.start)) && (
-                  <text
-                    x={mx}
-                    y={my - 12}
-                    textAnchor="middle"
-                    className="rs-label"
-                    fontSize="14"
-                  >
-                    {e.label}
-                  </text>
+                d={d}
+                fill="none"
+                stroke={color(e.a)}
+                strokeWidth={0.5}
+                opacity={alpha * 0.25}
+              />
+            );
+          return (
+            <g
+              key={k}
+              style={{ color: color(e.a) }}
+              pointerEvents="none"
+              className="rs-mechanism"
+              opacity={
+                inSpotlight ||
+                chosen ||
+                exploration.edgePreview(e.referenceId ?? "")
+                  ? 1
+                  : 0.12
+              }
+              data-spotlit={inSpotlight}
+              data-rs-mechanism={e.referenceId}
+              data-chosen={chosen}
+            >
+              <title>
+                {e.label} — {mechanism?.explanation}
+              </title>
+              {(chosen ||
+                exploration.edgePreview(e.referenceId ?? "") ||
+                (inSpotlight && mechanism?.from === spotlight?.start)) && (
+                <text
+                  x={mx}
+                  y={my - 12}
+                  textAnchor="middle"
+                  className="rs-label"
+                  fontSize="14"
+                >
+                  {e.label}
+                </text>
+              )}
+              <path
+                d={d}
+                fill="none"
+                stroke="currentColor"
+                strokeDasharray={chosen || causal ? undefined : "6 5"}
+                markerEnd="url(#rs-direction)"
+                strokeWidth={chosen ? 4 : lit ? 2.4 : 1.1}
+                opacity={chosen ? 1 : alpha * 0.5}
+              />
+              {lit &&
+                mechanism &&
+                (mechanism.from === exploration.current ||
+                  mechanism.to === exploration.current) && (
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={20}
+                    pointerEvents="stroke"
+                    className="rs-flow-target"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Seuraa: ${mechanism.label}`}
+                    data-rs-follow={mechanism.id}
+                    onPointerUp={(event) => {
+                      event.stopPropagation();
+                      if (!moved.current)
+                        exploration.pick(
+                          mechanism.from === exploration.current
+                            ? mechanism.to
+                            : mechanism.from,
+                          mechanism.id,
+                        );
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        exploration.pick(
+                          mechanism.from === exploration.current
+                            ? mechanism.to
+                            : mechanism.from,
+                          mechanism.id,
+                        );
+                      }
+                    }}
+                  />
                 )}
+              {lit && (
                 <path
                   d={d}
                   fill="none"
                   stroke="currentColor"
-                  strokeDasharray={chosen || causal ? undefined : "6 5"}
-                  markerEnd="url(#rs-direction)"
-                  strokeWidth={chosen ? 4 : lit ? 2.4 : 1.1}
-                  opacity={chosen ? 1 : alpha * 0.5}
+                  strokeWidth={lit ? 3.2 : 1.6}
+                  strokeLinecap="round"
+                  strokeDasharray="2 22"
+                  opacity={Math.min(1, alpha)}
+                  className="rs-flow rs-fast"
                 />
-                {lit &&
-                  mechanism &&
-                  (mechanism.from === exploration.current ||
-                    mechanism.to === exploration.current) && (
-                    <path
-                      d={d}
-                      fill="none"
-                      stroke="transparent"
-                      strokeWidth={20}
-                      pointerEvents="stroke"
-                      className="rs-flow-target"
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Seuraa: ${mechanism.label}`}
-                      data-rs-follow={mechanism.id}
-                      onPointerUp={(event) => {
-                        event.stopPropagation();
-                        if (!moved.current)
-                          exploration.pick(
-                            mechanism.from === exploration.current
-                              ? mechanism.to
-                              : mechanism.from,
-                            mechanism.id,
-                          );
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          exploration.pick(
-                            mechanism.from === exploration.current
-                              ? mechanism.to
-                              : mechanism.from,
-                            mechanism.id,
-                          );
-                        }
-                      }}
-                    />
-                  )}
-                {lit && (
-                  <path
-                    d={d}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={lit ? 3.2 : 1.6}
-                    strokeLinecap="round"
-                    strokeDasharray="2 22"
-                    opacity={Math.min(1, alpha)}
-                    className="rs-flow rs-fast"
-                  />
-                )}
-              </g>
-            );
-          })}
-          {order.map((i) => {
-            const n = graph.nodes[i]!,
-              p = proj[i]!;
-            const w = weight(i),
-              a = fog(p.z) * w;
-            const base =
-              n.kind === "theme"
-                ? 9
-                : n.kind === "conclusion"
-                  ? 3
-                  : 2.5 + Math.sqrt(degree[i]!) * 1.6;
-            const r = base * p.s * 1.4 * (i === focus ? 1.8 : 1);
-            // Keep the overview quiet; name all highlighted local node kinds,
-            // plus any explicitly hovered, focused or selected point.
-            const showLabel =
-              i === sel ||
-              i === hover ||
-              (focus === null
-                ? spotlightNodes.has(n.id) && p.z < 250
-                : w >= 0.45);
-            const label = n.label.trim() || n.id;
-            return (
-              <g
-                key={i}
-                style={{ color: color(i) }}
-                className="cursor-pointer"
-                onPointerEnter={() => {
-                  setHover(i);
-                  const id = n.id.slice(2);
-                  if (n.kind === "concept" && exploration.candidate(id))
-                    exploration.setPreview({ target: id });
-                }}
-                onPointerLeave={() => {
-                  setHover((h) => (h === i ? null : h));
-                  exploration.setPreview(null);
-                }}
-                data-i={i}
-                data-spotlight-start={n.id === `K:${spotlight?.start}`}
-                data-node-kind={n.kind}
-                data-label-context={
-                  focus === null
-                    ? "overview"
-                    : w >= 0.45
-                      ? "local"
-                      : "background"
+              )}
+            </g>
+          );
+        })}
+        {order.map((i) => {
+          const n = graph.nodes[i]!,
+            p = proj[i]!;
+          const w = weight(i),
+            a = fog(p.z) * w;
+          const base =
+            n.kind === "theme"
+              ? 9
+              : n.kind === "conclusion"
+                ? 3
+                : 2.5 + Math.sqrt(degree[i]!) * 1.6;
+          const r = base * p.s * 1.4 * (i === focus ? 1.8 : 1);
+          // Keep the overview quiet; name all highlighted local node kinds,
+          // plus any explicitly hovered, focused or selected point.
+          const showLabel =
+            i === sel ||
+            i === hover ||
+            (focus === null
+              ? spotlightNodes.has(n.id) && p.z < 250
+              : w >= 0.45);
+          const label = n.label.trim() || n.id;
+          return (
+            <g
+              key={i}
+              style={{ color: color(i) }}
+              className="cursor-pointer"
+              onPointerEnter={() => {
+                setHover(i);
+                const id = n.id.slice(2);
+                if (n.kind === "concept" && exploration.candidate(id))
+                  exploration.setPreview({ target: id });
+              }}
+              onPointerLeave={() => {
+                setHover((h) => (h === i ? null : h));
+                exploration.setPreview(null);
+              }}
+              data-i={i}
+              data-spotlight-start={n.id === `K:${spotlight?.start}`}
+              data-node-kind={n.kind}
+              data-label-context={
+                focus === null ? "overview" : w >= 0.45 ? "local" : "background"
+              }
+              role="button"
+              tabIndex={0}
+              aria-label={label}
+              aria-pressed={sel === i}
+              onFocus={() => setHover(i)}
+              onBlur={() => setHover(null)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  moved.current = false;
+                  idle.current = performance.now();
+                  choose(i);
                 }
-                role="button"
-                tabIndex={0}
-                aria-label={label}
-                aria-pressed={sel === i}
-                onFocus={() => setHover(i)}
-                onBlur={() => setHover(null)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    moved.current = false;
-                    idle.current = performance.now();
-                    choose(i);
-                  }
-                }}
-              >
-                <title>{label}</title>
-                {n.id === `K:${spotlight?.start}` && (
-                  <g pointerEvents="none">
-                    <circle
-                      className="rs-start-ring"
-                      cx={p.x}
-                      cy={p.y}
-                      r={Math.max(18, r + 10)}
-                    />
-                    <text
-                      x={p.x}
-                      y={p.y - r - 33}
-                      textAnchor="middle"
-                      className="rs-label"
-                      fontSize="12"
-                    >
-                      {catalog.themes[n.themes[0] ?? 0]?.label} · vaikutusketjun
-                      alku
-                    </text>
-                  </g>
-                )}
-                <circle
-                  cx={p.x}
-                  cy={p.y}
-                  r={r * 4}
-                  fill="url(#rs-glow)"
-                  opacity={a * (i === focus ? 0.7 : 0.25)}
-                  className={
-                    sel !== null && near!.has(i) && i !== sel
-                      ? "rs-pulse"
-                      : undefined
-                  }
-                />
-                <circle
-                  cx={p.x}
-                  cy={p.y}
-                  r={Math.max(1.5, r)}
-                  fill="currentColor"
-                  opacity={a}
-                />
-                <circle
-                  cx={p.x}
-                  cy={p.y}
-                  r={Math.max(14, r * 3)}
-                  fill="transparent"
-                />
-                {showLabel && (
+              }}
+            >
+              <title>{label}</title>
+              {n.id === `K:${spotlight?.start}` && (
+                <g pointerEvents="none">
+                  <circle
+                    className="rs-start-ring"
+                    cx={p.x}
+                    cy={p.y}
+                    r={Math.max(18, r + 10)}
+                  />
                   <text
                     x={p.x}
-                    y={p.y - r - 8}
+                    y={p.y - r - 33}
                     textAnchor="middle"
                     className="rs-label"
-                    fontSize={Math.max(
-                      13,
-                      Math.min(28, p.s * (i === focus ? 26 : 16)),
-                    )}
-                    opacity={
-                      focus === null && i !== hover && i !== sel
-                        ? Math.max(0.35, 1 - (p.z + 300) / 600)
-                        : 1
-                    }
-                    fontWeight={i === focus ? 600 : 400}
+                    fontSize="12"
                   >
-                    {label}
+                    {catalog.themes[n.themes[0] ?? 0]?.label} · vaikutusketjun
+                    alku
                   </text>
-                )}
-              </g>
-            );
-          })}
-        </g>
+                </g>
+              )}
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={r * 4}
+                fill="url(#rs-glow)"
+                opacity={a * (i === focus ? 0.7 : 0.25)}
+                className={
+                  sel !== null && near!.has(i) && i !== sel
+                    ? "rs-pulse"
+                    : undefined
+                }
+              />
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={Math.max(1.5, r)}
+                fill="currentColor"
+                opacity={a}
+              />
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={Math.max(14, r * 3)}
+                fill="transparent"
+              />
+              {showLabel && (
+                <text
+                  x={p.x}
+                  y={p.y - r - 8}
+                  textAnchor="middle"
+                  className="rs-label"
+                  fontSize={Math.max(
+                    13,
+                    Math.min(28, p.s * (i === focus ? 26 : 16)),
+                  )}
+                  opacity={
+                    focus === null && i !== hover && i !== sel
+                      ? Math.max(0.35, 1 - (p.z + 300) / 600)
+                      : 1
+                  }
+                  fontWeight={i === focus ? 600 : 400}
+                >
+                  {label}
+                </text>
+              )}
+            </g>
+          );
+        })}
       </svg>
       <svg
         className="reader-minimap"
