@@ -1,0 +1,168 @@
+.reading-landing {
+  position: absolute;
+  z-index: 14;
+  right: 18px;
+  bottom: 90px;
+  width: clamp(320px, 30vw, 450px);
+  max-height: 52vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid oklch(0.4 0.035 230);
+  border-radius: 12px;
+  background: oklch(0.13 0.025 260/0.95);
+  box-shadow: 0 12px 40px #0005;
+  color: oklch(0.94 0.015 230);
+  font-size: 14px;
+  text-align: left;
+}
+.reading-landing header {
+  padding: 14px 16px 10px;
+}
+.reading-landing header > span {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+.reading-landing h2 {
+  font-size: 18px;
+  margin: 5px 0;
+  line-height: 1.3;
+}
+.reading-landing header small {
+  font-size: 10px;
+  opacity: 0.65;
+}
+.reading-landing-body {
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px 8px;
+  min-height: 0;
+}
+.reading-landing ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.reading-item {
+  position: relative;
+  padding: 12px 0;
+  border-top: 1px solid oklch(0.3 0.025 230);
+  transform-origin: left top;
+  --arrival-x: -70px;
+  --arrival-y: -40px;
+}
+.reading-item.arriving {
+  animation: reading-arrive 0.85s cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+.reading-item strong {
+  display: block;
+  color: var(--reading-color);
+  font-size: 15px;
+  line-height: 1.4;
+}
+.reading-kind {
+  display: block;
+  font-size: 10px;
+  opacity: 0.6;
+  margin-bottom: 3px;
+}
+.reading-item p {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 5px 0;
+}
+.reading-item small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.72;
+}
+.reading-landing button {
+  background: none;
+  border: 1px solid oklch(0.4 0.03 230);
+  border-radius: 5px;
+  font-size: 10px;
+  padding: 5px 7px;
+  margin-top: 7px;
+  cursor: pointer;
+  color: inherit;
+}
+.reading-landing button:focus-visible,
+.reading-landing:focus-visible {
+  outline: 2px solid oklch(0.8 0.1 180);
+  outline-offset: 3px;
+}
+.reading-landing-note {
+  font-size: 10px;
+  line-height: 1.5;
+  opacity: 0.65;
+  padding-top: 8px;
+}
+.reading-landing footer {
+  padding: 8px 16px;
+  font-size: 10px;
+  opacity: 0.65;
+}
+.reading-landing footer button {
+  margin: 0 0 0 8px;
+}
+@keyframes reading-arrive {
+  from {
+    transform: translate(var(--arrival-x), var(--arrival-y)) scale(0.65);
+    opacity: 0;
+  }
+  to {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+}
+@media (max-width: 650px) {
+  .reading-landing {
+    right: 10px;
+    bottom: 100px;
+    width: calc(100% - 20px);
+    max-height: 38vh;
+  }
+  .reading-landing h2 {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-item.arriving {
+    animation: none;
+  }
+}
+
+.reading-flight {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  font-size: 14px;
+  font-weight: 550;
+  max-width: 280px;
+  text-shadow: 0 1px 4px #000;
+  animation: reading-flight 0.85s cubic-bezier(0.2, 0.7, 0.25, 1) both;
+  transform-origin: left center;
+}
+@keyframes reading-flight {
+  0% {
+    transform: translate(0, 0) scale(0.85);
+    opacity: 0.25;
+  }
+  25% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(var(--flight-x), var(--flight-y)) scale(1);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-flight {
+    display: none;
+  }
+}

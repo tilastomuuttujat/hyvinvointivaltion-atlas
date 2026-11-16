@@ -232,10 +232,18 @@ test(
       assert.ok(wall.querySelector('[data-history-corridor="true"]'));
       assert.ok(wall.querySelector('[data-history-side="left"]'));
       assert.ok(wall.querySelector('[data-history-side="right"]'));
-      const litCount=wall.querySelectorAll('[data-history-lit="true"]').length;
-      assert.ok(litCount>6,'more related phenomena should light up than before');
-      assert.ok(litCount<=12);
-      assert.ok(wall.querySelector('.history-thread'),'thin supporting connections remain');
+      const litCount = wall.querySelectorAll(
+        '[data-history-lit="true"]',
+      ).length;
+      assert.ok(
+        litCount > 6,
+        "more related phenomena should light up than before",
+      );
+      assert.ok(litCount <= 12);
+      assert.ok(
+        wall.querySelector(".history-thread"),
+        "thin supporting connections remain",
+      );
       assert.ok(!wall.querySelector(".history-link"));
       assert.ok(
         wall.querySelectorAll('[data-history-carving="dim"]').length >= 40,
@@ -356,6 +364,135 @@ test(
           .querySelector(".reader-comparison")
           .textContent.includes("Sama lähtökohta"),
       );
+      assert.deepEqual(errors, []);
+    } finally {
+      dom.window.close();
+    }
+  },
+);
+
+test(
+  "reading landing settles, arrives sequentially, pauses on touch and waits before the next scene",
+  { timeout: 60000 },
+  async () => {
+    const snapshot = JSON.parse(
+      await readFile(
+        new URL("../public/data/atlas.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const dir = new URL("../dist-pages/assets/", import.meta.url),
+      entry = (await readdir(dir)).find((n) => /^index-.*\.js$/.test(n));
+    const errors = [],
+      vc = new VirtualConsole();
+    vc.on("jsdomError", (e) => errors.push(e.message));
+    const dom = new JSDOM('<div id="root"></div>', {
+        url: "https://example.org/hyvinvointivaltion-atlas/",
+        runScripts: "outside-only",
+        pretendToBeVisual: true,
+        virtualConsole: vc,
+      }),
+      w = dom.window;
+    let clock = 0;
+    const ticks = [];
+    w.Date.now = () => clock;
+    w.setInterval = (fn, ms) => {
+      if (ms === 200) ticks.push(fn);
+      return 1;
+    };
+    w.clearInterval = () => {};
+    w.matchMedia = () => ({
+      matches: true,
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    w.requestAnimationFrame = () => 1;
+    w.cancelAnimationFrame = () => {};
+    w.fetch = async () => ({ ok: true, json: async () => snapshot });
+    const advance = async (ms) => {
+      clock += ms;
+      ticks.forEach((fn) => fn());
+      await pause(50);
+    };
+    try {
+      w.eval(await readFile(new URL(entry, dir), "utf8"));
+      await until(() =>
+        [...w.document.querySelectorAll("button")].some((b) =>
+          b.textContent.includes("Päättelyavaruus"),
+        ),
+      );
+      [...w.document.querySelectorAll("button")]
+        .find((b) => b.textContent.includes("Päättelyavaruus"))
+        .click();
+      await until(() =>
+        w.document.querySelector('[data-reading-concept="work_accommodation"]'),
+      );
+      const start = w.document.querySelector(
+        '[data-reading-concept="work_accommodation"]',
+      );
+      start.querySelector("circle").getBoundingClientRect = () => ({
+        x: 100,
+        y: 100,
+        width: 20,
+        height: 20,
+      });
+      const originalRect = w.HTMLElement.prototype.getBoundingClientRect;
+      w.HTMLElement.prototype.getBoundingClientRect = function () {
+        return this.classList?.contains("reading-item")
+          ? { x: 650, y: 500, width: 300, height: 90 }
+          : originalRect.call(this);
+      };
+      start.dispatchEvent(
+        new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+      await pause(60);
+      await advance(1900);
+      assert.ok(!w.document.querySelector(".reading-landing"));
+      for (
+        let n = 0;
+        n < 15 && !w.document.querySelector(".reading-landing");
+        n++
+      ) {
+        await advance(200);
+        if (errors.length) throw Error(errors.join("\n"));
+      }
+      assert.ok(w.document.querySelector(".reading-landing"));
+      const panel = w.document.querySelector(".reading-landing"),
+        key = panel.dataset.readingKey;
+      assert.equal(panel.querySelectorAll("[data-reading-item]").length, 1);
+      assert.ok(start.isConnected);
+      assert.ok(
+        w.document.querySelector(".reading-flight"),
+        "a separate label copy flies while the original remains",
+      );
+      panel.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+      await until(() => panel.dataset.readingPaused === "true");
+      const other = w.document.querySelector(
+        '[data-reading-concept="service_digitalisation"]',
+      );
+      other.dispatchEvent(
+        new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+      await pause(60);
+      await advance(10000);
+      assert.equal(panel.dataset.readingKey, key);
+      assert.equal(panel.querySelectorAll("[data-reading-item]").length, 1);
+      panel.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+      await until(() => panel.dataset.readingPaused === "false");
+      for (let n = 0; n < 16; n++) {
+        const count = panel
+          .querySelector("footer")
+          .textContent.match(/(\d+)\/(\d+)/);
+        if (count[1] === count[2]) break;
+        await advance(1300);
+      }
+      assert.equal(panel.dataset.readingKey, key);
+      assert.ok(panel.querySelector(".reading-landing-note"));
+      await advance(13900);
+      assert.equal(panel.dataset.readingKey, key);
+      await advance(200);
+      assert.notEqual(panel.dataset.readingKey, key);
+      assert.equal(panel.querySelectorAll("[data-reading-item]").length, 1);
       assert.deepEqual(errors, []);
     } finally {
       dom.window.close();
