@@ -5,9 +5,9 @@ import { AtlasPage } from './routes/index';
 import { TietoPage } from './routes/tieto';
 import './styles.css';
 class LoadBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
+  override state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  render() {
+  override render() {
     if (this.state.failed) return <main className="p-10"><h1>Aineistoa ei saatu ladattua</h1><p>Tarkista verkkoyhteys ja lataa sivu uudelleen.</p><button onClick={() => location.reload()}>Yritä uudelleen</button></main>;
     return this.props.children;
   }
