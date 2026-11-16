@@ -469,6 +469,15 @@ test(
       const panel = w.document.querySelector(".reading-landing"),
         key = panel.dataset.readingKey;
       assert.equal(panel.querySelectorAll("[data-reading-item]").length, 1);
+      const readingBody = panel.querySelector(".reading-landing-body");
+      Object.defineProperty(readingBody, "scrollHeight", {
+        value: 2000,
+        configurable: true,
+      });
+      const firstCaption = panel.querySelector(
+        "[data-reading-item]",
+      ).textContent;
+
       assert.ok(start.isConnected);
       assert.ok(!panel.querySelector("header"));
       assert.match(
@@ -503,6 +512,16 @@ test(
       }
       assert.equal(panel.dataset.readingKey, key);
       assert.ok(panel.querySelector(".reading-landing-note"));
+      assert.equal(
+        readingBody.scrollTop,
+        0,
+        "new steps must not lift previous rows by auto-scrolling",
+      );
+      assert.equal(
+        panel.querySelector("[data-reading-item]").textContent,
+        firstCaption,
+      );
+
       await advance(13900);
       assert.equal(panel.dataset.readingKey, key);
       await advance(200);

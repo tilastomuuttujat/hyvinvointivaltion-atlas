@@ -29,8 +29,6 @@ function Arrival({
   useLayoutEffect(() => {
     const row = element.current;
     if (!row) return;
-    const body = row.closest(".reading-landing-body") as HTMLElement | null;
-    if (body) body.scrollTop = body.scrollHeight;
     const source = [
       ...document.querySelectorAll<HTMLElement>(
         item.kind === "concept"
@@ -152,9 +150,8 @@ export function ReadingLanding({
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
-    if (!paused && body.current)
-      body.current.scrollTop = body.current.scrollHeight;
-  }, [state.frame?.key, state.shown, paused]);
+    if (body.current) body.current.scrollTop = 0;
+  }, [state.frame?.key]);
   if (!state.frame) return null;
   return (
     <section
