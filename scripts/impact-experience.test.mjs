@@ -482,7 +482,7 @@ test(
       assert.ok(!panel.querySelector("header"));
       assert.match(
         panel.querySelector(".reading-item strong").textContent,
-        /^(\d{4}–\d{4}|Ajoitus avoin)/,
+        /^(\d{4}–\d{4}|Ajoitus (?:osittain )?avoin|Eri aikaikkunat)/,
       );
 
       assert.ok(

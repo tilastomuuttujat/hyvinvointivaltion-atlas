@@ -259,3 +259,11 @@ Käsitteille näytetään kirjatut määritelmät, mekanismien selitykset, rajat
 Valmis kokonaisuus säilyy vähintään 14 sekuntia ennen seuraavan vakaan näkymän saapumista. Lyhyet pyörähdykset eivät vaihda tekstiä; jonoon jää uusin riittävän vakaa käsitteistö. Koskettaminen lukitsee lukutilan, uusi kosketus tai Jatka vapauttaa sen. Hiiren osoitus ja näppäimistökohdistus pysäyttävät lukemisen ajaksi. Pysäytys jäädyttää myös automaattisen pyörinnän. Sivun sulkeminen poistaa ajastimet ja animoidut kopiot.
 
 Lukutilan tiivistetty versio alkaa yhdestä vuosilukuun sidotusta ilmiöstä. Sen jälkeen saapuu enintään kolme kirjattua mekanismia, joissa näkyvät käsitepari ja lyhyt mekanismin nimike. Laajat määritelmät, soveltamisehdot ja selitysmetatiedot eivät enää listautu automaattisesti. Askelen otsikko avaa pyynnöstä alkuperäisen perustelun. Ilmiökytkennän puuttuessa puute ilmoitetaan, eikä sitä täytetä oletuksella. Listaus on numeroitua tekstiä suoraan kuvaajan päällä ilman ikkunataustaa, kehystä tai erillistä otsaketta. Animaatiot, pysäytys ja odotusajat säilyvät.
+
+### Tapauskontekstin valintarajat
+
+Aikakehän aihealuevalaistus ja lukulistan historiallinen aloitus ovat eri asioita. `historyConnections` erittelee teemaosuman (`theme_only`), aika- ja teemaosuman (`time_and_theme`) sekä eksplisiittisen kytkennän (`recorded`). Yhteinen teema tai samanaikaisuus ei oikeuta ilmiötä ketjun tapausankkuriksi.
+
+Lukulista saa nimetyn historiallisen aloituksen vain, kun samasta kohteesta on hyväksytty, lähteistetty ja perusteltu `documented_context`-kytkentä jokaiseen ketjun ajantasaiseen, saavutettavaan mekanismiin. Kaikkien tunnettujen aikaikkunoiden on sovittava kohteeseen ja toisiinsa. Skenaariota ei käytetä historiallisen ketjun ankkurina. Kyse on silloinkin tapauskontekstista, ei kokonaisvaikutuksen todistamisesta.
+
+Ilman tällaista kytkentää lukulista ilmoittaa yleisen selitysketjun, varmistamattoman tapaus-/soveltamiskytkennän sekä avoimen tai eriaikaisen ajoituksen. Esimerkiksi `hidden_work → time_availability → labour_input_use` ei saa Suomen sotaa taustakseen hallinto-/talousteeman perusteella. Eri haarojen tai irrallisten lähtöpisteiden suhteet luetellaan erikseen, ei keksittynä yhtenä suorana ketjuna. Kaarimainen siirtymä ja uusin päätelmäluettelo säilyvät.
