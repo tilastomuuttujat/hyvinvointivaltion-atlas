@@ -297,12 +297,33 @@ export function corridorScale(year: number) {
 }
 /** Phenomena sit on the left/right corridor walls; their wall height is the theme lane. */
 export function corridorLayout(h: HistoryBundle, themeOrder: string[]) {
-  const hash = (s: string) =>
-    [...s].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 0);
-  return historyLayout(h, themeOrder).map((p) => {
+  const points = historyLayout(h, themeOrder);
+  const groups = new Map<string, typeof points>();
+  for (const p of points) {
+    const key = `${p.row % 2}:${Math.floor(Math.max(1850, p.item.start) / 10)}`;
+    const group = groups.get(key) ?? [];
+    group.push(p);
+    groups.set(key, group);
+  }
+  for (const group of groups.values())
+    group.sort(
+      (a, b) =>
+        a.row - b.row ||
+        a.item.start - b.item.start ||
+        a.item.id.localeCompare(b.item.id),
+    );
+  return points.map((p) => {
     const side = p.row % 2 === 0 ? "left" : "right";
     const lane = Math.floor(p.row / 2) % 7;
-    const v = -0.8 + (lane / 6) * 1.6 + ((hash(p.item.id) % 5) - 2) * 0.025;
+    const group = groups.get(
+      `${p.row % 2}:${Math.floor(Math.max(1850, p.item.start) / 10)}`,
+    )!;
+    const ordinal = group.findIndex((q) => q.item.id === p.item.id);
+    // Evenly cover the wall height within every decade, rather than piling
+    // hundreds of contemporary phenomena into six theme-height lanes.
+    const v = -0.88 + ((ordinal + 0.5) / group.length) * 1.76;
+    const stride = Math.max(1, Math.ceil(group.length / 18));
+    const labelled = ordinal % stride === 0;
     const sign = side === "left" ? -1 : 1;
     const position = (year: number) => {
       const s = corridorScale(year);
@@ -318,6 +339,7 @@ export function corridorLayout(h: HistoryBundle, themeOrder: string[]) {
       ...p,
       side,
       lane,
+      labelled,
       depth: start.s,
       x: start.x,
       y: start.y,

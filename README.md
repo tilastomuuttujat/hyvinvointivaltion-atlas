@@ -234,3 +234,10 @@ Aihealueluokitus 12 näyttöteemaan on eksplisiittinen toimituksellinen domain-r
 
 
 Aikaseinän asettelu on käytävämäinen: historialliset ilmiöt ja niiden aikavälit ovat vain vasemmalla (x < 320) tai oikealla (x > 1280) 1600-yksikön kuva-alassa. Myös otsikot ja pyynnöstä avattava lähdekortti pysyvät sivuseinillä. Keskiosa on varattu käsiteverkolle; siellä kulkee enintään kaksi hyvin heikkoa, hitaasti virtaavaa yhteysviivaa ilmiöihin. Muut ilmiöt jäävät himmennetyiksi. Vuodet 1850–2050 etenevät molemmilla sivuilla ylhäältä alas; vinous kuvaa käytäväperspektiiviä, ei vaikutuksen suuruutta.
+
+
+### Tiheät ilmiöpinnat (16.11.2026)
+
+Nykyisessä Päättelyavaruudessa ilmiöiden ja käsitteiden välisiä yhdysviivoja ei piirretä. Kaikki 1 111 historiallista kohdetta säilyvät vasemmalla ja oikealla perspektiiviseinällä. Taustanimikkeitä jaetaan runsaasti jokaiseen vuosikymmen-/seinäjaksoon; niiden paikat eivät muutu aktiivisen ketjun vaihtuessa. Tekstit pienenevät syvyyteen, asettuvat seinäpinnan suuntaisesti ja leikataan seinän tarkkaan monikulmioon. Keskikäytävän poikki ei piirretä historiakerroksen ruudukkoa.
+
+Kaikki nykyiseen käsitteeseen tai ketjuun liittyvät ilmiöt valaistaan, muut himmennetään. Aiempi kuuden korostuksen raja ja pieni otanta on poistettu. Valaistus noudattaa edelleen eroteltuja tausta-/aikakonteksteja ja mahdollisia täsmällisesti kirjattuja kytkentöjä; valaistus ei itsessään ole kausaalivahvistus. Ilmiön lähdekortti avataan edelleen pyynnöstä.

@@ -124,8 +124,45 @@ test("corridor places phenomena on receding side walls along the time axis", () 
   assert.ok(rows.some((p) => p.side === "right"));
   for (const p of rows) {
     // Walls recede toward the central vanishing point; earlier years sit nearer the viewer, the future at the horizon.
-    assert.ok(p.side === "left" ? p.x < 800 && p.endX >= p.x - 1 : p.x > 800 && p.endX <= p.x + 1);
+    assert.ok(
+      p.side === "left"
+        ? p.x < 800 && p.endX >= p.x - 1
+        : p.x > 800 && p.endX <= p.x + 1,
+    );
     assert.ok(p.y >= 50 && p.y <= 950);
   }
   assert.deepEqual(rows, corridorLayout(h, order));
+});
+
+test("dense wall positions and background labels stay fixed while the active chain changes", () => {
+  const themes = [
+    "rights",
+    "work",
+    "health",
+    "education",
+    "livelihood",
+    "governance",
+    "finance",
+    "population",
+    "information",
+    "democracy",
+    "security_environment",
+    "renewal",
+  ];
+  const positions = corridorLayout(h, themes);
+  assert.equal(positions.length, h.items.length);
+  assert.ok(positions.filter((p) => p.labelled).length > 150);
+  for (const side of ["left", "right"])
+    assert.ok(
+      positions.filter((p) => p.side === side && p.labelled).length > 60,
+    );
+  const before = JSON.stringify(positions);
+  historyConnections(h, data, new Set(), new Set(["work"]));
+  historyConnections(h, data, new Set(), new Set(["finance"]));
+  assert.equal(JSON.stringify(corridorLayout(h, themes)), before);
+  for (const p of positions) {
+    const top = 500 - 440 * p.depth,
+      bottom = 500 + 440 * p.depth;
+    assert.ok(p.y > top && p.y < bottom);
+  }
 });
