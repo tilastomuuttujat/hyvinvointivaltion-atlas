@@ -20,10 +20,14 @@ type Snapshot = {
 let pending: Promise<Snapshot> | undefined;
 async function snapshot(): Promise<Snapshot> {
   if (!pending)
-    pending = fetch(`${import.meta.env.BASE_URL}data/atlas.json`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Atlas-aineistoa ei saatu ladattua.");
-        const data: Snapshot = await response.json();
+    pending = fetch(new URL("data/atlas.json", document.baseURI).href).then(
+      async (response) => {
+        if (!response.ok)
+          throw new Error("Atlas-aineistoa ei saatu ladattua.");
+        return (await response.json()) as Snapshot;
+      },
+    )
+      .then(async (data: Snapshot) => {
         if (
           data.schemaVersion !== 1 ||
           !data.atlas?.periods?.length ||

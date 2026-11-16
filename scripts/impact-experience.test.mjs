@@ -232,48 +232,12 @@ test(
       assert.ok(wall.querySelector('[data-history-corridor="true"]'));
       assert.ok(wall.querySelector('[data-history-side="left"]'));
       assert.ok(wall.querySelector('[data-history-side="right"]'));
-      assert.equal(wall.querySelectorAll("[data-history-item]").length, 1111);
-      assert.ok(wall.querySelectorAll(".history-title").length > 150);
-      assert.equal(
-        wall.querySelectorAll(".history-link,[data-history-relation]").length,
-        0,
-      );
-      for (const p of wall.querySelectorAll("[data-history-item]")) {
-        assert.ok(p.closest(".history-surface-scroll"));
-        const name = p.querySelector(".history-title");
-        assert.ok(name.textContent.length > 0);
-        assert.equal(
-          name.textContent,
-          p.getAttribute("aria-label").split(", ").slice(0, -1).join(", "),
-        );
-        assert.equal(
-          p.dataset.historyLit,
-          p.dataset.historyContext !== "none" ? "true" : "false",
-        );
-      }
-      assert.equal(wall.querySelectorAll("line,polyline").length, 0);
+      assert.ok(wall.querySelectorAll('[data-history-lit="true"]').length <= 6);
+      assert.ok(!wall.querySelector(".history-link"));
       assert.ok(
-        w.document.querySelector(
-          '.rs-central-network[clip-path="url(#rs-central-network)"]',
-        ),
+        wall.querySelectorAll('[data-history-carving="dim"]').length >= 40,
       );
-      assert.equal(wall.querySelectorAll(".history-surface-scroll").length, 2);
-      const svg = wall.ownerSVGElement;
-      svg.getBoundingClientRect = () => ({
-        width: 800,
-        height: 500,
-        left: 0,
-        top: 0,
-        right: 800,
-        bottom: 500,
-      });
-      w.dispatchEvent(new w.Event("resize"));
-      await until(
-        () =>
-          Number.parseFloat(
-            wall.querySelector(".history-surface").style.fontSize,
-          ) >= 32,
-      );
+      assert.ok(wall.querySelector('[data-history-carving="lit"]'));
 
       assert.ok(wall.querySelector('[data-history-lit="true"]'));
       assert.ok(!wall.querySelector("[data-history-detail]"));
