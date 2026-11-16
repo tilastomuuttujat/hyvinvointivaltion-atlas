@@ -71,20 +71,19 @@ test("reading copies canonical meanings and never includes stale or fabricated r
   };
   const f = buildReadingFrame(data, route, history, themes);
   assert.ok(f);
-  assert.ok(f.items.find((i) => i.id === m.from));
-  assert.ok(f.items.find((i) => i.id === m.to));
-  assert.ok(!f.items.find((i) => i.id === "unknown"));
-  assert.equal(
-    f.items[0].meaning,
-    data.evidence.concepts.find((c) => c.id === m.from).definition,
+  assert.ok(f.items.find((i) => i.inspection?.id === m.id));
+  assert.ok(f.items.length <= 4);
+  assert.match(f.items[0].title, /^(\d{4}–\d{4}|Ajoitus avoin)/);
+  assert.ok(
+    f.items.find((i) => i.inspection?.id === m.id).meaning.includes(m.label),
   );
-  for (const p of f.items.filter((i) => i.kind === "phenomenon"))
-    assert.ok(p.context.includes("ei kausaalivahvistus"));
+  assert.ok(!f.items.find((i) => i.id === "unknown"));
+  assert.ok(f.note.includes("syyvaikutusta") || f.note.includes("avoimiksi"));
   const d = structuredClone(data);
   d.evidence.reasoning.mechanisms.find((x) => x.id === m.id).isCurrent = false;
   assert.ok(
     !buildReadingFrame(d, route, history, themes).items.find(
-      (i) => i.id === m.to,
+      (i) => i.inspection?.id === m.id,
     ),
   );
 });

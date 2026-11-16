@@ -436,6 +436,15 @@ test(
         width: 20,
         height: 20,
       });
+      for (const circle of w.document.querySelectorAll(
+        "[data-history-item] circle",
+      ))
+        circle.getBoundingClientRect = () => ({
+          x: 100,
+          y: 100,
+          width: 20,
+          height: 20,
+        });
       const originalRect = w.HTMLElement.prototype.getBoundingClientRect;
       w.HTMLElement.prototype.getBoundingClientRect = function () {
         return this.classList?.contains("reading-item")
@@ -461,6 +470,12 @@ test(
         key = panel.dataset.readingKey;
       assert.equal(panel.querySelectorAll("[data-reading-item]").length, 1);
       assert.ok(start.isConnected);
+      assert.ok(!panel.querySelector("header"));
+      assert.match(
+        panel.querySelector(".reading-item strong").textContent,
+        /^(\d{4}–\d{4}|Ajoitus avoin)/,
+      );
+
       assert.ok(
         w.document.querySelector(".reading-flight"),
         "a separate label copy flies while the original remains",

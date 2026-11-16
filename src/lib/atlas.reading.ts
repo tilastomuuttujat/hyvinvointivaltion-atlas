@@ -4,6 +4,7 @@ import { historyConnections, type HistoryBundle } from "./atlas.history.ts";
 export type ReadingItem = {
   id: string;
   kind: "concept" | "phenomenon";
+  sourceId?: string;
   title: string;
   meaning: string;
   context: string;
@@ -48,31 +49,8 @@ export function buildReadingFrame(
   const themeIds = themes
     .filter((t) => t.concepts.some((c) => c.id === route.start))
     .map((t) => t.id);
-  const items: ReadingItem[] = route.nodes
-    .filter((id) => reached.has(id) && concepts.has(id))
-    .map((id) => {
-      const c = concepts.get(id)!,
-        incoming = mechanisms.filter((m) => m.to === id && reached.has(m.from)),
-        m = incoming[0],
-        s = m ? statements.get(m.statementId) : undefined;
-      const context = m
-        ? `${m.basis === "causal" && m.reviewStatus === "accepted" ? "Kausaaliseksi arvioitu yhteys" : m.basis === "association" ? "Kirjattu yhteys" : "Selitysehdotus"}: ${m.label}. ${m.explanation} ${s?.scope || ""} ${s?.start != null && s.end != null ? `Kirjattu ajoitus ${s.start}–${s.end}.` : "Ajoitus avoin."} ${m.conditions ? `Ehdot: ${m.conditions}` : ""}`
-        : themes
-            .filter((t) => t.concepts.some((c) => c.id === id))
-            .map((t) => t.label)
-            .join(" · ");
-      return {
-        id,
-        kind: "concept",
-        title: c.label,
-        meaning: c.definition || "Määritelmää ei ole kirjattu.",
-        context,
-        theme:
-          themes.find((t) => t.concepts.some((c) => c.id === id))?.id ?? "",
-        inspection: { kind: m ? "mechanism" : "concept", id: m?.id ?? id },
-      };
-    });
-  if (!items.length) return null;
+  if (!concepts.has(route.start)) return null;
+  const items: ReadingItem[] = [];
   const highlights = historyConnections(
     history,
     data,
@@ -88,25 +66,45 @@ export function buildReadingFrame(
         a.item.start - b.item.start,
     )
     .slice(0, 3);
-  for (const h of highlights)
+  const anchor = highlights[0];
+  const firstStatement = mechanisms[0]
+    ? statements.get(mechanisms[0].statementId)
+    : undefined;
+  const year = anchor
+    ? `${anchor.item.start}–${anchor.item.end}`
+    : firstStatement?.start != null && firstStatement.end != null
+      ? `${firstStatement.start}–${firstStatement.end}`
+      : "Ajoitus avoin";
+  items.push({
+    id: anchor?.item.id ?? route.start,
+    kind: anchor ? "phenomenon" : "concept",
+    title: `${year} · ${anchor?.item.title ?? concepts.get(route.start)!.label}`,
+    meaning: anchor ? "" : "Ilmiökytkentää ei ole kirjattu.",
+    context: "",
+    theme: themeIds[0] ?? "",
+  });
+  for (const m of mechanisms
+    .filter((m) => reached.has(m.from) && reached.has(m.to))
+    .slice(0, 3)) {
     items.push({
-      id: h.item.id,
-      kind: "phenomenon",
-      title: h.item.title,
-      meaning: `${h.item.start}–${h.item.end} · ${h.item.kind}`,
-      context:
-        h.relation === "recorded"
-          ? "Kirjattu kontekstikytkentä; ei yksin kausaalivahvistus."
-          : h.timed
-            ? "Aihealue ja kirjattu aikaikkuna kohtaavat. Taustakonteksti, ei kausaalivahvistus."
-            : "Sama aihealue. Yhteistä ajoitusta ei ole varmistettu; ei kausaalivahvistus.",
-      theme: themeIds[0] ?? "",
+      id: m.id,
+      sourceId: m.to,
+      kind: "concept",
+      title: `${concepts.get(m.from)!.label} → ${concepts.get(m.to)!.label}`,
+      meaning: `${m.basis === "causal" && m.reviewStatus === "accepted" ? "" : m.basis === "association" ? "Kirjattu yhteys: " : "Selitysehdotus: "}${m.label}`,
+      context: "",
+      theme:
+        themes.find((t) => t.concepts.some((c) => c.id === m.to))?.id ?? "",
+      inspection: { kind: "mechanism", id: m.id },
     });
+  }
   return {
     key: `${data.generatedAt ?? ""}:${route.start}:${mechanisms.map((m) => m.id).join("|")}`,
-    title: concepts.get(route.start)?.label ?? route.start,
+    title: "Mitä tämä kokonaisuus avaa?",
     items,
-    note: "Määritelmät, selitykset ja ajoitukset ovat kirjattua aineistoa. Kokonaisuus voi haarautua; listajärjestys ei muodosta uusia syy-yhteyksiä.",
+    note: anchor
+      ? "Ilmiö on taustakonteksti. Yhteydet voivat haarautua; koko ketjun syyvaikutusta ei ole osoitettu."
+      : "Ajoitus ja ilmiökytkentä jäävät avoimiksi.",
   };
 }
 export const READING_TIMING = { settle: 2000, step: 1300, hold: 14000 };

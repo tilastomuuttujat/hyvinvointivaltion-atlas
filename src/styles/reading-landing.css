@@ -166,3 +166,70 @@
     display: none;
   }
 }
+
+/* Integrated captions, not a separate window. */
+.reading-landing {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow:
+    0 1px 4px #000,
+    0 0 14px #000;
+  max-height: 40vh;
+  width: clamp(330px, 32vw, 480px);
+}
+.reading-landing-body {
+  padding: 0 6px 4px;
+}
+.reading-landing ol {
+  counter-reset: reading-step;
+}
+.reading-item {
+  border: 0;
+  padding: 7px 0 7px 28px;
+  counter-increment: reading-step;
+}
+.reading-item:before {
+  content: counter(reading-step) ".";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  font-size: 15px;
+  opacity: 0.6;
+}
+.reading-item strong {
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.4;
+}
+.reading-item p {
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 3px 0 0;
+}
+.reading-landing .reading-step-title {
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  text-align: left;
+  text-shadow: inherit;
+  font: inherit;
+}
+.reading-landing-note {
+  margin: 8px 0 0;
+  padding: 0 0 0 28px;
+  font-size: 11px;
+}
+.reading-landing footer {
+  padding: 6px;
+  font-size: 10px;
+  opacity: 0.55;
+}
+@media (max-width: 650px) {
+  .reading-landing {
+    width: calc(100% - 20px);
+    max-height: 34vh;
+  }
+}
