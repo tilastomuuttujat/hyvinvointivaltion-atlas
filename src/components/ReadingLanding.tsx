@@ -42,7 +42,7 @@ function Arrival({
         (e) =>
           (item.kind === "concept"
             ? e.dataset.readingConcept
-            : e.dataset.historyItem) === item.id,
+            : e.dataset.historyItem) === (item.sourceId ?? item.id),
       )
       ?.querySelector("circle");
     if (source) {
@@ -99,21 +99,19 @@ function Arrival({
         data-reading-item={item.id}
         style={{ "--reading-color": color } as React.CSSProperties}
       >
-        <span className="reading-kind">
-          {item.kind === "concept" ? "Käsite" : "Ilmiö · taustakonteksti"}
-        </span>
-        <strong>{item.title}</strong>
-        <p>{item.meaning}</p>
-        {item.context && <small>{item.context}</small>}
-        {item.inspection && (
+        {item.inspection ? (
           <button
+            className="reading-step-title"
             onClick={() =>
               onInspect(item.inspection!.kind, item.inspection!.id)
             }
           >
-            Kirjattu perustelu
+            <strong>{item.title}</strong>
           </button>
+        ) : (
+          <strong>{item.title}</strong>
         )}
+        {item.meaning && <p>{item.meaning}</p>}
       </li>
     </>
   );
@@ -188,15 +186,6 @@ export function ReadingLanding({
         }
       }}
     >
-      <header>
-        <span>Käsitteistön kiteytys</span>
-        <h2>{state.frame.title}</h2>
-        <small>
-          {paused
-            ? "Lukeminen pysäytetty · kosketa uudelleen tai poistu lukutilasta jatkaaksesi"
-            : "Rakentuu käsite kerrallaan · kosketa pysäyttääksesi"}
-        </small>
-      </header>
       <div ref={body} className="reading-landing-body">
         <ol key={state.frame.key}>
           {state.frame.items.slice(0, state.shown).map((item) => (
@@ -213,10 +202,9 @@ export function ReadingLanding({
         )}
       </div>
       <footer>
-        {state.shown}/{state.frame.items.length} ·{" "}
-        {state.shown < state.frame.items.length
-          ? "Kokonaisuus rakentuu"
-          : "Kokonaisuus jää luettavaksi ennen seuraavaa"}
+        {paused
+          ? "Pysäytetty · kosketa jatkaaksesi"
+          : `${state.shown}/${state.frame.items.length}`}
         {state.candidate && state.candidate.key !== state.frame.key && (
           <span> · Seuraava näkymä odottaa</span>
         )}
