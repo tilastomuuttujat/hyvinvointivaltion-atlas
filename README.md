@@ -248,3 +248,12 @@ Kaikki nykyiseen käsitteeseen tai ketjuun liittyvät ilmiöt valaistaan, muut h
 Seinämiltä on poistettu myös ilmiöiden kestoviivat ja pisteviivastot: ajoitus näytetään jokaisen nimikkeen yhteydessä tekstinä. Myöskään ilmiöiden ja käsitteiden välillä ei ole yhdysviivoja. Keskikäytävän käsiteverkko on rajattu omaan alueeseensa, jotta sen viivat eivät piirry ilmiötekstien päälle. Esillä oleva ketju valitaan keskialueella näkyvistä aloituspisteistä.
 
 Kummallakin seinällä on itsenäisesti pystysuunnassa selattava tekstipinta. Kaikki 1 111 nimikettä säilyvät mukana kokonaisina, rivittyvät normaalissa tekstivirrassa ja näyttävät vuodet. Skew-vinoutus, syvyyteen kutistuvat kirjasimet, kaksoistekstit ja päällekkäiset otsikot on poistettu. Fonttikoko kompensoi SVG:n näytölle skaalautumisen; peruskoko on vähintään 16 näyttöpikseliä ennen seinän lievää perspektiiviä. Aiheeseen liittyvät kohteet valaistaan, muut säilyvät himmeämpinä mutta luettavina. Aiheen vaihtuessa seinä tuo ensimmäisen liittyvän kohteen näkyviin. Seinän pyyhkäisy selaa tekstiä eikä pyöritä verkkoa.
+
+
+### Automaattinen käsitteistön lukutila
+
+Päättelyavaruuden oikeaan alalohkoon rakentuu näkymää seuraava lukutila. Kun käsitteistö on pysynyt samana noin kaksi sekuntia, käsitteet saapuvat yksi kerrallaan noin 1,3 sekunnin välein. Alkuperäiset pisteet pysyvät verkossa. Näkyvän lähdepisteen nimikkeestä animoidaan erillinen kopio lukutilaan; jos lähdepiste on kuvan ulkopuolella, käytetään rauhallista sisääntuloa. Vähennetyn liikkeen asetus poistaa siirtymäanimaatiot.
+
+Käsitteille näytetään kirjatut määritelmät, mekanismien selitykset, rajatut kohderyhmät/tilanteet, ajoitus ja ehdot. Perustelupainike avaa nykyisen lähdepaneelin. Lopuksi saapuu enintään kolme aikakehällä korostuvaan aineistoon sopivaa ilmiötä vuosineen ja erikseen merkittyine kontekstisuhteineen. Listajärjestys ei muodosta uusia syy-yhteyksiä: kirjattu kokonaisuus voi haarautua. Puuttuvaa tai hylättyä mekanismia ei täytetä tulkinnalla. Nykyisen tilannerajauksen ulkopuoliset mekanismit jätetään pois.
+
+Valmis kokonaisuus säilyy vähintään 14 sekuntia ennen seuraavan vakaan näkymän saapumista. Lyhyet pyörähdykset eivät vaihda tekstiä; jonoon jää uusin riittävän vakaa käsitteistö. Koskettaminen lukitsee lukutilan, uusi kosketus tai Jatka vapauttaa sen. Hiiren osoitus ja näppäimistökohdistus pysäyttävät lukemisen ajaksi. Pysäytys jäädyttää myös automaattisen pyörinnän. Sivun sulkeminen poistaa ajastimet ja animoidut kopiot.

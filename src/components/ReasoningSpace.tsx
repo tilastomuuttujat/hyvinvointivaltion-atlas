@@ -1,3 +1,8 @@
+import { assessMechanism } from "@/lib/atlas.context";
+import { ReadingLanding } from "./ReadingLanding";
+import { buildReadingFrame } from "@/lib/atlas.reading";
+import historyReading from "@/content/history-wall.json";
+import type { HistoryBundle } from "@/lib/atlas.history";
 import { HistoryWall } from "./HistoryWall";
 import { spotlightRoutes, orientationSpotlight } from "@/lib/atlas.spotlight";
 import { ReaderJourney } from "./ReaderJourney";
@@ -58,6 +63,7 @@ export function ReasoningSpace({
   );
   const [orbit, setOrbit] = useState<Orbit>({ yaw: 0.4, pitch: -0.2 });
   const [zoom, setZoom] = useState(1);
+  const [readingPaused, setReadingPaused] = useState(false);
   const [sel, setSel] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
 
@@ -78,6 +84,43 @@ export function ReasoningSpace({
   useEffect(() => {
     previousSpotlight.current = spotlight?.start;
   }, [spotlight?.start]);
+  const readingRoute = useMemo(() => {
+    const selected = sel !== null ? graph.nodes[sel] : null;
+    if (selected?.kind === "concept") {
+      const id = selected.id.slice(2);
+      return (
+        routes.find((r) => r.start === id) ?? {
+          start: id,
+          nodes: [id],
+          mechanisms: [],
+        }
+      );
+    }
+    return spotlight;
+  }, [sel, graph, routes, spotlight]);
+  const readingFrame = useMemo(() => {
+    const filtered = readingRoute
+      ? {
+          ...readingRoute,
+          mechanisms: readingRoute.mechanisms.filter((id) => {
+            const m = data.evidence?.reasoning?.mechanisms.find(
+              (m) => m.id === id,
+            );
+            return (
+              m &&
+              assessMechanism(data, m, exploration.context, exploration.steps)
+                .status !== "outside"
+            );
+          }),
+        }
+      : null;
+    return buildReadingFrame(
+      data,
+      filtered,
+      historyReading as HistoryBundle,
+      catalog.themes,
+    );
+  }, [data, readingRoute, catalog, exploration.context, exploration.steps]);
   const spotlightNodes = new Set(spotlight?.nodes.map((id) => `K:${id}`));
   const spotlightEdges = new Set(spotlight?.mechanisms);
   const reducedMotion =
@@ -92,6 +135,7 @@ export function ReasoningSpace({
       last = t;
       if (
         !reducedMotion &&
+        !readingPaused &&
         t - idle.current > 2500 &&
         pointers.current.size === 0
       )
@@ -108,7 +152,7 @@ export function ReasoningSpace({
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", k);
     };
-  }, [sel, onClose, reducedMotion]);
+  }, [sel, onClose, reducedMotion, readingPaused]);
 
   const proj = graph.nodes.map((n) => {
     const r = rotate(n.p, orbit),
@@ -539,6 +583,9 @@ export function ReasoningSpace({
               }}
               data-i={i}
               data-spotlight-start={n.id === `K:${spotlight?.start}`}
+              data-reading-concept={
+                n.kind === "concept" ? n.id.slice(2) : undefined
+              }
               data-node-kind={n.kind}
               data-label-context={
                 focus === null ? "overview" : w >= 0.45 ? "local" : "background"
@@ -677,6 +724,12 @@ export function ReasoningSpace({
         Pyöritä: uusi vaikutusketju nousee esiin. Valitse sen alku ja seuraa
         virtaa.
       </p>
+      <ReadingLanding
+        incoming={readingFrame}
+        themeIds={catalog.themes.map((t) => t.id)}
+        onPauseChange={setReadingPaused}
+        onInspect={exploration.inspect}
+      />
       <ReaderJourney data={data} />
       <GraphExplore
         data={data}
