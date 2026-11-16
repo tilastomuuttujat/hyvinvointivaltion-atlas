@@ -232,7 +232,22 @@ test(
       assert.ok(wall.querySelector('[data-history-corridor="true"]'));
       assert.ok(wall.querySelector('[data-history-side="left"]'));
       assert.ok(wall.querySelector('[data-history-side="right"]'));
-      assert.ok(wall.querySelectorAll('[data-history-lit="true"]').length <= 6);
+      assert.equal(wall.querySelectorAll("[data-history-item]").length, 1111);
+      assert.ok(wall.querySelectorAll(".history-title").length > 150);
+      assert.equal(
+        wall.querySelectorAll(".history-link,[data-history-relation]").length,
+        0,
+      );
+      for (const p of wall.querySelectorAll("[data-history-item]")) {
+        assert.equal(
+          p.getAttribute("clip-path"),
+          `url(#history-${p.dataset.historySide}-surface)`,
+        );
+        assert.equal(
+          p.dataset.historyLit,
+          p.dataset.historyContext !== "none" ? "true" : "false",
+        );
+      }
       for (const line of wall.querySelectorAll(".history-link"))
         assert.ok(Number(line.getAttribute("opacity")) <= 0.25);
 

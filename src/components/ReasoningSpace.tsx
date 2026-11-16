@@ -17,9 +17,8 @@ const RS_CSS = `
 .reasoning-space .rs-mechanism{transition:opacity .45s ease}
 .reasoning-space .rs-start-ring{fill:none;stroke:currentColor;stroke-width:1.5;stroke-dasharray:2 6}
 .reasoning-space .rs-flow-target{cursor:pointer}
-.history-title{paint-order:stroke;stroke:oklch(.11 .03 260);stroke-width:3;stroke-linejoin:round}
+.history-title{paint-order:stroke;stroke:oklch(.11 .03 260);stroke-width:.8;stroke-linejoin:round}
 .history-heading{fill:oklch(.75 .02 230);font-size:14px;letter-spacing:.05em}
-.history-link{animation:rs-flow 5s linear infinite;pointer-events:none}
 .history-card{box-sizing:border-box;background:oklch(.13 .025 260);border:1px solid oklch(.45 .03 230);border-radius:10px;padding:14px;color:oklch(.94 .02 230);height:250px;overflow:auto;font:14px/1.5 sans-serif}
 .history-card h3{font-size:18px;margin:8px 0}.history-card p{margin:6px 0}.history-card button,.history-card a{display:inline-block;padding:5px 8px;margin:3px;border:1px solid oklch(.45 .03 230);border-radius:5px;color:inherit;background:transparent}.history-card small{display:block;opacity:.6;margin-top:8px}
 .reasoning-space .rs-guide{position:absolute;bottom:95px;left:18px;font-size:12px;opacity:.65;pointer-events:none;max-width:300px}
@@ -31,7 +30,7 @@ const RS_CSS = `
 .reasoning-space .rs-pulse{animation:rs-pulse 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes rs-flow{to{stroke-dashoffset:-24}}
 @keyframes rs-pulse{50%{transform:scale(1.5);opacity:.6}}
-@media (prefers-reduced-motion:reduce){.reasoning-space .rs-flow,.reasoning-space .rs-pulse,.history-link{animation:none}.reasoning-space .rs-mechanism{transition:none}}
+@media (prefers-reduced-motion:reduce){.reasoning-space .rs-flow,.reasoning-space .rs-pulse{animation:none}.reasoning-space .rs-mechanism{transition:none}}
 `;
 const W = 1600,
   H = 1000,
@@ -333,7 +332,6 @@ export function ReasoningSpace({
         </defs>
         <HistoryWall
           data={data}
-          zoom={zoom}
           mechanismIds={
             sel !== null && graph.nodes[sel]?.kind === "concept"
               ? exploration.options
@@ -350,15 +348,6 @@ export function ReasoningSpace({
                   ?.themes
             )?.map((i) => catalog.themes[i]!.id) ?? []
           }
-          origin={(() => {
-            const i =
-              sel !== null && graph.nodes[sel]?.kind === "concept"
-                ? sel
-                : graph.nodes.findIndex(
-                    (n) => n.id === `K:${spotlight?.start}`,
-                  );
-            return i >= 0 ? proj[i]! : null;
-          })()}
           onExplore={(theme) => {
             const i = graph.nodes.findIndex((n) => n.id === `T:${theme}`);
             if (i >= 0) setSel(i);
