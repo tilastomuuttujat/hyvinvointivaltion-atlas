@@ -4,6 +4,15 @@ export type Stage = { route: number; seq: number; title: string; start: number; 
 export type Boundary = { from: number; to: number; year: number; title: string };
 export type RouteChain = { id: string; title: string; start: number; end?: number; routes: number[]; learning?: string };
 export type Intersection = { id: string; title: string; start: number; end?: number; routes: number[] };
+type SnapshotYears = { start_year: number | null; end_year: number | null };
+export type RoadmapSnapshot = {
+  routes: (SnapshotYears & { route_order: number; phenomenon_id: string; title: string; phenomenon_kind: string; review_status: string })[];
+  stages: (SnapshotYears & { route_order: number; sequence_no: number; title: string; situation: string })[];
+  boundaries: { from_route_order: number; to_route_order: number; boundary_year: number; title: string }[];
+  chains: (SnapshotYears & { chain_id: string; title: string; route_orders: number[]; learning_point: string })[];
+  intersections: (SnapshotYears & { phenomenon_id: string; title: string; route_orders: number[] })[];
+};
+
 export type Roadmap = { routes: Route[]; stages: Stage[]; boundaries: Boundary[]; chains: RouteChain[]; intersections: Intersection[] };
 
 /** Visual width share per route: older centuries are compressed, the dense 1800–2025 eras get room. */

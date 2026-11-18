@@ -7,9 +7,9 @@ import { validateThemeCatalog } from "./atlas.catalogue";
 import type { EvidenceBundle } from "./atlas.evidence";
 import type { AtlasData, Treatment } from "./atlas.functions";
 export type { AtlasData, Conclusion } from "./atlas.functions";
-import type { Roadmap } from "./atlas.roadmap";
+import type { RoadmapSnapshot } from "./atlas.roadmap";
 type Snapshot = {
-  roadmap?: Roadmap;
+  roadmap?: RoadmapSnapshot;
   publication?: PublicationBundle;
   themeCatalog?: ThemeCatalog;
   evidence?: EvidenceBundle;
@@ -93,6 +93,6 @@ export async function getTreatments({
   );
 }
 
-export async function getRoadmap(): Promise<Roadmap | undefined> {
+export async function getRoadmap(): Promise<RoadmapSnapshot | undefined> {
   return (await snapshot()).roadmap;
 }

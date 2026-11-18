@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getRoadmap } from "@/lib/atlas.static";
 import { lanes, roadY, routeOf, timeScale, type Roadmap as RoadmapData } from "@/lib/atlas.roadmap";
 
 const W = 1600, H = 1000, CY = 520, X0 = 120, X1 = 5000;
@@ -32,14 +33,39 @@ const CSS = `
 
 let cache: Promise<RoadmapData> | null = null;
 function load() {
-  cache ??= fetch(new URL("data/roadmap.json", document.baseURI).href).then((r) => {
-    if (!r.ok) throw new Error(String(r.status));
-    return r.json();
+  cache ??= getRoadmap().catch(() => undefined).then((snapshot) => {
+    if (snapshot?.routes.length === 5 && snapshot.routes.every((r) => r.start_year != null && r.end_year != null)) {
+      return {
+        routes: snapshot.routes.map((r) => ({
+          order: r.route_order, id: r.phenomenon_id, title: r.title,
+          start: r.start_year!, end: r.end_year!, kind: r.phenomenon_kind, status: r.review_status,
+        })),
+        stages: snapshot.stages.flatMap((s) => s.start_year == null ? [] : [{
+          route: s.route_order, seq: s.sequence_no, title: s.title,
+          start: s.start_year, end: s.end_year ?? undefined, situation: s.situation,
+        }]),
+        boundaries: snapshot.boundaries.map((b) => ({
+          from: b.from_route_order, to: b.to_route_order, year: b.boundary_year, title: b.title,
+        })),
+        chains: snapshot.chains.flatMap((c) => c.start_year == null ? [] : [{
+          id: c.chain_id, title: c.title, start: c.start_year, end: c.end_year ?? undefined,
+          routes: c.route_orders, learning: c.learning_point,
+        }]),
+        intersections: snapshot.intersections.flatMap((i) => i.start_year == null ? [] : [{
+          id: i.phenomenon_id, title: i.title, start: i.start_year,
+          end: i.end_year ?? undefined, routes: i.route_orders,
+        }]),
+      };
+    }
+    return fetch(new URL("data/roadmap.json", document.baseURI).href).then((r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json() as Promise<RoadmapData>;
+    });
   }).catch((e) => { cache = null; throw e; });
   return cache;
 }
 
-type Pick = { kind: "stage" | "chain" | "boundary" | "route" | "cross"; route: number; title: string; years: string; body?: string; note?: string };
+type Pick = { kind: "stage" | "chain" | "boundary" | "route" | "cross" | "gap"; route: number; title: string; years: string; body?: string; note?: string };
 const yrs = (a: number, b?: number) => (b && b !== a ? `${a}–${b}` : String(a));
 
 /** Full-screen roadmap: one luminous road 1500→2050 through five main routes, gates at turning points, theme streams alongside. */
@@ -89,11 +115,21 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
 
   const streams = useMemo(() => {
     if (!data) return [];
-    const cs = data.chains.filter((c) => c.start >= 1500).map((c) => ({ ...c, end: Math.max(c.end ?? c.start, c.start + 3) }));
+    const cs = data.chains.filter((c) => c.start >= 1500 && c.start <= 2050).sort((a, b) => a.start - b.start || a.id.localeCompare(b.id)).map((c) => ({ ...c, end: Math.max(c.end ?? c.start, c.start + 3) }));
     const up = cs.filter((_, i) => i % 2 === 0), down = cs.filter((_, i) => i % 2 === 1);
     const lu = lanes(up, 2), ld = lanes(down, 2);
     return [...up.map((c, i) => ({ c, side: -1, lane: lu[i] })), ...down.map((c, i) => ({ c, side: 1, lane: ld[i] }))];
   }, [data]);
+
+  const gaps = useMemo(() => {
+    const ends = new Map<string, number>();
+    return streams.flatMap(({ c, side, lane }) => {
+      const id = `${side}:${lane}`;
+      const start = ends.get(id);
+      ends.set(id, c.end);
+      return start != null && x(c.start) - x(start) >= 14 ? [{ start, end: c.start, side, lane }] : [];
+    });
+  }, [streams, x]);
 
   if (failed) return <div className="rm"><style>{CSS}</style><button className="rm-close" onClick={onClose} aria-label="Sulje">←</button><p className="rm-hint">Tiekartan aineistoa ei saatu ladattua.</p></div>;
 
@@ -146,6 +182,20 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                 </g>
               ))}
 
+              {gaps.map(({ start, end, side, lane }) => {
+                const dy = side * (70 + lane * 9);
+                const path = segPath(x(start), x(end), dy);
+                return (
+                  <g key={`${side}:${lane}:${start}`} {...pickable({
+                    kind: "gap", route: routeOf(start), title: "Väli teemakaistalla",
+                    years: yrs(start, end),
+                    body: "Tähän väliin ei ole piirretty teemaketjua tällä kaistalla. Viereisillä kaistoilla voi olla saman ajan aineistoa.",
+                  })}>
+                    <path d={path} fill="none" stroke="transparent" strokeWidth={8} />
+                    <path d={path} fill="none" stroke="currentColor" strokeWidth={1} strokeDasharray="2 5" opacity={0.24} />
+                  </g>
+                );
+              })}
               {/* Theme streams flowing alongside the road */}
               {streams.map(({ c, side, lane }) => {
                 const a = x(c.start), b = x(c.end!), dy = side * (70 + lane * 9);
@@ -155,6 +205,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                     onPointerEnter={() => setHover(c.id)} onPointerLeave={() => setHover(null)}>
                     <path d={segPath(a, b, dy)} fill="none" stroke="transparent" strokeWidth={8} />
                     <path d={segPath(a, b, dy)} fill="none" stroke={col(r, 0.78, 0.11)} strokeWidth={on ? 2.6 : 1.1} opacity={on ? 1 : 0.32} strokeLinecap="round" />
+                    <circle cx={b} cy={roadY(b, CY) + dy} r={on ? 2.7 : 1.6} fill={col(r)} opacity={on ? 1 : 0.58} />
                     {on && <text x={a} y={roadY(a, CY) + dy - 8} fontSize={15} fill={col(r)} className="rm-label">{c.title}</text>}
                   </g>
                 );
@@ -184,6 +235,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                     onPointerEnter={() => setHover(it.id)} onPointerLeave={() => setHover(null)}>
                     <path d={`M${a},${ya} Q${(a + b) / 2},${Math.min(ya, yb) + h * 2.1} ${b},${yb}`} fill="none" stroke="transparent" strokeWidth={10} />
                     <path d={`M${a},${ya} Q${(a + b) / 2},${Math.min(ya, yb) + h * 2.1} ${b},${yb}`} fill="none" stroke="oklch(.92 .06 90)" strokeWidth={on ? 2.6 : 1.4} opacity={on ? 0.95 : 0.45} strokeDasharray="1 6" strokeLinecap="round" />
+                    <circle cx={b} cy={roadY(b, CY) + dy} r={on ? 2.7 : 1.6} fill={col(r)} opacity={on ? 1 : 0.58} />
                     {on && <text x={(a + b) / 2} y={Math.min(ya, yb) + h * 1.08 + 18} textAnchor="middle" fontSize={15} fill="oklch(.92 .06 90)" className="rm-label">{it.title.split(":")[0]}</text>}
                   </g>
                 );
@@ -234,12 +286,12 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       )}
-      <p className="rm-hint">vedä = kulje ajassa · rulla = zoomaa · kosketa asemaa, porttia tai virtaa · himmeät virrat ovat teemaketjuja, kaaret aikakausien yli ulottuvia ilmiöitä</p>
+      <p className="rm-hint">vedä = kulje ajassa · rulla = zoomaa · kosketa asemaa, porttia tai virtaa · himmeät virrat ovat teemaketjuja, katkoviiva merkitsee väliä kaistalla · kaaret ulottuvat aikakausien yli</p>
       <aside className="rm-panel" data-open={!!pick} style={{ "--c": col(pick?.route ?? 2) } as React.CSSProperties} aria-hidden={!pick}>
         {pick && (
           <>
             <button className="rm-x" onClick={() => setPick(null)} aria-label="Sulje">×</button>
-            <div className="rm-k">{{ stage: "Reittivaihe", chain: "Teemaketju", boundary: "Käännekohta", route: "Pääreitti", cross: "Aikakausien yli" }[pick.kind]} · {pick.years}</div>
+            <div className="rm-k">{{ stage: "Reittivaihe", chain: "Teemaketju", boundary: "Käännekohta", route: "Pääreitti", cross: "Aikakausien yli", gap: "Kaistan väli" }[pick.kind]} · {pick.years}</div>
             <h2>{pick.title}</h2>
             {pick.body && pick.body !== pick.title && <p>{pick.body}</p>}
             {pick.note && <p className="rm-note">{pick.note}</p>}
