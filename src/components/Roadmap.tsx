@@ -233,6 +233,14 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const factors = activeStage?.route === 3 && activeStage.start === 1968
     ? FACTORS.filter((f) => streams.some(({ c }) => c.id === f.from) && streams.some(({ c }) => c.id === f.to))
     : [];
+  /** World x of the middle of a factor's arc, so the map can glide it into view. */
+  const factorMid = (f: Factor) => {
+    const from = streams.find(({ c }) => c.id === f.from), to = streams.find(({ c }) => c.id === f.to);
+    if (!from || !to || !activeStage) return null;
+    const sx = stationX(activeStage);
+    const px = (l: { c: { start: number; end?: number } }) => Math.max(x(l.c.start), Math.min(sx + 80, x(l.c.end!)));
+    return (px(from) + px(to)) / 2;
+  };
   const configured = activeStage && STAGE_OBSERVATIONS[`${activeStage.route}:${activeStage.start}`];
   const visibleObservation = (kind: ObservationKind) => {
     const item = configured && configured[kind];
@@ -525,7 +533,12 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
         <div className="rm-factor-options" role="group" aria-label="Selittävät tekijät">
           {factors.map((item) => (
             <button key={item.title} type="button" aria-pressed={factor === item}
-              onClick={() => { setEffect(null); setFactor((current) => current === item ? null : item); }}>{item.title}</button>
+              onClick={() => {
+                setEffect(null);
+                const next = factor === item ? null : item;
+                setFactor(next);
+                if (next) { const mid = factorMid(next); if (mid != null) target.current = W / 2 / zoom - mid; }
+              }}>{item.title}</button>
           ))}
         </div>
       </div>}
