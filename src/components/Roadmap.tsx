@@ -20,28 +20,55 @@ const FACTORS = [
 ] as const;
 type Factor = (typeof FACTORS)[number];
 
-const SCHOOL_EFFECTS = {
-  before: { title: "Laki loi perustan", text: "Vuoden 1968 laki loi valtakunnallisen perustan yhteiselle peruskoululle. Kunnissa siirtyminen toteutettiin vaiheittain vuosina 1972–1977.", locator: "Laki koulujärjestelmän perusteista 467/1968" },
-  after: { title: "Tasokursseista luovuttiin", text: "Yhteinen peruskoulu säilytti alkuvaiheessa tasokurssit. Niistä luopuminen vuonna 1985 poisti yhteiseen kouluun jääneen valikointikäytännön.", locator: "Tasokursseista luopuminen" },
-  strength: { title: "Yhteinen koulupolku laajeni", text: "Yhteiseen peruskouluun siirtyminen vähensi varhaista jakoa erillisiin koulupolkuihin. Tämä muutti sitä, missä vaiheessa oppilaiden koulutusreitit erkanivat.", locator: "old two-track system" },
-  difficulty: { title: "Uudistus eteni eri tahtiin", text: "Peruskoulu otettiin käyttöön eri alueilla eri vuosina. Asuinpaikka vaikutti siihen, milloin oppilas siirtyi yhteiseen kouluun.", locator: "Komiteanmietintö 1970, toteutus 1972–77" },
-} as const;
-type SchoolEffect = keyof typeof SCHOOL_EFFECTS;
+type Observation = {
+  label: string;
+  chain: string;
+  source: string;
+  years: readonly [number, number];
+  points: readonly [string, string];
+};
+
+const STAGE_OBSERVATIONS: Partial<Record<string, { strength?: Observation; difficulty?: Observation }>> = {
+  "2:1856": {
+    strength: { label: "Uusia kulkuyhteyksiä", chain: "liikenne-kanavat-rautatiet",
+      source: "h12-ev-state-h12-liikenne-kanavat-rautatiet-s1",
+      years: [1856, 1862], points: ["Saimaan kanava", "Helsinki–Hämeenlinna-rata"] },
+  },
+  "3:1917": {
+    strength: { label: "Mahdollisuus oman tilan lunastamiseen", chain: "torpparivapautus-1918",
+      source: "tp-e-transition0", years: [1918, 1922], points: ["Lunastuslaki", "Lunastusten toimeenpano"] },
+  },
+  "3:1945": {
+    strength: { label: "Maata asuttamiseen", chain: "karjalan-siirtovaen-asuttaminen-1940",
+      source: "ks-e-t3", years: [1944, 1945], points: ["Uusi evakuointi", "Maanhankintalaki"] },
+    difficulty: { label: "Maaseudun ja kaupunkien tarpeet erosivat", chain: "karjalan-siirtovaen-asuttaminen-1940",
+      source: "ks-e-groups", years: [1944, 1945], points: ["Evakkoon eri lähtökohdista", "Kaupungeissa työ ja asunto"] },
+  },
+  "3:1968": {
+    strength: { label: "Yhteinen koulupolku laajeni", chain: "peruskoulu-uudistus-1968",
+      source: "pk-e-s2", years: [1968, 1977], points: ["Laki 467/1968", "Yhteinen peruskoulu käyttöön"] },
+    difficulty: { label: "Tasokurssit rajasivat jatko-opintoja", chain: "peruskoulu-uudistus-1968",
+      source: "pk-e-s3", years: [1972, 1985], points: ["Tasokurssit käytössä", "Tasokursseista luovuttiin"] },
+  },
+  "4:1986": {
+    strength: { label: "Luotonsaannin ehdot väljentyivät", chain: "rahoitusmarkkinoiden-vapauttaminen-1980",
+      source: "rf-e-s1", years: [1983, 1987], points: ["Korkosääntelyä purettiin", "Valuuttasääntely keveni"] },
+    difficulty: { label: "Velanhoito vaikeutui kriisissä", chain: "rahoitusmarkkinoiden-vapauttaminen-1980",
+      source: "rf-e-mechanism", years: [1986, 1993], points: ["Velkaa kertyi", "Korko- ja valuuttariskit toteutuivat"] },
+  },
+};
+type ObservationKind = "strength" | "difficulty";
 
 const CSS = `
 .rm-hud{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:min(92vw,980px);display:flex;align-items:center;gap:10px;padding:6px 8px 6px 14px;border-radius:999px;background:oklch(.1 .02 260/.55);backdrop-filter:blur(8px);border:1px solid color-mix(in oklch,var(--c) 45%,transparent);font-size:13px;color:oklch(.92 .02 230);white-space:nowrap;animation:rmHud .35s ease}
-.rm-factor-card{width:100%;max-height:35vh;overflow:auto;touch-action:pan-y;background:#101c25;border:1px solid #86bcac;border-radius:12px;padding:12px 16px;font-size:14px}
-.rm-factor-card h2{font-weight:700}.rm-factor-card p{margin-top:6px}.rm-factor-card button{float:right;color:#b9e4d8;cursor:pointer}
-.rm-impact-top{position:absolute;top:78px;left:50%;transform:translateX(-50%);width:min(690px,94vw);display:grid;gap:9px;text-align:center;pointer-events:none}
-.rm-impact-chain{display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px}
-.rm-impact-chain strong{color:#e8faf4}
-.rm-impact-top button,.rm-impact-difficulty{pointer-events:auto;color:#e8faf4;background:#122831;border:1px solid #86bcac;border-radius:8px;padding:7px 10px;font-size:13px;cursor:pointer}
-.rm-impact-top button[aria-pressed=true],.rm-impact-difficulty[aria-pressed=true]{background:#a5dfce;color:#0b201a}
-.rm-impact-strength,.rm-impact-difficulty{justify-self:center}
-.rm-impact-difficulty{border-color:#e0ad79}
-@media(max-width:700px){.rm-impact-top{top:93px}.rm-impact-chain{gap:4px;font-size:12px}.rm-impact-chain button{padding:5px;font-size:11px}}
+.rm-observation{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;color:#d7f4e7;font-size:14px}
+.rm-observation button{background:none;border:0;border-bottom:1px solid currentColor;color:inherit;padding:5px 1px;cursor:pointer}
+.rm-observation button[aria-pressed=true]{font-weight:700;border-bottom:3px solid currentColor}
+.rm-observation a{color:inherit;text-decoration:underline;font-size:12px}
+.rm-observation-above{position:absolute;top:84px;left:50%;transform:translateX(-50%);width:min(650px,92vw)}
+.rm-observation-below{color:#f1c492}
+@media(max-width:700px){.rm-observation-above{top:91px}}
 .rm-factor-dock{position:absolute;bottom:58px;left:50%;transform:translateX(-50%);width:min(650px,94vw);display:grid;gap:8px;pointer-events:none}
-.rm-factor-card,.rm-factor-options{pointer-events:auto}
 .rm-factor-options{display:flex;justify-content:center;flex-wrap:wrap;gap:6px}
 .rm-factor-options button{color:#e8faf4;background:#122831;border:1px solid #86bcac;border-radius:8px;padding:7px 10px;font-size:13px;cursor:pointer}
 .rm-factor-options button[aria-pressed=true]{color:#0b201a;background:#a5dfce}
@@ -147,7 +174,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const [failed, setFailed] = useState(false);
   const [pan, setPan] = useState(0);
   const [zoom, setZoom] = useState(0.8);
-  const [effect, setEffect] = useState<SchoolEffect | null>(null);
+  const [effect, setEffect] = useState<ObservationKind | null>(null);
   const [factor, setFactor] = useState<Factor | null>(null);
   const [pick, setPick] = useState<Pick | null>(null);
   const [snapshot, setSnapshot] = useState<RoadmapSnapshot>();
@@ -241,22 +268,21 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const factors = activeStage?.route === 3 && activeStage.start === 1968
     ? FACTORS.filter((f) => streams.some(({ c }) => c.id === f.from) && streams.some(({ c }) => c.id === f.to))
     : [];
-  const schoolImpact = activeStage?.route === 3 && activeStage.start === 1968;
-  const selectedEffect = schoolImpact && effect ? SCHOOL_EFFECTS[effect] : null;
-  const effectSource = selectedEffect && snapshot?.details?.find(({ chain_id, detail }) =>
-    chain_id === "peruskoulu-uudistus-1968" && typeof detail.locator === "string"
-    && detail.locator.includes(selectedEffect.locator) && typeof detail.source_url === "string"
-    && /^https?:\/\//i.test(detail.source_url)
-  );
-  const toggleEffect = (key: SchoolEffect) => {
-    setFactor(null);
-    setEffect((current) => current === key ? null : key);
+  const configured = activeStage && STAGE_OBSERVATIONS[`${activeStage.route}:${activeStage.start}`];
+  const visibleObservation = (kind: ObservationKind) => {
+    const item = configured && configured[kind];
+    if (!item || !streams.some(({ c }) => c.id === item.chain)) return undefined;
+    const detail = snapshot?.details?.find((d) => d.chain_id === item.chain && d.detail_id === item.source);
+    const url = detail?.detail.source_url;
+    return typeof url === "string" && /^https?:\/\//i.test(url) ? { ...item, url } : undefined;
   };
-  const factorSource = factor && snapshot?.details?.find(({ chain_id, detail_kind, detail }) =>
-    (chain_id === factor.from || chain_id === factor.to) && detail_kind === "evidence"
-    && typeof detail.source_url === "string" && /^https?:\/\//i.test(detail.source_url)
-    && typeof detail.source_title === "string"
-  );
+  const strength = visibleObservation("strength"), difficulty = visibleObservation("difficulty");
+  const selectedObservation = effect === "strength" ? strength : effect === "difficulty" ? difficulty : undefined;
+  const showObservations = Boolean(strength || difficulty);
+  const toggleEffect = (kind: ObservationKind) => {
+    setFactor(null);
+    setEffect((current) => current === kind ? null : kind);
+  };
   const ctx = activeStage && data ? stageContext(data, activeStage, chainIds) : null;
   const lit = new Set<string>(ctx ? ctx.lanes.slice(0, 6).map((c) => c.id) : []);
   const selectPick = (p: Pick) => {
@@ -274,7 +300,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const pickable = (p: Pick) => ({ "data-pick": "1", className: "rm-hit", ref: (el: Element | null) => { if (el) (el as any).__rm = p; } });
 
   return (
-    <div className="rm" data-factors={factors.length > 0} role="dialog" aria-label="Tiekartta" onPointerDown={(e) => e.stopPropagation()}>
+    <div className="rm" data-factors={showObservations || factors.length > 0} role="dialog" aria-label="Tiekartta" onPointerDown={(e) => e.stopPropagation()}>
       <style>{CSS}</style>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice"
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => (drag.current = null)} onWheel={onWheel}
@@ -423,12 +449,13 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
             const arc = (a: number, b: number, up: number) => { const ya = roadY(a, CY), yb = roadY(b, CY); return `M${a},${ya} Q${(a + b) / 2},${Math.min(ya, yb) - up} ${b},${yb}`; };
             const bx = ctx.before ? stationX(ctx.before) : null, ax = ctx.after ? stationX(ctx.after) : null;
             const lanes = streams.filter(({ c: l }) => {
+              if (selectedObservation) return l.id === selectedObservation.chain;
               if (!factors.length) return lit.has(l.id);
               return factor ? l.id === factor.from || l.id === factor.to : l.id === "peruskoulu-uudistus-1968";
             });
             return (
               <g className="rm-focus" pointerEvents="none">
-                <rect x={-4000} y={-1000} width={X1 + 8000} height={3000} fill="oklch(.07 .02 260)" opacity={factors.length ? 0.78 : 0.62} />
+                <rect x={-4000} y={-1000} width={X1 + 8000} height={3000} fill="oklch(.07 .02 260)" opacity={selectedObservation || factors.length ? 0.84 : 0.62} />
                 {lanes.map(({ c: l, side, lane }, li) => {
                   const a = x(l.start), b = x(l.end!), dy = side * (70 + lane * 9), id = `rmf-${l.id}`;
                   const lasting = ctx.lasting.some((t) => t.id === l.id);
@@ -436,12 +463,34 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                     <g key={l.id}>
                       <path id={id} d={segPath(a, b, dy)} fill="none" stroke={col(routeOf(l.start), 0.8, 0.12)} strokeWidth={2.8} strokeLinecap="round" />
                       <path d={segPath(a, b, dy)} fill="none" stroke="oklch(.98 .02 230)" strokeWidth={1.2} strokeDasharray="2 14" className="rm-flow" />
-                      <text fontSize={13} fill={col(routeOf(l.start), 0.9, 0.1)} className="rm-label" dy={side < 0 ? -6 : 14}>
+                      {!selectedObservation && <text fontSize={13} fill={col(routeOf(l.start), 0.9, 0.1)} className="rm-label" dy={side < 0 ? -6 : 14}>
                         <textPath href={`#${id}`} startOffset={`${4 + (li % 4) * 18}%`}>{wrapLabel(l.title.split(":")[0], 42)[0]}{lasting && !factors.length ? ` — ketjua seurataan vuoteen ${l.end}` : ""}</textPath>
-                      </text>
+                      </text>}
                     </g>
                   );
                 })}
+                {selectedObservation && (() => {
+                  const lane = lanes.find(({ c: item }) => item.id === selectedObservation.chain);
+                  if (!lane) return null;
+                  const [first, last] = selectedObservation.years.map(x);
+                  const dy = lane.side * (70 + lane.lane * 9);
+                  const ink = effect === "difficulty" ? "#f1c492" : "#b9f3d7";
+                  return <g aria-label={selectedObservation.label}>
+                    <path d={segPath(first, last, dy)} fill="none" stroke={ink} strokeWidth={5} />
+                    {[first, last].map((px, index) => {
+                      const py = roadY(px, CY) + dy;
+                      const ly = py + (effect === "difficulty" ? 1 : -1) * (28 + index * 18);
+                      return <g key={index}>
+                        <circle cx={px} cy={py} r={5} fill={ink} />
+                        <line x1={px} x2={px} y1={py} y2={ly} stroke={ink} />
+                        <text x={px + (index === 0 ? -6 : 6)} y={ly} textAnchor={index === 0 ? "end" : "start"}
+                          className="rm-label" fill={ink} fontSize={16}>
+                          {selectedObservation.years[index]} · {selectedObservation.points[index]}
+                        </text>
+                      </g>;
+                    })}
+                  </g>;
+                })()}
                 {factor && factors.includes(factor) && (() => {
                   const anchor = (id: string) => {
                     const lane = lanes.find(({ c }) => c.id === id)!;
@@ -455,15 +504,15 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                     <circle cx={b.x} cy={b.y} r={3} />
                   </g>;
                 })()}
-                {!factors.length && bx != null && <g>
+                {!selectedObservation && !factors.length && bx != null && <g>
                   <path id="rmf-before" d={arc(bx, sx, 160)} fill="none" stroke={c} strokeWidth={2} strokeDasharray="3 7" className="rm-flow" opacity={0.9} />
                   <text fontSize={14} fill="oklch(.92 .03 230)" className="rm-label" dy={-8}><textPath href="#rmf-before" startOffset="50%" textAnchor="middle">edeltävä etappi</textPath></text>
                 </g>}
-                {!factors.length && ax != null && <g>
+                {!selectedObservation && !factors.length && ax != null && <g>
                   <path id="rmf-after" d={arc(sx, ax, 160)} fill="none" stroke={c} strokeWidth={2.4} className="rm-flow" strokeDasharray="10 6" />
                   <text fontSize={14} fill="oklch(.95 .03 230)" className="rm-label" dy={-8}><textPath href="#rmf-after" startOffset="50%" textAnchor="middle">seuraava etappi</textPath></text>
                 </g>}
-                {!factors.length && [ctx.before, ctx.after].map((t) => t && (
+                {!selectedObservation && !factors.length && [ctx.before, ctx.after].map((t) => t && (
                   <g key={t.seq + "-" + t.start}>
                     <circle cx={stationX(t)} cy={roadY(stationX(t), CY)} r={7} fill="oklch(.98 .02 230)" stroke={col(t.route)} strokeWidth={3} />
                     <text x={stationX(t)} y={roadY(stationX(t), CY) + 30} textAnchor="middle" fontSize={14} fill="oklch(.9 .02 230)" className="rm-label">{wrapLabel(tail(t.title))[0]}</text>
@@ -473,7 +522,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                 <circle cx={sx} cy={sy} r={8} fill="oklch(.99 .02 230)" stroke={c} strokeWidth={3} />
                 {ctx.era && <text x={sx} y={sy - 70} textAnchor="middle" fontSize={12} letterSpacing=".18em" fill={c} opacity={0.85} className="rm-label">{ROMAN[ctx.era.order]} · {ctx.era.title.replace(/^Pää(ketju|reitti) [IVX]+: /, "").toUpperCase()}</text>}
                 <text x={sx} y={sy - 46} textAnchor="middle" fontSize={20} fontWeight={600} fill="oklch(.98 .02 230)" className="rm-label">{wrapLabel(tail(activeStage.title), 34)[0]}</text>
-                {!factors.length && ctx.gate && <text x={x(ctx.gate.year)} y={roadY(x(ctx.gate.year), CY) + 200} textAnchor="middle" fontSize={12} fill="oklch(.9 .04 230)" opacity={0.8} className="rm-label" fontStyle="italic">edeltävä käännekohta</text>}
+                {!selectedObservation && !factors.length && ctx.gate && <text x={x(ctx.gate.year)} y={roadY(x(ctx.gate.year), CY) + 200} textAnchor="middle" fontSize={12} fill="oklch(.9 .04 230)" opacity={0.8} className="rm-label" fontStyle="italic">edeltävä käännekohta</text>}
               </g>
             );
           })()}
@@ -492,36 +541,15 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
         </div>
       )}
       {!pick && <p className="rm-hint">vedä = kulje ajassa · rulla = zoomaa · kosketa asemaa, porttia tai virtaa · himmeät virrat ovat teemaketjuja, himmein viiva yhdistää kaistan osat · kaaret ulottuvat aikakausien yli</p>}
-      {schoolImpact && <section className="rm-impact-top" aria-label="Peruskoulu-uudistuksen vaikutusketju">
-        <div className="rm-impact-chain">
-          <button type="button" aria-pressed={effect === "before"} onClick={() => toggleEffect("before")}>1968 · Laki loi perustan →</button>
-          <strong>1972–1977 · Käyttöönotto</strong>
-          <button type="button" aria-pressed={effect === "after"} onClick={() => toggleEffect("after")}>→ 1985 · Tasokursseista luovuttiin</button>
-        </div>
-        <button type="button" className="rm-impact-strength" aria-pressed={effect === "strength"}
-          onClick={() => toggleEffect("strength")}>Vahvuus · Yhteinen koulupolku laajeni</button>
-      </section>}
-      {(schoolImpact || factors.length > 0) && <div className="rm-factor-dock">
-        {selectedEffect && <section className="rm-factor-card" aria-label={selectedEffect.title}>
-          <button type="button" onClick={() => setEffect(null)} aria-label="Sulje havainto">×</button>
-          <h2>{selectedEffect.title}</h2>
-          <p>{selectedEffect.text}</p>
-          {effectSource && <p><a href={String(effectSource.detail.source_url)} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>
-            {String(effectSource.detail.source_title ?? "Lähde")}
-          </a></p>}
-        </section>}
-        {schoolImpact && <button type="button" className="rm-impact-difficulty" aria-pressed={effect === "difficulty"}
-          onClick={() => toggleEffect("difficulty")}>Vaikeus · Uudistus eteni eri tahtiin</button>}
-        {factor && factors.includes(factor) && <section className="rm-factor-card" aria-label={factor.title}>
-          <button type="button" onClick={() => setFactor(null)} aria-label="Sulje yhteys">×</button>
-          <h2>{factor.title}</h2>
-          <p>Tutkittava yhteys</p>
-          <p>{factor.text}</p>
-          <p><strong>Mitä aineistosta etsitään?</strong> {factor.evidence}</p>
-          {factorSource && <p><a href={String(factorSource.detail.source_url)} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>
-            Tausta-aineisto: {String(factorSource.detail.source_title)}
-          </a></p>}
-        </section>}
+      {strength && <div className="rm-observation rm-observation-above">
+        <button type="button" aria-pressed={effect === "strength"} onClick={() => toggleEffect("strength")}>Vahvuus · {strength.label}</button>
+        {effect === "strength" && <a href={strength.url} target="_blank" rel="noreferrer">Lähde</a>}
+      </div>}
+      {(difficulty || factors.length > 0) && <div className="rm-factor-dock">
+        {difficulty && <div className="rm-observation rm-observation-below">
+          <button type="button" aria-pressed={effect === "difficulty"} onClick={() => toggleEffect("difficulty")}>Vaikeus · {difficulty.label}</button>
+          {effect === "difficulty" && <a href={difficulty.url} target="_blank" rel="noreferrer">Lähde</a>}
+        </div>}
         <div className="rm-factor-options" role="group" aria-label="Selittävät tekijät">
           {factors.map((item) => (
             <button key={item.title} type="button" aria-pressed={factor === item}
