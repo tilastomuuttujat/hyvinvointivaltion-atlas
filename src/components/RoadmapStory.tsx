@@ -1,23 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { RoadmapSnapshot } from "@/lib/atlas.roadmap";
 
-export const housingStory = [
-  {
-    year: 1950, label: "1950–1974", chain: "maaltamuutto-kaupungistuminen-1950",
-    title: "Työpaikat ja asuminen",
-    text: "Työn perässä muuttaminen saattoi avata uusia työmahdollisuuksia. Kasvukeskukseen asettuminen edellytti myös asuntoa.",
-  },
-  {
-    year: 1968, label: "1968–1985", chain: "peruskoulu-uudistus-1968",
-    title: "Yhteinen peruskoulu",
-    text: "Samaan aikaan yhteinen peruskoulu muutti koulutuspolkuja. Uudistus toteutettiin alueittain.",
-  },
-  {
-    year: 1974, label: "1970-luku · tulkinta", chain: "muuttoliike-siirtolaisuus-paluumuutto",
-    title: "Mitä asuinpaikka yhä ratkaisi?",
-    text: "Koulutusmahdollisuuksia, työpaikan sijaintia ja muuton edellytyksiä on tarkasteltava erikseen. Alueittainen uudistus auttaa kysymään, miten nämä ehdot vaihtelivat.",
-  },
-] as const;
+export type StageCard = { id: string; label: string; title: string; text?: string };
 
 function sourceUrl(value: unknown) {
   if (typeof value !== "string") return;
@@ -31,10 +15,15 @@ function sourceUrl(value: unknown) {
 
 type Point = { x: number; y: number };
 
-export function RoadmapStory({ anchors, snapshot, onClose }: {
+export function RoadmapStory({ title, cards: items, anchors, snapshot, onClose, page, pageCount, onPage }: {
+  title: string;
+  cards: StageCard[];
   anchors: Point[];
   snapshot?: RoadmapSnapshot;
   onClose: () => void;
+  page: number;
+  pageCount: number;
+  onPage: (page: number) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const cards = useRef<(HTMLElement | null)[]>([]);
@@ -74,24 +63,23 @@ export function RoadmapStory({ anchors, snapshot, onClose }: {
           </g>
         ))}
       </svg>
-      <section className="rm-story-content" aria-label="Asuinpaikka, koulutus ja työ">
+      <section className="rm-story-content" aria-label={title}>
         <header>
-          <h2>Miten asuinpaikka vaikutti opiskeluun ja työhön?</h2>
-          <button type="button" onClick={onClose}>Sulje ketju</button>
+          <h2>{title}</h2>
+          <button type="button" onClick={onClose}>Sulje etappi</button>
         </header>
         <ol>
-          {housingStory.map((step, i) => {
-            const chain = snapshot?.chains.find((item) => item.chain_id === step.chain);
-            const evidence = snapshot?.details?.filter((item) => item.chain_id === step.chain && item.detail_kind === "evidence") ?? [];
+          {items.map((step, i) => {
+            const evidence = snapshot?.details?.filter((item) => item.chain_id === step.id && item.detail_kind === "evidence") ?? [];
             return (
-              <li key={step.chain} ref={(node) => { cards.current[i] = node; }}>
+              <li key={step.id} ref={(node) => { cards.current[i] = node; }}>
                 <span className="rm-story-year">{step.label}</span>
                 <h3>{step.title}</h3>
                 <p>{step.text}</p>
-                <button type="button" aria-expanded={basis === i} aria-controls={`rm-story-basis-${i}`}
-                  onClick={() => setBasis(basis === i ? null : i)}>Mihin tämä perustuu?</button>
+                {i > 0 && <button type="button" aria-expanded={basis === i} aria-controls={`rm-story-basis-${i}`}
+                  onClick={() => setBasis(basis === i ? null : i)}>Mihin tämä perustuu?</button>}
                 <div id={`rm-story-basis-${i}`} className="rm-story-basis" hidden={basis !== i}>
-                  {chain && <p><strong>{chain.title}</strong><br />{chain.observed_change}</p>}
+
                   {evidence.length === 0 && <p>Tähän ketjuun ei ole liitetty julkaistuja havaintoja tai lähteitä.</p>}
                   {evidence.map(({ detail, detail_id }) => {
                     const url = sourceUrl(detail.source_url);
@@ -108,6 +96,11 @@ export function RoadmapStory({ anchors, snapshot, onClose }: {
             );
           })}
         </ol>
+        {pageCount > 1 && <nav className="rm-story-pages" aria-label="Etapin kaistat">
+          <button type="button" disabled={page === 0} onClick={() => onPage(page - 1)}>Edelliset kaistat</button>
+          <button type="button" disabled={page + 1 >= pageCount} onClick={() => onPage(page + 1)}>Seuraavat kaistat</button>
+        </nav>}
+        {pageCount === 0 && snapshot && <p>Tälle etapille ei ole linkitetty kartalla näkyviä teemakaistoja.</p>}
       </section>
     </div>
   );

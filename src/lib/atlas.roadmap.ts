@@ -1,15 +1,16 @@
 // Pure model for the five main routes (tiekartta): piecewise time scale, road geometry and stream lanes.
 export type Route = { order: number; id: string; title: string; start: number; end: number; kind: string; status?: string };
-export type Stage = { route: number; seq: number; title: string; start: number; end?: number; situation?: string };
+export type Stage = { id?: string; route: number; seq: number; title: string; start: number; end?: number; situation?: string };
 export type Boundary = { from: number; to: number; year: number; title: string };
 export type RouteChain = { id: string; title: string; start: number; end?: number; routes: number[]; learning?: string };
 export type Intersection = { id: string; title: string; start: number; end?: number; routes: number[] };
 type SnapshotYears = { start_year: number | null; end_year: number | null };
 export type RoadmapSnapshot = {
   routes: (SnapshotYears & { route_order: number; phenomenon_id: string; title: string; phenomenon_kind: string; review_status: string })[];
-  stages: (SnapshotYears & { route_order: number; sequence_no: number; title: string; situation: string })[];
+  stages: (SnapshotYears & { route_order: number; state_id: string; sequence_no: number; title: string; situation: string })[];
   boundaries: { from_route_order: number; to_route_order: number; boundary_year: number; title: string }[];
   chains: (SnapshotYears & { chain_id: string; title: string; observed_change: string; route_orders: number[]; learning_point: string })[];
+  links?: { parent_phenomenon_id: string; parent_state_id: string; chain_id: string }[];
   details?: { chain_id: string; detail_id: string; detail_kind: string; detail: Record<string, unknown> }[];
   intersections: (SnapshotYears & { phenomenon_id: string; title: string; route_orders: number[] })[];
 };

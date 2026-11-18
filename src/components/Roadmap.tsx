@@ -1,8 +1,8 @@
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RoadmapStory, housingStory } from "./RoadmapStory";
+import { RoadmapStory } from "./RoadmapStory";
 import { getRoadmap } from "@/lib/atlas.static";
-import { lanes, roadY, routeOf, timeScale, type Roadmap as RoadmapData, type RoadmapSnapshot } from "@/lib/atlas.roadmap";
+import { lanes, roadY, routeOf, timeScale, type Roadmap as RoadmapData, type RoadmapSnapshot, type Stage } from "@/lib/atlas.roadmap";
 
 const W = 1600, H = 1000, CY = 520, X0 = 120, X1 = 5000;
 const HUE: Record<number, number> = { 1: 55, 2: 200, 3: 150, 4: 300, 5: 25 };
@@ -28,11 +28,9 @@ const CSS = `
 .rm-story-content h3{font-size:15px;font-weight:650;margin:3px 0}
 .rm-story-content p{margin:5px 0}
 .rm-story-year{color:oklch(.84 .12 150);font-size:12px}
-.rm-story-content button,.rm-story-toggle{pointer-events:auto;cursor:pointer;border:1px solid oklch(.56 .09 150);border-radius:6px;background:oklch(.15 .035 260);padding:5px 8px;color:inherit}
+.rm-story-content button{pointer-events:auto;cursor:pointer;border:1px solid oklch(.56 .09 150);border-radius:6px;background:oklch(.15 .035 260);padding:5px 8px;color:inherit}
 .rm-story-basis{max-height:24vh;overflow:auto;touch-action:pan-y;border-top:1px solid oklch(.5 .07 150);margin-top:6px}
 .rm-story-basis a{text-decoration:underline}
-.rm-story-link{color:oklch(.85 .12 150);text-decoration:underline;cursor:pointer}
-.rm-story-toggle{position:absolute;top:55px;left:14px;font-size:13px}
 @media(max-width:620px){.rm-story-content{inset:55px 8px auto;font-size:11px}.rm-story-content header h2{font-size:14px}.rm-story-content ol{gap:4px}.rm-story-content li{padding:5px}.rm-story-content h3{font-size:12px}.rm-story-content button{padding:3px;font-size:11px}}
 
 .rm-close{position:absolute;top:14px;left:14px;background:transparent;border:1px solid oklch(.45 .03 230 / .5);color:inherit;border-radius:999px;width:38px;height:38px;font-size:18px;cursor:pointer;opacity:.75}
@@ -61,7 +59,7 @@ function load() {
           start: r.start_year!, end: r.end_year!, kind: r.phenomenon_kind, status: r.review_status,
         })),
         stages: snapshot.stages.flatMap((s) => s.start_year == null ? [] : [{
-          route: s.route_order, seq: s.sequence_no, title: s.title,
+          id: s.state_id, route: s.route_order, seq: s.sequence_no, title: s.title,
           start: s.start_year, end: s.end_year ?? undefined, situation: s.situation,
         }]),
         boundaries: snapshot.boundaries.map((b) => ({
@@ -85,7 +83,7 @@ function load() {
   return cache;
 }
 
-type Pick = { kind: "stage" | "chain" | "boundary" | "route" | "cross" | "gap"; route: number; title: string; years: string; body?: string; note?: string; story?: boolean };
+type Pick = { kind: "stage" | "chain" | "boundary" | "route" | "cross" | "gap"; route: number; title: string; years: string; body?: string; note?: string; stage?: Stage };
 const yrs = (a: number, b?: number) => (b && b !== a ? `${a}–${b}` : String(a));
 
 /** Full-screen roadmap: one luminous road 1500→2050 through five main routes, gates at turning points, theme streams alongside. */
@@ -95,7 +93,8 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const [pan, setPan] = useState(0);
   const [zoom, setZoom] = useState(0.8);
   const [pick, setPick] = useState<Pick | null>(null);
-  const [storyOpen, setStoryOpen] = useState(false);
+  const [activeStage, setActiveStage] = useState<Stage | null>(null);
+  const [lanePage, setLanePage] = useState(0);
   const [snapshot, setSnapshot] = useState<RoadmapSnapshot>();
   const [hover, setHover] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -110,20 +109,20 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
       setZoom(previous.zoom);
     }
     storyReturn.current = null;
-    setStoryOpen(false);
+    setActiveStage(null);
   };
 
   useEffect(() => { load().then(setData, () => setFailed(true)); }, []);
   useEffect(() => {
-    if (!storyOpen) return;
+    if (!activeStage) return;
     let active = true;
     getRoadmap().then((value) => { if (active) setSnapshot(value); }).catch(() => {});
     return () => { active = false; };
-  }, [storyOpen]);
+  }, [activeStage]);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") (pick ? setPick(null) : storyOpen ? closeStory() : onClose()); if (e.key === "ArrowRight") setPan((p) => p - 160); if (e.key === "ArrowLeft") setPan((p) => p + 160); };
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") (pick ? setPick(null) : activeStage ? closeStory() : onClose()); if (e.key === "ArrowRight") setPan((p) => p - 160); if (e.key === "ArrowLeft") setPan((p) => p + 160); };
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
-  }, [pick, storyOpen, onClose]);
+  }, [pick, activeStage, onClose]);
   // Smooth glide when jumping to a route.
   useEffect(() => {
     let raf = 0;
@@ -186,23 +185,39 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const goRoute = (r: number) => { if (!data) return; const rt = data.routes[r - 1]; const mid = (x(rt.start) + x(rt.end)) / 2; target.current = W / 2 / zoom - mid; };
   const clampedPan = Math.max(W / zoom - X1 - 400, Math.min(400, pan));
   const tx = clampedPan * zoom, scale = zoom, ty = (H - H * zoom) / 2 + (CY - CY) * 0;
-  const openStory = () => {
-    const first = x(housingStory[0].year), last = x(housingStory[2].year);
-    const bounds = svgRef.current?.getBoundingClientRect();
-    const visibleWidth = bounds?.width && bounds.height
-      ? bounds.width / Math.max(bounds.width / W, bounds.height / H)
-      : W;
-    const nextZoom = Math.max(0.45, Math.min(1.25, visibleWidth / (last - first + 180)));
-    target.current = null;
+  const stationX = (s: Stage) => x(s.start + (s.route === 2 && s.title.startsWith("Marras") ? 0.6 : 0))
+    + (s.start === 1809 || s.start === 1917 ? 34 : 0) + (s.title.startsWith("Marras") ? 26 : 0);
+  const stageRoute = data?.routes.find((r) => r.order === activeStage?.route);
+  const chainIds = new Set(snapshot?.links?.filter((link) =>
+    link.parent_phenomenon_id === stageRoute?.id && link.parent_state_id === activeStage?.id
+  ).map((link) => link.chain_id));
+  const related = streams.filter(({ c }) => chainIds.has(c.id) && snapshot?.chains.some((chain) => chain.chain_id === c.id));
+  const nearby = activeStage && snapshot && related.length < 2
+    ? streams.filter(({ c }) =>
+      !chainIds.has(c.id) && c.routes.includes(activeStage.route)
+      && c.start <= (activeStage.end ?? activeStage.start)
+      && c.end >= activeStage.start
+    ).sort((a, b) => Math.abs(a.c.start - activeStage.start) - Math.abs(b.c.start - activeStage.start))
+      .slice(0, 2 - related.length)
+    : [];
+  const stageLanes = [...related, ...nearby];
+  const visibleLanes = stageLanes.slice(lanePage * 2, lanePage * 2 + 2);
+  const stagePoint = activeStage ? stationX(activeStage) : 0;
+  const project = (px: number, dy = 0) => ({
+    x: tx + scale * px, y: ty + scale * (roadY(px, CY) + dy),
+  });
+  const anchors = [project(stagePoint), ...visibleLanes.map(({ c, side, lane }) =>
+    project(Math.max(x(c.start), Math.min(stagePoint, x(c.end))), side * (70 + lane * 9))
+  )];
+  const selectPick = (p: Pick) => {
+    if (!p.stage) { setPick(p); return; }
     storyReturn.current ??= { pan, zoom };
-    setPan(W / 2 / nextZoom - (first + last) / 2);
-    setZoom(nextZoom);
+    target.current = null;
+    setPan(W / 2 / zoom - stationX(p.stage));
     setPick(null);
-    setStoryOpen(true);
+    setLanePage(0);
+    setActiveStage(p.stage);
   };
-  const storyAnchors = housingStory.map(({ year }) => ({
-    x: tx + scale * x(year), y: ty + scale * roadY(x(year), CY),
-  }));
   const pickable = (p: Pick) => ({ "data-pick": "1", className: "rm-hit", ref: (el: Element | null) => { if (el) (el as any).__rm = p; } });
 
   return (
@@ -255,9 +270,9 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
               {/* Theme streams flowing alongside the road */}
               {streams.map(({ c, side, lane }) => {
                 const a = x(c.start), b = x(c.end!), dy = side * (70 + lane * 9);
-                const r = routeOf(c.start), on = hover === c.id;
+                const r = routeOf(c.start), on = hover === c.id || visibleLanes.some(({ c: selected }) => selected.id === c.id);
                 return (
-                  <g key={c.id} {...pickable({ kind: "chain", route: r, title: c.title, story: housingStory.some((step) => step.chain === c.id), years: yrs(c.start, c.end), body: c.learning, note: `Kulkee pääreittien ${c.routes.map((n) => ROMAN[n]).join(", ")} läpi.` })}
+                  <g key={c.id} {...pickable({ kind: "chain", route: r, title: c.title, years: yrs(c.start, c.end), body: c.learning, note: `Kulkee pääreittien ${c.routes.map((n) => ROMAN[n]).join(", ")} läpi.` })}
                     onPointerEnter={() => setHover(c.id)} onPointerLeave={() => setHover(null)}>
                     <path d={segPath(a, b, dy)} fill="none" stroke="transparent" strokeWidth={8} />
                     <path d={segPath(a, b, dy)} fill="none" stroke={col(r, 0.78, 0.11)} strokeWidth={on ? 2.6 : 1.1} opacity={on ? 1 : 0.32} strokeLinecap="round" />
@@ -312,11 +327,17 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
 
               {/* Stations */}
               {data.stages.filter((s) => !(s.route === 1 && s.start === 1809)).map((s, i) => {
-                const sx = x(s.start + (s.route === 2 && s.title.startsWith("Marras") ? 0.6 : 0)) + (s.start === 1809 || s.start === 1917 ? 34 : 0) + (s.title.startsWith("Marras") ? 26 : 0);
+                const sx = stationX(s);
                 const sy = roadY(sx, CY), up = i % 2 === 0, ly = up ? sy - 40 - (i % 4 === 0 ? 34 : 0) : sy + 50 + (i % 4 === 1 ? 34 : 0);
                 const label = s.title.replace(/^[^:]*\d{4}[^:]*:\s*/, "");
                 return (
-                  <g key={`${s.route}-${s.seq}`} {...pickable({ kind: "stage", route: s.route, title: s.title, story: s.route === 3 && (s.start === 1950 || s.start === 1968), years: yrs(s.start, s.end), body: s.situation })}>
+                  <g key={`${s.route}-${s.seq}`} {...pickable({ kind: "stage", route: s.route, title: s.title, stage: s, years: yrs(s.start, s.end), body: s.situation })}
+                    role="button" tabIndex={0} aria-label={s.title}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      selectPick({ kind: "stage", route: s.route, title: s.title, years: yrs(s.start, s.end), stage: s });
+                    }}>
                     <line x1={sx} y1={sy} x2={sx} y2={ly + (up ? 6 : -16)} stroke={col(s.route)} strokeWidth={1} opacity={0.5} />
                     <circle cx={sx} cy={sy} r={13} fill={col(s.route)} opacity={0.25} className="rm-pulse" style={{ animationDelay: `${(i % 6) * 0.4}s` }} />
                     <circle cx={sx} cy={sy} r={6} fill="oklch(.98 .02 230)" stroke={col(s.route)} strokeWidth={3} />
@@ -329,7 +350,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
           )}
         </g>
       </svg>
-      <PickBridge root={svgRef} onPick={setPick} />
+      <PickBridge root={svgRef} onPick={selectPick} />
       <button className="rm-close" onClick={onClose} aria-label="Sulje tiekartta">←</button>
       <div className="rm-title">Tiekartta 1500–2050</div>
       {data && (
@@ -341,8 +362,20 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       )}
-      {data && !storyOpen && <button type="button" className="rm-story-toggle" onClick={openStory}>Asuinpaikka, koulutus ja työ</button>}
-      {storyOpen && <RoadmapStory anchors={storyAnchors} snapshot={snapshot} onClose={closeStory} />}
+      {activeStage && (
+        <RoadmapStory key={`${activeStage.route}:${activeStage.seq}:${lanePage}`} title={activeStage.title}
+          anchors={anchors} snapshot={snapshot} onClose={closeStory}
+          page={lanePage} pageCount={Math.ceil(stageLanes.length / 2)} onPage={setLanePage}
+          cards={[
+            { id: "stage", label: `Reitti ${ROMAN[activeStage.route]} · ${yrs(activeStage.start, activeStage.end)}`,
+              title: "Etappi pääreitillä", text: [activeStage.situation, stageRoute?.title].filter(Boolean).join(" · ") },
+            ...visibleLanes.map(({ c }) => ({
+              id: c.id, label: `${chainIds.has(c.id) ? "Etappiin liittyvä kaista" : "Saman ajan kaista"} · ${yrs(c.start, c.end)} · ${c.routes.map((r) => ROMAN[r]).join(" → ")}`,
+              title: c.title, text: snapshot?.chains.find((chain) => chain.chain_id === c.id)?.observed_change || c.learning,
+            })),
+          ]}
+        />
+      )}
       <p className="rm-hint">vedä = kulje ajassa · rulla = zoomaa · kosketa asemaa, porttia tai virtaa · himmeät virrat ovat teemaketjuja, himmein viiva yhdistää kaistan osat · kaaret ulottuvat aikakausien yli</p>
       <aside className="rm-panel" data-open={!!pick} style={{ "--c": col(pick?.route ?? 2) } as React.CSSProperties} aria-hidden={!pick}>
         {pick && (
@@ -351,7 +384,6 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
             <div className="rm-k">{{ stage: "Reittivaihe", chain: "Teemaketju", boundary: "Käännekohta", route: "Pääreitti", cross: "Aikakausien yli", gap: "Kaistan väli" }[pick.kind]} · {pick.years}</div>
             <h2>{pick.title}</h2>
             {pick.body && pick.body !== pick.title && <p>{pick.body}</p>}
-            {pick.story && <button type="button" className="rm-story-link" onClick={openStory}>Avaa päättelyketju</button>}
             {pick.note && <p className="rm-note">{pick.note}</p>}
             <p className="rm-note">Vain tietokantaan kirjatut reitit, vaiheet ja jäsenyydet; viivat eivät väitä syy-yhteyttä.</p>
           </>
