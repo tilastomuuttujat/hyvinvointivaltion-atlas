@@ -235,7 +235,6 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                     onPointerEnter={() => setHover(it.id)} onPointerLeave={() => setHover(null)}>
                     <path d={`M${a},${ya} Q${(a + b) / 2},${Math.min(ya, yb) + h * 2.1} ${b},${yb}`} fill="none" stroke="transparent" strokeWidth={10} />
                     <path d={`M${a},${ya} Q${(a + b) / 2},${Math.min(ya, yb) + h * 2.1} ${b},${yb}`} fill="none" stroke="oklch(.92 .06 90)" strokeWidth={on ? 2.6 : 1.4} opacity={on ? 0.95 : 0.45} strokeDasharray="1 6" strokeLinecap="round" />
-                    <circle cx={b} cy={roadY(b, CY) + dy} r={on ? 2.7 : 1.6} fill={col(r)} opacity={on ? 1 : 0.58} />
                     {on && <text x={(a + b) / 2} y={Math.min(ya, yb) + h * 1.08 + 18} textAnchor="middle" fontSize={15} fill="oklch(.92 .06 90)" className="rm-label">{it.title.split(":")[0]}</text>}
                   </g>
                 );
