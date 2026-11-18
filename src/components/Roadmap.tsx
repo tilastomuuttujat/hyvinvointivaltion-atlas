@@ -20,10 +20,26 @@ const FACTORS = [
 ] as const;
 type Factor = (typeof FACTORS)[number];
 
+const SCHOOL_EFFECTS = {
+  before: { title: "Laki loi perustan", text: "Vuoden 1968 laki loi valtakunnallisen perustan yhteiselle peruskoululle. Kunnissa siirtyminen toteutettiin vaiheittain vuosina 1972–1977.", locator: "Laki koulujärjestelmän perusteista 467/1968" },
+  after: { title: "Tasokursseista luovuttiin", text: "Yhteinen peruskoulu säilytti alkuvaiheessa tasokurssit. Niistä luopuminen vuonna 1985 poisti yhteiseen kouluun jääneen valikointikäytännön.", locator: "Tasokursseista luopuminen" },
+  strength: { title: "Yhteinen koulupolku laajeni", text: "Yhteiseen peruskouluun siirtyminen vähensi varhaista jakoa erillisiin koulupolkuihin. Tämä muutti sitä, missä vaiheessa oppilaiden koulutusreitit erkanivat.", locator: "old two-track system" },
+  difficulty: { title: "Uudistus eteni eri tahtiin", text: "Peruskoulu otettiin käyttöön eri alueilla eri vuosina. Asuinpaikka vaikutti siihen, milloin oppilas siirtyi yhteiseen kouluun.", locator: "Komiteanmietintö 1970, toteutus 1972–77" },
+} as const;
+type SchoolEffect = keyof typeof SCHOOL_EFFECTS;
+
 const CSS = `
 .rm-hud{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:min(92vw,980px);display:flex;align-items:center;gap:10px;padding:6px 8px 6px 14px;border-radius:999px;background:oklch(.1 .02 260/.55);backdrop-filter:blur(8px);border:1px solid color-mix(in oklch,var(--c) 45%,transparent);font-size:13px;color:oklch(.92 .02 230);white-space:nowrap;animation:rmHud .35s ease}
 .rm-factor-card{width:100%;max-height:35vh;overflow:auto;touch-action:pan-y;background:#101c25;border:1px solid #86bcac;border-radius:12px;padding:12px 16px;font-size:14px}
 .rm-factor-card h2{font-weight:700}.rm-factor-card p{margin-top:6px}.rm-factor-card button{float:right;color:#b9e4d8;cursor:pointer}
+.rm-impact-top{position:absolute;top:78px;left:50%;transform:translateX(-50%);width:min(690px,94vw);display:grid;gap:9px;text-align:center;pointer-events:none}
+.rm-impact-chain{display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px}
+.rm-impact-chain strong{color:#e8faf4}
+.rm-impact-top button,.rm-impact-difficulty{pointer-events:auto;color:#e8faf4;background:#122831;border:1px solid #86bcac;border-radius:8px;padding:7px 10px;font-size:13px;cursor:pointer}
+.rm-impact-top button[aria-pressed=true],.rm-impact-difficulty[aria-pressed=true]{background:#a5dfce;color:#0b201a}
+.rm-impact-strength,.rm-impact-difficulty{justify-self:center}
+.rm-impact-difficulty{border-color:#e0ad79}
+@media(max-width:700px){.rm-impact-top{top:93px}.rm-impact-chain{gap:4px;font-size:12px}.rm-impact-chain button{padding:5px;font-size:11px}}
 .rm-factor-dock{position:absolute;bottom:58px;left:50%;transform:translateX(-50%);width:min(650px,94vw);display:grid;gap:8px;pointer-events:none}
 .rm-factor-card,.rm-factor-options{pointer-events:auto}
 .rm-factor-options{display:flex;justify-content:center;flex-wrap:wrap;gap:6px}
@@ -131,6 +147,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const [failed, setFailed] = useState(false);
   const [pan, setPan] = useState(0);
   const [zoom, setZoom] = useState(0.8);
+  const [effect, setEffect] = useState<SchoolEffect | null>(null);
   const [factor, setFactor] = useState<Factor | null>(null);
   const [pick, setPick] = useState<Pick | null>(null);
   const [snapshot, setSnapshot] = useState<RoadmapSnapshot>();
@@ -149,9 +166,9 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
     return () => { active = false; };
   }, [activeStage]);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") (factor ? setFactor(null) : pick ? setPick(null) : onClose()); if (e.key === "ArrowRight") setPan((p) => p - 160); if (e.key === "ArrowLeft") setPan((p) => p + 160); };
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") (effect ? setEffect(null) : factor ? setFactor(null) : pick ? setPick(null) : onClose()); if (e.key === "ArrowRight") setPan((p) => p - 160); if (e.key === "ArrowLeft") setPan((p) => p + 160); };
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
-  }, [pick, factor, onClose]);
+  }, [pick, factor, effect, onClose]);
   // Smooth glide when jumping to a route.
   useEffect(() => {
     let raf = 0;
@@ -224,6 +241,17 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const factors = activeStage?.route === 3 && activeStage.start === 1968
     ? FACTORS.filter((f) => streams.some(({ c }) => c.id === f.from) && streams.some(({ c }) => c.id === f.to))
     : [];
+  const schoolImpact = activeStage?.route === 3 && activeStage.start === 1968;
+  const selectedEffect = schoolImpact && effect ? SCHOOL_EFFECTS[effect] : null;
+  const effectSource = selectedEffect && snapshot?.details?.find(({ chain_id, detail }) =>
+    chain_id === "peruskoulu-uudistus-1968" && typeof detail.locator === "string"
+    && detail.locator.includes(selectedEffect.locator) && typeof detail.source_url === "string"
+    && /^https?:\/\//i.test(detail.source_url)
+  );
+  const toggleEffect = (key: SchoolEffect) => {
+    setFactor(null);
+    setEffect((current) => current === key ? null : key);
+  };
   const factorSource = factor && snapshot?.details?.find(({ chain_id, detail_kind, detail }) =>
     (chain_id === factor.from || chain_id === factor.to) && detail_kind === "evidence"
     && typeof detail.source_url === "string" && /^https?:\/\//i.test(detail.source_url)
@@ -232,6 +260,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const ctx = activeStage && data ? stageContext(data, activeStage, chainIds) : null;
   const lit = new Set<string>(ctx ? ctx.lanes.slice(0, 6).map((c) => c.id) : []);
   const selectPick = (p: Pick) => {
+    setEffect(null);
     setFactor(null);
     const c = lastClick.current; lastClick.current = null;
     setPick((current) => {
@@ -463,7 +492,26 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
         </div>
       )}
       {!pick && <p className="rm-hint">vedä = kulje ajassa · rulla = zoomaa · kosketa asemaa, porttia tai virtaa · himmeät virrat ovat teemaketjuja, himmein viiva yhdistää kaistan osat · kaaret ulottuvat aikakausien yli</p>}
-      {factors.length > 0 && <div className="rm-factor-dock">
+      {schoolImpact && <section className="rm-impact-top" aria-label="Peruskoulu-uudistuksen vaikutusketju">
+        <div className="rm-impact-chain">
+          <button type="button" aria-pressed={effect === "before"} onClick={() => toggleEffect("before")}>1968 · Laki loi perustan →</button>
+          <strong>1972–1977 · Käyttöönotto</strong>
+          <button type="button" aria-pressed={effect === "after"} onClick={() => toggleEffect("after")}>→ 1985 · Tasokursseista luovuttiin</button>
+        </div>
+        <button type="button" className="rm-impact-strength" aria-pressed={effect === "strength"}
+          onClick={() => toggleEffect("strength")}>Vahvuus · Yhteinen koulupolku laajeni</button>
+      </section>}
+      {(schoolImpact || factors.length > 0) && <div className="rm-factor-dock">
+        {selectedEffect && <section className="rm-factor-card" aria-label={selectedEffect.title}>
+          <button type="button" onClick={() => setEffect(null)} aria-label="Sulje havainto">×</button>
+          <h2>{selectedEffect.title}</h2>
+          <p>{selectedEffect.text}</p>
+          {effectSource && <p><a href={String(effectSource.detail.source_url)} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>
+            {String(effectSource.detail.source_title ?? "Lähde")}
+          </a></p>}
+        </section>}
+        {schoolImpact && <button type="button" className="rm-impact-difficulty" aria-pressed={effect === "difficulty"}
+          onClick={() => toggleEffect("difficulty")}>Vaikeus · Uudistus eteni eri tahtiin</button>}
         {factor && factors.includes(factor) && <section className="rm-factor-card" aria-label={factor.title}>
           <button type="button" onClick={() => setFactor(null)} aria-label="Sulje yhteys">×</button>
           <h2>{factor.title}</h2>
@@ -477,7 +525,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
         <div className="rm-factor-options" role="group" aria-label="Selittävät tekijät">
           {factors.map((item) => (
             <button key={item.title} type="button" aria-pressed={factor === item}
-              onClick={() => setFactor((current) => current === item ? null : item)}>{item.title}</button>
+              onClick={() => { setEffect(null); setFactor((current) => current === item ? null : item); }}>{item.title}</button>
           ))}
         </div>
       </div>}
@@ -489,7 +537,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
             <span className="rm-hud-now"><b>{pick.years}</b> {tail(activeStage.title)}{activeStage.situation && activeStage.situation !== activeStage.title ? <i> — {activeStage.situation}</i> : null}</span>
             {ctx.after && <button type="button" onClick={() => { target.current = W / 2 / zoom - stationX(ctx.after!); selectPick({ kind: "stage", route: ctx.after!.route, title: ctx.after!.title, stage: ctx.after!, years: yrs(ctx.after!.start, ctx.after!.end) }); }}>{tail(ctx.after.title)} ›</button>}
           </> : <span className="rm-hud-now"><b>{pick.years}</b> {pick.title}{pick.body && pick.body !== pick.title ? <i> — {pick.body}</i> : null}</span>}
-          <button type="button" className="rm-hud-x" onClick={() => { setFactor(null); setPick(null); }} aria-label="Sulje">×</button>
+          <button type="button" className="rm-hud-x" onClick={() => { setEffect(null); setFactor(null); setPick(null); }} aria-label="Sulje">×</button>
         </div>
       )}
     </div>
