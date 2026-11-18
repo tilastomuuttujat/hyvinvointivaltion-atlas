@@ -7,8 +7,26 @@ const W = 1600, H = 1000, CY = 520, X0 = 120, X1 = 5000;
 const HUE: Record<number, number> = { 1: 55, 2: 200, 3: 150, 4: 300, 5: 25 };
 const col = (r: number, l = 0.82, c = 0.13) => `oklch(${l} ${c} ${HUE[r]})`;
 const ROMAN = ["", "I", "II", "III", "IV", "V"];
+const FACTORS = [
+  { title: "Koulun saavutettavuus", from: "aluepolitiikka-palvelujen-sijoittuminen-1945", to: "peruskoulu-uudistus-1968",
+    text: "Miten kouluverkon sijainti, koulumatkat ja uudistuksen alueittainen toteutus vaikuttivat siihen, milloin ja missä nuori pääsi yhteiseen peruskouluun?",
+    evidence: "Vertaa alueiden toteutusvuosia, kouluverkkoa ja koulumatkoja." },
+  { title: "Jatko-opintomahdollisuudet", from: "peruskoulu-uudistus-1968", to: "koulutus-paasy-oppiminen-osaamisen-kaytto",
+    text: "Jatko-opintojen saatavuus saattoi välittää koulu-uudistuksen vaikutusta ammatinvalintaan. Tutki, miten koulutuspolut muuttuivat eri alueilla ja ryhmissä.",
+    evidence: "Vertaa jatko-opintoihin siirtymistä ja myöhempiä koulutus- tai työuria." },
+  { title: "Asuntojen saatavuus", from: "maatalous-koneellistuminen-1945", to: "maaltamuutto-kaupungistuminen-1950",
+    text: "Työn siirtyminen kasvukeskuksiin saattoi lisätä muuttopainetta. Asunnon löytyminen vaikutti siihen, oliko uuteen paikkaan mahdollista asettua pysyvästi.",
+    evidence: "Vertaa työpaikkojen sijaintia, muuttovirtoja ja asuntotuotantoa." },
+] as const;
+type Factor = (typeof FACTORS)[number];
+
 const CSS = `
 .rm-hud{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:min(92vw,980px);display:flex;align-items:center;gap:10px;padding:6px 8px 6px 14px;border-radius:999px;background:oklch(.1 .02 260/.55);backdrop-filter:blur(8px);border:1px solid color-mix(in oklch,var(--c) 45%,transparent);font-size:13px;color:oklch(.92 .02 230);white-space:nowrap;animation:rmHud .35s ease}
+.rm-factor{cursor:pointer;pointer-events:auto}
+.rm-factor:focus-visible rect{stroke:white;stroke-width:2}
+.rm-factor-card{position:absolute;bottom:65px;left:50%;transform:translateX(-50%);width:min(560px,92vw);max-height:35vh;overflow:auto;touch-action:pan-y;background:#101c25;border:1px solid #86bcac;border-radius:12px;padding:12px 16px;font-size:14px}
+.rm-factor-card h2{font-weight:700}.rm-factor-card p{margin-top:6px}.rm-factor-card button{float:right;color:#b9e4d8;cursor:pointer}
+@media(max-width:700px){.rm-factor-card{bottom:115px}}
 .rm-hud-now{overflow:hidden;text-overflow:ellipsis;min-width:0}.rm-hud-now b{color:var(--c);margin-right:6px}.rm-hud-now i{opacity:.65;font-style:normal}
 .rm-hud button{background:none;border:0;color:var(--c);font:inherit;cursor:pointer;padding:2px 6px;max-width:22ch;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.rm-hud .rm-hud-x{color:oklch(.8 .02 230);font-size:16px}
 @media (max-width:700px){.rm-hud{flex-wrap:wrap;justify-content:space-between;border-radius:16px;white-space:normal;bottom:8px;width:94vw}.rm-hud-now{order:-1;flex-basis:calc(100% - 30px);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}.rm-hud-x{order:-1}}
@@ -99,7 +117,7 @@ function load() {
   return cache;
 }
 
-type Pick = { cx?: number; cy?: number; kind: "stage" | "chain" | "boundary" | "route" | "cross" | "gap"; route: number; title: string; years: string; body?: string; note?: string; stage?: Stage };
+type Pick = { cx?: number; cy?: number; kind: "stage" | "chain" | "boundary" | "route" | "cross" | "gap"; route: number; title: string; years: string; body?: string; note?: string; stage?: Stage; factor?: Factor };
 const yrs = (a: number, b?: number) => (b && b !== a ? `${a}–${b}` : String(a));
 
 /** Full-screen roadmap: one luminous road 1500→2050 through five main routes, gates at turning points, theme streams alongside. */
@@ -108,6 +126,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const [failed, setFailed] = useState(false);
   const [pan, setPan] = useState(0);
   const [zoom, setZoom] = useState(0.8);
+  const [factor, setFactor] = useState<Factor | null>(null);
   const [pick, setPick] = useState<Pick | null>(null);
   const [snapshot, setSnapshot] = useState<RoadmapSnapshot>();
   const [hover, setHover] = useState<string | null>(null);
@@ -125,9 +144,9 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
     return () => { active = false; };
   }, [activeStage]);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") (pick ? setPick(null) : onClose()); if (e.key === "ArrowRight") setPan((p) => p - 160); if (e.key === "ArrowLeft") setPan((p) => p + 160); };
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") (factor ? setFactor(null) : pick ? setPick(null) : onClose()); if (e.key === "ArrowRight") setPan((p) => p - 160); if (e.key === "ArrowLeft") setPan((p) => p + 160); };
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
-  }, [pick, onClose]);
+  }, [pick, factor, onClose]);
   // Smooth glide when jumping to a route.
   useEffect(() => {
     let raf = 0;
@@ -197,9 +216,19 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const chainIds = new Set(snapshot?.links?.filter((link) =>
     link.parent_phenomenon_id === stageRoute?.id && link.parent_state_id === activeStage?.id
   ).map((link) => link.chain_id));
+  const factors = activeStage?.route === 3 && activeStage.start === 1968
+    ? FACTORS.filter((f) => streams.some(({ c }) => c.id === f.from) && streams.some(({ c }) => c.id === f.to))
+    : [];
+  const factorSource = factor && snapshot?.details?.find(({ chain_id, detail_kind, detail }) =>
+    (chain_id === factor.from || chain_id === factor.to) && detail_kind === "evidence"
+    && typeof detail.source_url === "string" && /^https?:\/\//i.test(detail.source_url)
+    && typeof detail.source_title === "string"
+  );
   const ctx = activeStage && data ? stageContext(data, activeStage, chainIds) : null;
   const lit = new Set<string>(ctx ? ctx.lanes.slice(0, 6).map((c) => c.id) : []);
   const selectPick = (p: Pick) => {
+    if (p.factor) { setFactor(p.factor); return; }
+    setFactor(null);
     const c = lastClick.current; lastClick.current = null;
     setPick((current) => {
       const selected = current?.stage;
@@ -360,7 +389,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
             const sx = stationX(activeStage), sy = roadY(sx, CY), c = col(activeStage.route);
             const arc = (a: number, b: number, up: number) => { const ya = roadY(a, CY), yb = roadY(b, CY); return `M${a},${ya} Q${(a + b) / 2},${Math.min(ya, yb) - up} ${b},${yb}`; };
             const bx = ctx.before ? stationX(ctx.before) : null, ax = ctx.after ? stationX(ctx.after) : null;
-            const lanes = streams.filter(({ c: l }) => lit.has(l.id));
+            const lanes = streams.filter(({ c: l }) => lit.has(l.id) || factors.some((f) => f.from === l.id || f.to === l.id));
             return (
               <g className="rm-focus" pointerEvents="none">
                 <rect x={-4000} y={-1000} width={X1 + 8000} height={3000} fill="oklch(.07 .02 260)" opacity={0.62} />
@@ -372,18 +401,38 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                       <path id={id} d={segPath(a, b, dy)} fill="none" stroke={col(routeOf(l.start), 0.8, 0.12)} strokeWidth={2.8} strokeLinecap="round" />
                       <path d={segPath(a, b, dy)} fill="none" stroke="oklch(.98 .02 230)" strokeWidth={1.2} strokeDasharray="2 14" className="rm-flow" />
                       <text fontSize={13} fill={col(routeOf(l.start), 0.9, 0.1)} className="rm-label" dy={side < 0 ? -6 : 14}>
-                        <textPath href={`#${id}`} startOffset={`${4 + (li % 4) * 18}%`}>{l.title.split(":")[0]}{lasting ? ` — kantaa vuoteen ${l.end}` : ""}</textPath>
+                        <textPath href={`#${id}`} startOffset={`${4 + (li % 4) * 18}%`}>{l.title.split(":")[0]}{lasting ? ` — ketjua seurataan vuoteen ${l.end}` : ""}</textPath>
                       </text>
                     </g>
                   );
                 })}
+                {factors.map((f, i) => {
+                  const anchor = (id: string) => {
+                    const lane = lanes.find(({ c }) => c.id === id)!;
+                    const px = Math.max(x(lane.c.start), Math.min(sx + 80 + i * 45, x(lane.c.end!)));
+                    return { x: px, y: roadY(px, CY) + lane.side * (70 + lane.lane * 9) };
+                  };
+                  const a = anchor(f.from), b = anchor(f.to);
+                  const lx = sx + 205, ly = sy + 55 + i * 29;
+                  return <g key={f.title}>
+                    <path d={`M${a.x},${a.y} L${lx},${ly} L${b.x},${b.y}`} fill="none" stroke="#a5dfce" strokeWidth={1.5} opacity={0.85} />
+                    <g {...pickable({ kind: "stage", route: activeStage.route, title: f.title, years: "", factor: f })}
+                      className="rm-factor" role="button" tabIndex={0} aria-label={f.title}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFactor(f); }
+                      }}>
+                      <rect x={lx - 98} y={ly - 12} width={196} height={24} rx={6} fill="#122831" stroke="#86bcac" />
+                      <text x={lx} y={ly + 4} fontSize={13} textAnchor="middle" fill="#e8faf4">{f.title}</text>
+                    </g>
+                  </g>;
+                })}
                 {bx != null && <g>
                   <path id="rmf-before" d={arc(bx, sx, 160)} fill="none" stroke={c} strokeWidth={2} strokeDasharray="3 7" className="rm-flow" opacity={0.9} />
-                  <text fontSize={14} fill="oklch(.92 .03 230)" className="rm-label" dy={-8}><textPath href="#rmf-before" startOffset="50%" textAnchor="middle">synnytti ›</textPath></text>
+                  <text fontSize={14} fill="oklch(.92 .03 230)" className="rm-label" dy={-8}><textPath href="#rmf-before" startOffset="50%" textAnchor="middle">edeltävä etappi</textPath></text>
                 </g>}
                 {ax != null && <g>
                   <path id="rmf-after" d={arc(sx, ax, 160)} fill="none" stroke={c} strokeWidth={2.4} className="rm-flow" strokeDasharray="10 6" />
-                  <text fontSize={14} fill="oklch(.95 .03 230)" className="rm-label" dy={-8}><textPath href="#rmf-after" startOffset="50%" textAnchor="middle">johti ›</textPath></text>
+                  <text fontSize={14} fill="oklch(.95 .03 230)" className="rm-label" dy={-8}><textPath href="#rmf-after" startOffset="50%" textAnchor="middle">seuraava etappi</textPath></text>
                 </g>}
                 {[ctx.before, ctx.after].map((t) => t && (
                   <g key={t.seq + "-" + t.start}>
@@ -395,7 +444,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                 <circle cx={sx} cy={sy} r={8} fill="oklch(.99 .02 230)" stroke={c} strokeWidth={3} />
                 {ctx.era && <text x={sx} y={sy - 70} textAnchor="middle" fontSize={12} letterSpacing=".18em" fill={c} opacity={0.85} className="rm-label">{ROMAN[ctx.era.order]} · {ctx.era.title.replace(/^Pää(ketju|reitti) [IVX]+: /, "").toUpperCase()}</text>}
                 <text x={sx} y={sy - 46} textAnchor="middle" fontSize={20} fontWeight={600} fill="oklch(.98 .02 230)" className="rm-label">{wrapLabel(tail(activeStage.title), 34)[0]}</text>
-                {ctx.gate && <text x={x(ctx.gate.year)} y={roadY(x(ctx.gate.year), CY) + 200} textAnchor="middle" fontSize={12} fill="oklch(.9 .04 230)" opacity={0.8} className="rm-label" fontStyle="italic">avasi tien</text>}
+                {ctx.gate && <text x={x(ctx.gate.year)} y={roadY(x(ctx.gate.year), CY) + 200} textAnchor="middle" fontSize={12} fill="oklch(.9 .04 230)" opacity={0.8} className="rm-label" fontStyle="italic">edeltävä käännekohta</text>}
               </g>
             );
           })()}
@@ -414,6 +463,18 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
         </div>
       )}
       {!pick && <p className="rm-hint">vedä = kulje ajassa · rulla = zoomaa · kosketa asemaa, porttia tai virtaa · himmeät virrat ovat teemaketjuja, himmein viiva yhdistää kaistan osat · kaaret ulottuvat aikakausien yli</p>}
+      {factor && factors.includes(factor) && (
+        <section className="rm-factor-card" aria-label={factor.title}>
+          <button type="button" onClick={() => setFactor(null)} aria-label="Sulje yhteys">×</button>
+          <h2>{factor.title}</h2>
+          <p>Tutkittava yhteys</p>
+          <p>{factor.text}</p>
+          <p><strong>Mitä aineistosta etsitään?</strong> {factor.evidence}</p>
+          {factorSource && <p><a href={String(factorSource.detail.source_url)} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>
+            Tausta-aineisto: {String(factorSource.detail.source_title)}
+          </a></p>}
+        </section>
+      )}
       {pick && (
         <div className="rm-hud" role="status" style={{ "--c": col(pick.route) } as React.CSSProperties}
           onPointerDown={(e) => e.stopPropagation()}>
@@ -422,7 +483,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
             <span className="rm-hud-now"><b>{pick.years}</b> {tail(activeStage.title)}{activeStage.situation && activeStage.situation !== activeStage.title ? <i> — {activeStage.situation}</i> : null}</span>
             {ctx.after && <button type="button" onClick={() => { target.current = W / 2 / zoom - stationX(ctx.after!); selectPick({ kind: "stage", route: ctx.after!.route, title: ctx.after!.title, stage: ctx.after!, years: yrs(ctx.after!.start, ctx.after!.end) }); }}>{tail(ctx.after.title)} ›</button>}
           </> : <span className="rm-hud-now"><b>{pick.years}</b> {pick.title}{pick.body && pick.body !== pick.title ? <i> — {pick.body}</i> : null}</span>}
-          <button type="button" className="rm-hud-x" onClick={() => setPick(null)} aria-label="Sulje">×</button>
+          <button type="button" className="rm-hud-x" onClick={() => { setFactor(null); setPick(null); }} aria-label="Sulje">×</button>
         </div>
       )}
     </div>
