@@ -7,7 +7,9 @@ import { validateThemeCatalog } from "./atlas.catalogue";
 import type { EvidenceBundle } from "./atlas.evidence";
 import type { AtlasData, Treatment } from "./atlas.functions";
 export type { AtlasData, Conclusion } from "./atlas.functions";
+import type { Roadmap } from "./atlas.roadmap";
 type Snapshot = {
+  roadmap?: Roadmap;
   publication?: PublicationBundle;
   themeCatalog?: ThemeCatalog;
   evidence?: EvidenceBundle;
@@ -89,4 +91,8 @@ export async function getTreatments({
   return (await snapshot()).treatments.filter(
     (row) => row.conclusionId === data.conclusionId,
   );
+}
+
+export async function getRoadmap(): Promise<Roadmap | undefined> {
+  return (await snapshot()).roadmap;
 }

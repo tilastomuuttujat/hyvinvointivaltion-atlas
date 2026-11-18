@@ -84,6 +84,13 @@ try {
     snapshot.evidence,
     new Set(snapshot.atlas.conclusions.map((c) => c.id)),
   );
+  snapshot.roadmap = (
+    await client.query(
+      await readFile(new URL("./export-roadmap.sql", import.meta.url), "utf8"),
+    )
+  ).rows[0]?.roadmap;
+  if (!snapshot.roadmap?.routes.length || !snapshot.roadmap.stages.length)
+    throw new Error("Roadmap export was empty.");
   await client.query("COMMIT");
   const target = fileURLToPath(
     new URL("../public/data/atlas.json", import.meta.url),

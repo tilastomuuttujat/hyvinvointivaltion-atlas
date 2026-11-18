@@ -3,6 +3,7 @@ import { GraphExploreProvider } from "@/components/GraphExplore";
 import { ThemeSystem } from "@/components/ThemeSystem";
 import { OrganicNodeGraph } from "@/components/OrganicNodeGraph";
 import { ReasoningSpace } from "@/components/ReasoningSpace";
+import { AtlasRoadmap } from "@/components/AtlasRoadmap";
 import { ConceptMap } from "@/components/ConceptMap";
 import { ThemeConceptMap } from "@/components/ThemeConceptMap";
 import { EvidenceExplorer } from "@/components/EvidenceExplorer";
@@ -62,13 +63,17 @@ export function AtlasPage() {
     | "axes"
     | "concepts"
     | "routes"
+    | "roadmap"
     | "themes"
     | "network"
   >("sphere");
   const [space, setSpace] = useState(false);
   const [visited, setVisited] = useState<Set<string>>(new Set([view]));
   useEffect(() => {
-    if (window.location.hash === "#vaikutusketjut") {
+    if (window.location.hash === "#tiekartta") {
+      setView("roadmap");
+      setVisited((v) => new Set(v).add("roadmap"));
+    } else if (window.location.hash === "#vaikutusketjut") {
       setView("themes");
       setVisited((v) => new Set(v).add("themes"));
     }
@@ -107,6 +112,7 @@ export function AtlasPage() {
               ["axes", "⊹ Akselikenttä"],
               ["concepts", "❖ Käsitekartta"],
               ["routes", "⌁ Reittikartta"],
+              ["roadmap", "Tiekartta"],
               ["themes", "☊ Teemaverkko"],
               ["network", "☍ Solmuverkko"],
             ] as const
@@ -122,7 +128,7 @@ export function AtlasPage() {
                   "",
                   window.location.pathname +
                     window.location.search +
-                    "",
+                    (k === "roadmap" ? "#tiekartta" : ""),
                 );
                 setVisited((previous) => new Set([...previous, k]));
               }}
@@ -134,7 +140,9 @@ export function AtlasPage() {
             ✦ Päättelyavaruus
           </button>
         </nav>
-        {space && <ReasoningSpace data={data} onClose={() => setSpace(false)} />}
+        {space && (
+          <ReasoningSpace data={data} onClose={() => setSpace(false)} />
+        )}
         <div hidden={view !== "sphere"}>
           <AtlasExperience data={data} active={view === "sphere"} />
         </div>
@@ -151,6 +159,11 @@ export function AtlasPage() {
         {visited.has("concepts") && (
           <div hidden={view !== "concepts"}>
             <ThemeConceptMap data={data} />
+          </div>
+        )}
+        {visited.has("roadmap") && (
+          <div hidden={view !== "roadmap"}>
+            <AtlasRoadmap />
           </div>
         )}
         {visited.has("routes") && (
