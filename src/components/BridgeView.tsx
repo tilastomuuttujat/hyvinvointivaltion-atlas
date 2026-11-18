@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { advanceBridge, normalizeHeading, travelDirection, type BridgeMotion } from "@/lib/bridge.motion";
 import { getRoadmap } from "@/lib/atlas.static";
 import type { RoadmapSnapshot } from "@/lib/atlas.roadmap";
 import { STAGE_OBSERVATIONS, type ObservationKind } from "@/lib/roadmap.observations";
@@ -13,11 +14,11 @@ const ROMAN = ["", "I", "II", "III", "IV", "V"];
 const COLORS = ["#a6e6d4", "#e5ae7c", "#7ad7ea", "#9befcd", "#c9b2ff", "#f6ac9f"];
 const SHORT = (t: string) => t.replace(/^Pää(?:ketju|reitti) [IVX]+:\s*/i, "").replace(/^\d{4}(?:–\d{4})?:\s*/, "");
 const W = 1600, H = 900, CX = 800, HZ = 330;
-const AHEAD = 5, CRUISE = 0.22, DWELL = 6, SPEED = 0.12;
+const AHEAD = 5;
 // depth 0 = at the bridge, 1..AHEAD toward horizon
 const yAt = (d: number) => HZ + (H - 120 - HZ) / (1 + d * 0.5);
 const sAt = (d: number) => 1 / (1 + d * 0.5);
-const xAt = (d: number) => CX + 70 * Math.sin(d * 1.1) * sAt(d) * 2.2;
+const centerAt = (d: number) => CX + 70 * Math.sin(d * 1.1) * sAt(d) * 2.2;
 
 const STARS = Array.from({ length: 160 }, (_, i) => {
   const a = Math.sin(i * 127.1) * 43758.5453, b = Math.sin(i * 311.7) * 24634.6345;
@@ -106,56 +107,62 @@ const keyOf = (s: Stage) => `${s.route_order}:${s.state_id}`;
 export function BridgeView({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<RoadmapSnapshot>();
   const [failed, setFailed] = useState(false);
-  const [index, setIndex] = useState(0);
   const [effect, setEffect] = useState<ObservationKind | null>(null);
 
   const stages = useMemo(() => (data?.stages ?? []).filter((s): s is Stage => s.start_year != null)
     .sort((a, b) => a.start_year - b.start_year || a.route_order - b.route_order || a.sequence_no - b.sequence_no), [data]);
-  /* Real-time voyage: pos is a continuous stage position; the ship glides toward
-     target, cruising forward on autopilot and dwelling at each stage (anchor). */
-  const [pos, setPos] = useState(0);
+  const initial: BridgeMotion = { pos: 0, heading: 90, velocity: 0, lateral: 0, roll: 0 };
+  const [motion, setMotion] = useState(initial);
+  const motionRef = useRef(initial);
   const [cruise, setCruise] = useState(true);
   const [t, setT] = useState(0);
-  const [heading, setHeading] = useState(90); const headRef = useRef(90); headRef.current = heading;
-  const jumping = useRef(false);
-  const target = useRef(0), posRef = useRef(0), dwell = useRef(DWELL), bank = useRef(0), lastRoute = useRef(0);
-  const cruiseRef = useRef(cruise); cruiseRef.current = cruise;
-  const countRef = useRef(0); countRef.current = stages.length;
-  const stage = stages[index];
-  const jump = (n: number) => { if (n >= 0 && n < stages.length) { target.current = n; jumping.current = true; dwell.current = DWELL; setEffect(null); } };
+  const [heading, setHeading] = useState(90);
+  const last = stages.at(-1);
+  const end = last && (last.end_year ?? last.start_year) > last.start_year ? stages.length : stages.length - 1;
+  const command = useRef({ heading, cruise, end });
+  command.current = { heading, cruise, end };
+  const destination = useRef<number | null>(null);
+  const pos = motion.pos;
+  const currentIndex = Math.min(Math.floor(pos + 1e-6), Math.max(0, stages.length - 1));
+  const stage = stages[currentIndex];
+  const jump = (n: number) => {
+    if (n < 0 || n >= stages.length) return;
+    destination.current = n;
+    setEffect(null);
+  };
+  const steer = (course: number) => {
+    destination.current = null;
+    setHeading(normalizeHeading(course));
+  };
+
   useEffect(() => {
     let raf = 0, prev = performance.now();
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const step = (now: number) => {
-      const dt = Math.min((now - prev) / 1000, 0.05); prev = now;
-      const p = posRef.current;
-      if (!jumping.current) {
-        const v0 = cruiseRef.current ? SPEED * Math.sin(headRef.current * Math.PI / 180) : 0;
-        target.current = Math.max(0, Math.min(countRef.current - 1, p + v0 * dt));
-        posRef.current = target.current; bank.current *= Math.exp(-1.6 * dt);
-        setPos(target.current); setT(now / 1000); raf = requestAnimationFrame(step); return;
+      const dt = Math.max(0, Math.min((now - prev) / 1000, 0.05));
+      prev = now;
+      const { heading: course, cruise: running, end } = command.current;
+      if (end >= 0) {
+        const next = advanceBridge(motionRef.current, course, running, end, destination.current, dt);
+        if (destination.current === next.pos) destination.current = null;
+        motionRef.current = next;
+        setMotion(next);
+        if (!reduced) setT(now / 1000);
       }
-      if (Math.abs(target.current - p) < 0.002) jumping.current = false;
-      const diff = target.current - p;
-      const v = Math.sign(diff) * Math.min(Math.abs(diff), Math.max(CRUISE * dt, Math.abs(diff) * (1 - Math.exp(-3 * dt))));
-      const np = Math.abs(diff) < 0.002 ? target.current : p + v;
-      posRef.current = np;
-      bank.current *= Math.exp(-1.6 * dt);
-      setPos(np); setT(now / 1000);
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, []);
-  const ix = Math.min(Math.floor(pos + 1e-4), Math.max(0, stages.length - 1));
-  if (ix !== index) setIndex(ix);
-  const frac = Math.max(0, pos - index);
-  if (stage && stage.route_order !== lastRoute.current) {
-    if (lastRoute.current) bank.current = Math.sign(stage.route_order - lastRoute.current) * 5;
-    lastRoute.current = stage.route_order;
-  }
-  const nextYear = stages[index + 1]?.start_year ?? stage?.start_year ?? 0;
+
+  const frac = Math.max(0, pos - currentIndex);
+  const nextYear = stages[currentIndex + 1]?.start_year ?? stage?.end_year ?? stage?.start_year ?? 0;
   const year = stage ? stage.start_year + (nextYear - stage.start_year) * frac : 0;
-  const roll = bank.current + Math.sin(t * 0.7) * 0.6, bob = Math.sin(t * 0.9) * 5 + Math.sin(t * 2.1) * 1.2;
+  const direction = Math.abs(motion.velocity) > 0.008 ? Math.sign(motion.velocity) : travelDirection(motion.heading);
+  const roll = motion.roll + Math.sin(t * 0.7) * 0.55;
+  const bob = Math.sin(t * 0.9) * 4 + Math.sin(t * 2.1) * 1.0;
+  const sway = (d: number) => -motion.lateral * (36 + 360 * sAt(Math.max(d, -0.6)) ** 2);
+  const xAt = (d: number) => centerAt(d) + sway(d);
 
   useEffect(() => {
     let on = true;
@@ -165,15 +172,17 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
         .sort((a, b) => a.start_year! - b.start_year! || a.route_order - b.route_order || a.sequence_no - b.sequence_no);
       if (!dated.length) { setFailed(true); return; }
       const start = Math.max(0, dated.findIndex((s) => s.route_order === 3 && s.start_year === 1945));
-      setIndex(start); posRef.current = start; target.current = start; setPos(start);
+      const next = { ...motionRef.current, pos: start };
+      motionRef.current = next;
+      setMotion(next);
       setData(snap!);
     }).catch(() => on && setFailed(true));
     return () => { on = false; };
   }, []);
 
   const route = data?.routes.find((r) => r.route_order === stage?.route_order);
-  const gate = data?.boundaries.filter((b) => b.boundary_year > (stage?.start_year ?? 0))
-    .sort((a, b) => a.boundary_year - b.boundary_year)[0];
+  const gate = data?.boundaries.filter((b) => direction * (b.boundary_year - year) > 0)
+    .sort((a, b) => direction * (a.boundary_year - b.boundary_year))[0];
   const linked = new Set(data?.links?.filter((l) => l.parent_phenomenon_id === route?.phenomenon_id
     && l.parent_state_id === stage?.state_id).map((l) => l.chain_id));
   const obs = stage && STAGE_OBSERVATIONS[`${stage.route_order}:${stage.start_year}`];
@@ -193,23 +202,22 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
     .slice(0, 4).map((c) => ({ id: c.chain_id, label: SHORT(c.title).split(":")[0], context: !linked.has(c.chain_id) })) : [];
   const LANE_C = ["#79d8e6", "#d5b9fb", "#f2ba86", "#9befcd"];
   const c = COLORS[stage?.route_order ?? 0];
-  const ahead = stages.slice(index + 1, index + 1 + AHEAD);
-  const gateDepth = gate ? (() => {
-    const k = ahead.findIndex((s) => s.start_year >= gate.boundary_year);
-    return (k === -1 ? AHEAD + 0.6 : k + 0.5) - frac;
-  })() : undefined;
+  const ahead = stages.map((s, n) => ({ s, n, depth: (n - pos) * direction }))
+    .filter(({ depth }) => depth > 0.06 && depth < AHEAD + 0.5)
+    .sort((a, b) => a.depth - b.depth);
+  const gateDepth = gate ? (ahead.find(({ s }) => direction * (s.start_year - gate.boundary_year) >= 0)?.depth ?? AHEAD + 0.6) : undefined;
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === " ") { e.preventDefault(); setCruise((x) => !x); return; }
+    if (e.key === " " && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); setCruise((x) => !x); return; }
     if (e.key === "Escape") { e.stopPropagation(); effect ? setEffect(null) : onClose(); return; }
-    if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); jump(index - 1); }
-    if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); jump(index + 1); }
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); jump(currentIndex - 1); }
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); jump(currentIndex + 1); }
   };
 
   return (
     <section className="bv" role="dialog" aria-label="Komentosilta" onKeyDown={onKey}
       style={{ "--c": c } as React.CSSProperties}
-      onWheel={(e) => { if (Math.abs(e.deltaY) > 30) jump(index + (e.deltaY > 0 ? 1 : -1)); }}>
+      onWheel={(e) => { if (Math.abs(e.deltaY) > 30) jump(currentIndex + (e.deltaY > 0 ? 1 : -1)); }}>
       <style>{CSS}</style>
       <svg className="bv-world" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" aria-hidden={!stage}>
         <defs>
@@ -240,7 +248,7 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
         {/* perspective floor grid */}
         <g stroke={c} strokeOpacity=".16" fill="none">
           {Array.from({ length: 25 }, (_, i) => { const x = (i - 12) * 260; return <line key={i} x1={CX + x * 0.02} y1={HZ} x2={CX + x} y2={H} />; })}
-          {Array.from({ length: 14 }, (_, i) => { const d = i * 0.5 + 0.5 - ((pos * 1.2 + t * 0.15) % 0.5); const y = yAt(d * 1.4) ; return <line key={i} x1="0" x2={W} y1={y} y2={y} strokeOpacity={0.05 + 0.18 * sAt(d)} />; })}
+          {Array.from({ length: 14 }, (_, i) => { const d = i * 0.5 + 0.5 - ((((direction * pos) * 1.2 % 0.5) + 0.5) % 0.5); const y = yAt(d * 1.4) ; return <line key={i} x1="0" x2={W} y1={y} y2={y} strokeOpacity={0.05 + 0.18 * sAt(d)} />; })}
         </g>
         <line x1="0" x2={W} y1={HZ} y2={HZ} stroke={c} strokeOpacity=".7" />
         <line x1="0" x2={W} y1={HZ} y2={HZ} stroke={c} strokeWidth="6" opacity=".35" filter="url(#bv-glow)" />
@@ -253,7 +261,7 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
             const mid = pts.map((d, i) => `${i ? "L" : "M"}${xAt(d)},${yAt(d)}`).join(" ");
             return <g>
               <path d={`M${L.join(" L")} L${R.join(" L")}Z`} fill="url(#bv-road)" />
-              <path d={mid} stroke={c} strokeWidth="3" fill="none" className="bv-flow" opacity=".9" />
+              <path d={mid} stroke={c} strokeWidth="3" fill="none" strokeDasharray="3 16" strokeDashoffset={-pos * 55} opacity=".9" />
               <path d={mid} stroke={c} strokeWidth="10" fill="none" opacity=".25" filter="url(#bv-glow)" />
             </g>;
           })()}
@@ -261,11 +269,11 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
           {/* theme lanes */}
           {!selected && lanes.map((l, i) => {
             const side = i % 2 ? 1 : -1, off = 330 + Math.floor(i / 2) * 260;
-            const d = `M${CX + side * off * 1.6},${H} Q${CX + side * off * 0.7},${yAt(1.2)} ${CX + side * off * 0.08},${HZ + 4}`;
+            const d = `M${CX + sway(0) + side * off * 1.6},${H} Q${CX + sway(1.2) + side * off * 0.7},${yAt(1.2)} ${CX + sway(AHEAD) + side * off * 0.08},${HZ + 4}`;
             return <g key={l.id} className="bv-enter">
               <path d={d} stroke={LANE_C[i]} strokeWidth="14" fill="none" opacity={l.context ? .06 : .16} filter="url(#bv-glow)" />
               <path id={`bvl-${i}`} d={d} stroke={LANE_C[i]} strokeWidth={l.context ? 1.2 : 2.2} fill="none" opacity=".7" strokeDasharray={l.context ? "6 8" : undefined} />
-              <path d={d} stroke="#fff" strokeWidth="2.5" fill="none" className="bv-flow-slow" opacity=".6" />
+              <path d={d} stroke="#fff" strokeWidth="2.5" fill="none" strokeDasharray="2 22" strokeDashoffset={-pos * 36} opacity=".6" />
               <text fontSize="20" fill={LANE_C[i]} className="bv-label" letterSpacing="2">
                 <textPath href={`#bvl-${i}`} startOffset="6%">{l.label}</textPath>
               </text>
@@ -303,13 +311,14 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
           })()}
 
           {/* upcoming beacons, far first */}
-          {[stage, ...ahead].map((s, i) => ({ s, d: i - frac, n: i })).filter(({ d, n }) => n > 0 || (frac > 0.02 && d > -0.9)).reverse().map(({ s, d: dd, n: d }) => {
+          {[...ahead].reverse().map(({ s, depth: dd, n }, i) => {
+            const d = i + 1;
             const sc = sAt(Math.max(dd, -0.6)) * (dd < 0 ? 1 + dd : 1), x = xAt(dd) + (dd < 0 ? (d % 2 ? 1 : -1) * dd * -900 : 0), y = yAt(Math.max(dd, -0.6)), col = COLORS[s.route_order], side = d % 2 ? 1 : -1;
             const h = 240 * sc + 20, title = SHORT(s.title), short = title.length > 34 ? title.slice(0, 33) + "…" : title;
             return <g key={keyOf(s)} className="bv-beacon bv-moving" role="button" tabIndex={0}
               aria-label={`Siirry: ${s.start_year} ${title}`} opacity={Math.min(1, 0.35 + 0.65 * sc * 1.6) * (dd > AHEAD - 0.5 ? Math.max(0, AHEAD + 0.5 - dd) : 1)}
-              onClick={() => jump(index + d)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); jump(index + d); } }}>
+              onClick={() => jump(n)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); jump(n); } }}>
               <rect x={x - 3 * sc - 1} y={y - h} width={6 * sc + 2} height={h} fill="url(#bv-pillar)" opacity=".5" />
               <rect x={x - 14 * sc} y={y - h} width={28 * sc} height={h} fill={col} opacity=".14" filter="url(#bv-soft)" />
               <ellipse cx={x} cy={y} rx={60 * sc + 8} ry={12 * sc + 3} fill={col} opacity=".3" filter="url(#bv-soft)" />
@@ -322,7 +331,7 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
             </g>;
           })}
 
-          {!ahead.length && <text x={CX} y={HZ - 30} textAnchor="middle" fontSize="22" fill={c} className="bv-label bv-enter" letterSpacing="4">TIE JATKUU AVOIMEEN TULEVAISUUTEEN</text>}
+          {!ahead.length && <text x={CX} y={HZ - 30} textAnchor="middle" fontSize="22" fill={c} className="bv-label bv-enter" letterSpacing="4">{direction > 0 ? "AIKAJANAN LOPPU" : "AIKAJANAN ALKU"}</text>}
           {/* current stage: the bridge's bow */}
           <g key={keyOf(stage)} className="bv-enter">
             <ellipse cx={xAt(0)} cy={yAt(0)} rx="200" ry="34" fill={c} opacity=".25" filter="url(#bv-glow)" />
@@ -344,8 +353,8 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
         {stage && <div className="bv-readout" aria-live="polite">
           Komentosilta · Reitti {ROMAN[stage.route_order]}
           <b>{Math.floor(year)}</b>
-          {cruise ? (Math.sin(heading * Math.PI / 180) >= 0 ? `▶ Tulevaisuuteen ${Math.round(heading)}° · ` : `◀ Menneisyyteen ${Math.round(heading)}° · `) : "⏸ Pysäytetty · "}
-          {gate ? `${Math.max(0, Math.round(gate.boundary_year - year))} v. rajaan ${gate.boundary_year}` : "Horisontti avoin"}
+          {cruise ? (travelDirection(motion.heading) > 0 ? `▶ Tulevaisuuteen ${Math.floor(motion.heading)}° · ` : `◀ Menneisyyteen ${Math.floor(motion.heading)}° · `) : "⏸ Pysäytetty · "}
+          {gate ? `${Math.round(Math.abs(gate.boundary_year - year))} v. rajaan ${gate.boundary_year}` : "Horisontti avoin"}
         </div>}
       </header>
 
@@ -353,13 +362,13 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
 
       {stage && <footer className="bv-console">
         <div className="bv-now">
-          <button type="button" className="bv-btn" disabled={index === 0} onClick={() => jump(index - 1)} aria-label="Edellinen etappi">←</button>
+          <button type="button" className="bv-btn" disabled={currentIndex === 0} onClick={() => jump(currentIndex - 1)} aria-label="Edellinen etappi">←</button>
           <div>
             <small>{route ? SHORT(route.title) : ""}</small>
             <h2>{SHORT(stage.title)}</h2>
             {stage.situation && stage.situation !== stage.title && <p>{stage.situation}</p>}
           </div>
-          <button type="button" className="bv-btn" disabled={index === stages.length - 1} onClick={() => jump(index + 1)} aria-label="Seuraava etappi">→</button>
+          <button type="button" className="bv-btn" disabled={currentIndex === stages.length - 1} onClick={() => jump(currentIndex + 1)} aria-label="Seuraava etappi">→</button>
         </div>
         {(strength || difficulty) && <div className="bv-row">
           {strength && <button type="button" className="bv-obs s" aria-pressed={effect === "strength"}
@@ -372,15 +381,14 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
           {lanes.map((l, i) => <span key={l.id} className="bv-lane" data-context={l.context}
             style={{ "--l": LANE_C[i] } as React.CSSProperties}>{l.label}{l.context ? " · samanaikainen" : ""}</span>)}
         </div>}
-        <NavOrb stages={stages} index={index} onPick={jump} heading={heading} onHeading={setHeading}
+        <NavOrb stages={stages} index={currentIndex} onPick={jump} heading={heading} onHeading={steer}
           routes={(data?.routes ?? []).map((r) => ({ order: r.route_order, title: SHORT(r.title) }))} />
       </footer>}
     </section>
   );
 }
 
-/* 360° navigation orb: longitude = main route sector (I–V), latitude = time 1500→2050.
-   Dragging rotates the orb; on release it snaps to the stage nearest the crosshair. */
+/* Drag the orb to set the course, or select a visible stage to sail there. */
 const BOUNDS = [1809, 1917, 1986, 2026];
 const latOf = (y: number) => -72 + ((y - 1500) / 550) * 144;
 const orbLonLat = (s: Stage) => ({ lon: (s.route_order - 1) * 72 + (((s.sequence_no * 37) % 30) - 15), lat: latOf(s.start_year) });
@@ -390,7 +398,6 @@ function proj(lon: number, lat: number, v: { lon: number; lat: number }) {
   return { x: Math.cos(f) * Math.sin(l), y: -(Math.cos(f0) * Math.sin(f) - Math.sin(f0) * Math.cos(f) * Math.cos(l)),
     z: Math.sin(f0) * Math.sin(f) + Math.cos(f0) * Math.cos(f) * Math.cos(l) };
 }
-const angDist = (a: { lon: number; lat: number }, b: { lon: number; lat: number }) => 1 - proj(a.lon, a.lat, b).z;
 
 function NavOrb({ stages, index, onPick, routes, heading, onHeading }: { stages: Stage[]; index: number; onPick: (i: number) => void; routes: { order: number; title: string }[]; heading: number; onHeading: (h: number) => void }) {
   const target = { lon: heading, lat: stages[index] ? latOf(stages[index].start_year) : 0 };
@@ -418,21 +425,18 @@ function NavOrb({ stages, index, onPick, routes, heading, onHeading }: { stages:
     for (const q of pts) { if (q.z > 0) { d += `${pen ? "L" : "M"}${q.x.toFixed(1)},${q.y.toFixed(1)}`; pen = true; } else pen = false; }
     return d;
   };
-  const nearest = (v: { lon: number; lat: number }) => stages.reduce((b, s, i) => angDist(orbLonLat(s), v) < angDist(orbLonLat(stages[b]), v) ? i : b, index);
   const cur = stages[index];
-  const hover = cur; void nearest;
+  const hover = cur;
   const routeAt = routes.find((r) => r.order === hover?.route_order);
 
   return <div className="bv-orbwrap">
-    <svg className="bv-orb" viewBox="0 0 200 200" role="slider" tabIndex={0} aria-label="Navigointipallo: aika ja reitti"
-      aria-valuemin={1500} aria-valuemax={2050} aria-valuenow={cur?.start_year} aria-valuetext={cur ? `${cur.start_year}, reitti ${ROMAN[cur.route_order]}` : ""}
+    <svg className="bv-orb" viewBox="0 0 200 200" role="slider" tabIndex={0} aria-label="Navigointipallo: kurssi"
+      aria-valuemin={0} aria-valuemax={359} aria-valuenow={Math.floor(heading)} aria-valuetext={`${Math.floor(heading)} astetta, ${travelDirection(heading) > 0 ? "eteenpäin" : "taaksepäin"}`}
       onKeyDown={(e) => {
         if (!cur) return;
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
           e.preventDefault(); e.stopPropagation();
-          const o = ((cur.route_order - 1 + (e.key === "ArrowRight" ? 1 : routes.length - 1)) % routes.length) + 1;
-          const cand = stages.map((s, i) => ({ s, i })).filter((x) => x.s.route_order === o);
-          if (cand.length) onPick(cand.reduce((b, x) => Math.abs(x.s.start_year - cur.start_year) < Math.abs(b.s.start_year - cur.start_year) ? x : b).i);
+          onHeading(normalizeHeading(heading + (e.key === "ArrowRight" ? 10 : -10)));
         }
       }}
       onPointerDown={(e) => { (e.currentTarget as Element).setPointerCapture(e.pointerId); drag.current = { x: e.clientX, y: e.clientY, v: viewRef.current, moved: false }; }}
@@ -466,7 +470,7 @@ function NavOrb({ stages, index, onPick, routes, heading, onHeading }: { stages:
       {stages.map((s, i) => { const o = orbLonLat(s), q = P(o.lon, o.lat); if (q.z <= 0) return null;
         const on = i === index;
         return <circle key={keyOf(s)} data-si={i} cx={q.x} cy={q.y} r={on ? 4.5 : 1.6 + 1.6 * q.z} fill={COLORS[s.route_order]} opacity={0.3 + 0.7 * q.z} style={{ cursor: "pointer" }} />; })}
-      {(() => { const a = (heading - 90) * R2D; const fw = Math.sin(heading * R2D) >= 0; return <g pointerEvents="none">
+      {(() => { const a = (heading - 90) * R2D; const fw = travelDirection(heading) > 0; return <g pointerEvents="none">
         <circle cx={S} cy={S} r={Rr + 8} fill="none" stroke={fw ? "#7ad7ea" : "#f2ba86"} strokeOpacity=".5" strokeDasharray={`${Math.abs(Math.sin(heading * R2D)) * 60} 600`} transform={`rotate(${heading - 90 - 15} ${S} ${S})`} />
         <text x={S + Math.sin(a) * (Rr + 2)} y={S - Math.cos(a) * (Rr + 2) + 3} textAnchor="middle" fontSize="10" fill={fw ? "#7ad7ea" : "#f2ba86"}>{fw ? "▲" : "▼"}</text>
       </g>; })()}
@@ -480,8 +484,8 @@ function NavOrb({ stages, index, onPick, routes, heading, onHeading }: { stages:
     </svg>
     <div className="bv-orbinfo" aria-hidden="true">
       Reitti {hover ? ROMAN[hover.route_order] : ""}<b>{hover?.start_year}</b>{routeAt?.title.slice(0, 26)}
-      <div style={{ marginTop: 4, color: Math.sin(heading * R2D) >= 0 ? "#7ad7ea" : "#f2ba86" }}>Kurssi {Math.round(heading)}° {Math.sin(heading * R2D) >= 0 ? "▶ eteen" : "◀ taakse"}</div>
-      <div style={{ opacity: .7 }}>↔ pyöritä suuntaa</div>
+      <div style={{ marginTop: 4, color: travelDirection(heading) > 0 ? "#7ad7ea" : "#f2ba86" }}>Kurssi {Math.floor(heading)}° {travelDirection(heading) > 0 ? "▶ eteen" : "◀ taakse"}</div>
+      <div style={{ opacity: .7 }}>↔ vedä tai käytä nuolinäppäimiä</div>
     </div>
   </div>;
 }
