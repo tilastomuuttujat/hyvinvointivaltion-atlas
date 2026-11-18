@@ -22,11 +22,16 @@ type Factor = (typeof FACTORS)[number];
 
 const CSS = `
 .rm-hud{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:min(92vw,980px);display:flex;align-items:center;gap:10px;padding:6px 8px 6px 14px;border-radius:999px;background:oklch(.1 .02 260/.55);backdrop-filter:blur(8px);border:1px solid color-mix(in oklch,var(--c) 45%,transparent);font-size:13px;color:oklch(.92 .02 230);white-space:nowrap;animation:rmHud .35s ease}
-.rm-factor{cursor:pointer;pointer-events:auto}
-.rm-factor:focus-visible rect{stroke:white;stroke-width:2}
-.rm-factor-card{position:absolute;bottom:65px;left:50%;transform:translateX(-50%);width:min(560px,92vw);max-height:35vh;overflow:auto;touch-action:pan-y;background:#101c25;border:1px solid #86bcac;border-radius:12px;padding:12px 16px;font-size:14px}
+.rm-factor-card{width:100%;max-height:35vh;overflow:auto;touch-action:pan-y;background:#101c25;border:1px solid #86bcac;border-radius:12px;padding:12px 16px;font-size:14px}
 .rm-factor-card h2{font-weight:700}.rm-factor-card p{margin-top:6px}.rm-factor-card button{float:right;color:#b9e4d8;cursor:pointer}
-@media(max-width:700px){.rm-factor-card{bottom:115px}}
+.rm-factor-dock{position:absolute;bottom:58px;left:50%;transform:translateX(-50%);width:min(650px,94vw);display:grid;gap:8px;pointer-events:none}
+.rm-factor-card,.rm-factor-options{pointer-events:auto}
+.rm-factor-options{display:flex;justify-content:center;flex-wrap:wrap;gap:6px}
+.rm-factor-options button{color:#e8faf4;background:#122831;border:1px solid #86bcac;border-radius:8px;padding:7px 10px;font-size:13px;cursor:pointer}
+.rm-factor-options button[aria-pressed=true]{color:#0b201a;background:#a5dfce}
+.rm[data-factors=true] .rm-mini{top:14px;bottom:auto;left:auto;right:14px;transform:none}
+@media(max-width:700px){.rm-factor-dock{bottom:120px}.rm[data-factors=true] .rm-mini{top:48px}}
+
 .rm-hud-now{overflow:hidden;text-overflow:ellipsis;min-width:0}.rm-hud-now b{color:var(--c);margin-right:6px}.rm-hud-now i{opacity:.65;font-style:normal}
 .rm-hud button{background:none;border:0;color:var(--c);font:inherit;cursor:pointer;padding:2px 6px;max-width:22ch;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.rm-hud .rm-hud-x{color:oklch(.8 .02 230);font-size:16px}
 @media (max-width:700px){.rm-hud{flex-wrap:wrap;justify-content:space-between;border-radius:16px;white-space:normal;bottom:8px;width:94vw}.rm-hud-now{order:-1;flex-basis:calc(100% - 30px);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}.rm-hud-x{order:-1}}
@@ -117,7 +122,7 @@ function load() {
   return cache;
 }
 
-type Pick = { cx?: number; cy?: number; kind: "stage" | "chain" | "boundary" | "route" | "cross" | "gap"; route: number; title: string; years: string; body?: string; note?: string; stage?: Stage; factor?: Factor };
+type Pick = { cx?: number; cy?: number; kind: "stage" | "chain" | "boundary" | "route" | "cross" | "gap"; route: number; title: string; years: string; body?: string; note?: string; stage?: Stage };
 const yrs = (a: number, b?: number) => (b && b !== a ? `${a}–${b}` : String(a));
 
 /** Full-screen roadmap: one luminous road 1500→2050 through five main routes, gates at turning points, theme streams alongside. */
@@ -227,7 +232,6 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const ctx = activeStage && data ? stageContext(data, activeStage, chainIds) : null;
   const lit = new Set<string>(ctx ? ctx.lanes.slice(0, 6).map((c) => c.id) : []);
   const selectPick = (p: Pick) => {
-    if (p.factor) { setFactor(p.factor); return; }
     setFactor(null);
     const c = lastClick.current; lastClick.current = null;
     setPick((current) => {
@@ -241,7 +245,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const pickable = (p: Pick) => ({ "data-pick": "1", className: "rm-hit", ref: (el: Element | null) => { if (el) (el as any).__rm = p; } });
 
   return (
-    <div className="rm" role="dialog" aria-label="Tiekartta" onPointerDown={(e) => e.stopPropagation()}>
+    <div className="rm" data-factors={factors.length > 0} role="dialog" aria-label="Tiekartta" onPointerDown={(e) => e.stopPropagation()}>
       <style>{CSS}</style>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice"
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => (drag.current = null)} onWheel={onWheel}
@@ -389,10 +393,13 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
             const sx = stationX(activeStage), sy = roadY(sx, CY), c = col(activeStage.route);
             const arc = (a: number, b: number, up: number) => { const ya = roadY(a, CY), yb = roadY(b, CY); return `M${a},${ya} Q${(a + b) / 2},${Math.min(ya, yb) - up} ${b},${yb}`; };
             const bx = ctx.before ? stationX(ctx.before) : null, ax = ctx.after ? stationX(ctx.after) : null;
-            const lanes = streams.filter(({ c: l }) => lit.has(l.id) || factors.some((f) => f.from === l.id || f.to === l.id));
+            const lanes = streams.filter(({ c: l }) => {
+              if (!factors.length) return lit.has(l.id);
+              return factor ? l.id === factor.from || l.id === factor.to : l.id === "peruskoulu-uudistus-1968";
+            });
             return (
               <g className="rm-focus" pointerEvents="none">
-                <rect x={-4000} y={-1000} width={X1 + 8000} height={3000} fill="oklch(.07 .02 260)" opacity={0.62} />
+                <rect x={-4000} y={-1000} width={X1 + 8000} height={3000} fill="oklch(.07 .02 260)" opacity={factors.length ? 0.78 : 0.62} />
                 {lanes.map(({ c: l, side, lane }, li) => {
                   const a = x(l.start), b = x(l.end!), dy = side * (70 + lane * 9), id = `rmf-${l.id}`;
                   const lasting = ctx.lasting.some((t) => t.id === l.id);
@@ -401,40 +408,33 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                       <path id={id} d={segPath(a, b, dy)} fill="none" stroke={col(routeOf(l.start), 0.8, 0.12)} strokeWidth={2.8} strokeLinecap="round" />
                       <path d={segPath(a, b, dy)} fill="none" stroke="oklch(.98 .02 230)" strokeWidth={1.2} strokeDasharray="2 14" className="rm-flow" />
                       <text fontSize={13} fill={col(routeOf(l.start), 0.9, 0.1)} className="rm-label" dy={side < 0 ? -6 : 14}>
-                        <textPath href={`#${id}`} startOffset={`${4 + (li % 4) * 18}%`}>{l.title.split(":")[0]}{lasting ? ` — ketjua seurataan vuoteen ${l.end}` : ""}</textPath>
+                        <textPath href={`#${id}`} startOffset={`${4 + (li % 4) * 18}%`}>{wrapLabel(l.title.split(":")[0], 42)[0]}{lasting && !factors.length ? ` — ketjua seurataan vuoteen ${l.end}` : ""}</textPath>
                       </text>
                     </g>
                   );
                 })}
-                {factors.map((f, i) => {
+                {factor && factors.includes(factor) && (() => {
                   const anchor = (id: string) => {
                     const lane = lanes.find(({ c }) => c.id === id)!;
-                    const px = Math.max(x(lane.c.start), Math.min(sx + 80 + i * 45, x(lane.c.end!)));
+                    const px = Math.max(x(lane.c.start), Math.min(sx + 80, x(lane.c.end!)));
                     return { x: px, y: roadY(px, CY) + lane.side * (70 + lane.lane * 9) };
                   };
-                  const a = anchor(f.from), b = anchor(f.to);
-                  const lx = sx + 205, ly = sy + 55 + i * 29;
-                  return <g key={f.title}>
-                    <path d={`M${a.x},${a.y} L${lx},${ly} L${b.x},${b.y}`} fill="none" stroke="#a5dfce" strokeWidth={1.5} opacity={0.85} />
-                    <g {...pickable({ kind: "stage", route: activeStage.route, title: f.title, years: "", factor: f })}
-                      className="rm-factor" role="button" tabIndex={0} aria-label={f.title}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFactor(f); }
-                      }}>
-                      <rect x={lx - 98} y={ly - 12} width={196} height={24} rx={6} fill="#122831" stroke="#86bcac" />
-                      <text x={lx} y={ly + 4} fontSize={13} textAnchor="middle" fill="#e8faf4">{f.title}</text>
-                    </g>
+                  const a = anchor(factor.from), b = anchor(factor.to);
+                  return <g stroke="#b9f3e1" strokeWidth={2} fill="#b9f3e1">
+                    <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+                    <circle cx={a.x} cy={a.y} r={3} />
+                    <circle cx={b.x} cy={b.y} r={3} />
                   </g>;
-                })}
-                {bx != null && <g>
+                })()}
+                {!factors.length && bx != null && <g>
                   <path id="rmf-before" d={arc(bx, sx, 160)} fill="none" stroke={c} strokeWidth={2} strokeDasharray="3 7" className="rm-flow" opacity={0.9} />
                   <text fontSize={14} fill="oklch(.92 .03 230)" className="rm-label" dy={-8}><textPath href="#rmf-before" startOffset="50%" textAnchor="middle">edeltävä etappi</textPath></text>
                 </g>}
-                {ax != null && <g>
+                {!factors.length && ax != null && <g>
                   <path id="rmf-after" d={arc(sx, ax, 160)} fill="none" stroke={c} strokeWidth={2.4} className="rm-flow" strokeDasharray="10 6" />
                   <text fontSize={14} fill="oklch(.95 .03 230)" className="rm-label" dy={-8}><textPath href="#rmf-after" startOffset="50%" textAnchor="middle">seuraava etappi</textPath></text>
                 </g>}
-                {[ctx.before, ctx.after].map((t) => t && (
+                {!factors.length && [ctx.before, ctx.after].map((t) => t && (
                   <g key={t.seq + "-" + t.start}>
                     <circle cx={stationX(t)} cy={roadY(stationX(t), CY)} r={7} fill="oklch(.98 .02 230)" stroke={col(t.route)} strokeWidth={3} />
                     <text x={stationX(t)} y={roadY(stationX(t), CY) + 30} textAnchor="middle" fontSize={14} fill="oklch(.9 .02 230)" className="rm-label">{wrapLabel(tail(t.title))[0]}</text>
@@ -444,7 +444,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                 <circle cx={sx} cy={sy} r={8} fill="oklch(.99 .02 230)" stroke={c} strokeWidth={3} />
                 {ctx.era && <text x={sx} y={sy - 70} textAnchor="middle" fontSize={12} letterSpacing=".18em" fill={c} opacity={0.85} className="rm-label">{ROMAN[ctx.era.order]} · {ctx.era.title.replace(/^Pää(ketju|reitti) [IVX]+: /, "").toUpperCase()}</text>}
                 <text x={sx} y={sy - 46} textAnchor="middle" fontSize={20} fontWeight={600} fill="oklch(.98 .02 230)" className="rm-label">{wrapLabel(tail(activeStage.title), 34)[0]}</text>
-                {ctx.gate && <text x={x(ctx.gate.year)} y={roadY(x(ctx.gate.year), CY) + 200} textAnchor="middle" fontSize={12} fill="oklch(.9 .04 230)" opacity={0.8} className="rm-label" fontStyle="italic">edeltävä käännekohta</text>}
+                {!factors.length && ctx.gate && <text x={x(ctx.gate.year)} y={roadY(x(ctx.gate.year), CY) + 200} textAnchor="middle" fontSize={12} fill="oklch(.9 .04 230)" opacity={0.8} className="rm-label" fontStyle="italic">edeltävä käännekohta</text>}
               </g>
             );
           })()}
@@ -463,8 +463,8 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
         </div>
       )}
       {!pick && <p className="rm-hint">vedä = kulje ajassa · rulla = zoomaa · kosketa asemaa, porttia tai virtaa · himmeät virrat ovat teemaketjuja, himmein viiva yhdistää kaistan osat · kaaret ulottuvat aikakausien yli</p>}
-      {factor && factors.includes(factor) && (
-        <section className="rm-factor-card" aria-label={factor.title}>
+      {factors.length > 0 && <div className="rm-factor-dock">
+        {factor && factors.includes(factor) && <section className="rm-factor-card" aria-label={factor.title}>
           <button type="button" onClick={() => setFactor(null)} aria-label="Sulje yhteys">×</button>
           <h2>{factor.title}</h2>
           <p>Tutkittava yhteys</p>
@@ -473,8 +473,14 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
           {factorSource && <p><a href={String(factorSource.detail.source_url)} target="_blank" rel="noreferrer" style={{ textDecoration: "underline" }}>
             Tausta-aineisto: {String(factorSource.detail.source_title)}
           </a></p>}
-        </section>
-      )}
+        </section>}
+        <div className="rm-factor-options" role="group" aria-label="Selittävät tekijät">
+          {factors.map((item) => (
+            <button key={item.title} type="button" aria-pressed={factor === item}
+              onClick={() => setFactor((current) => current === item ? null : item)}>{item.title}</button>
+          ))}
+        </div>
+      </div>}
       {pick && (
         <div className="rm-hud" role="status" style={{ "--c": col(pick.route) } as React.CSSProperties}
           onPointerDown={(e) => e.stopPropagation()}>
