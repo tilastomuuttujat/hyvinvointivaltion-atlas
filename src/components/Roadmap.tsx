@@ -21,21 +21,24 @@ const FACTORS = [
 ] as const;
 type Factor = (typeof FACTORS)[number];
 
+
 const CSS = `
 .rm-hud{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:min(92vw,980px);display:flex;align-items:center;gap:10px;padding:6px 8px 6px 14px;border-radius:999px;background:oklch(.1 .02 260/.55);backdrop-filter:blur(8px);border:1px solid color-mix(in oklch,var(--c) 45%,transparent);font-size:13px;color:oklch(.92 .02 230);white-space:nowrap;animation:rmHud .35s ease}
-.rm-observation{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;color:#d7f4e7;font-size:14px}
-.rm-observation button{background:none;border:0;border-bottom:1px solid currentColor;color:inherit;padding:5px 1px;cursor:pointer}
-.rm-observation button[aria-pressed=true]{font-weight:700;border-bottom:3px solid currentColor}
-.rm-observation a{color:inherit;text-decoration:underline;font-size:12px}
-.rm-observation-above{position:absolute;top:84px;left:50%;transform:translateX(-50%);width:min(650px,92vw)}
-.rm-observation-below{color:#f1c492}
+.rm-observation{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-size:14px;pointer-events:auto}
+.rm-observation button{display:inline-flex;align-items:center;gap:8px;background:oklch(.12 .02 260/.6);backdrop-filter:blur(8px);border:1px solid color-mix(in oklch,currentColor 40%,transparent);border-radius:999px;color:inherit;padding:6px 14px;cursor:pointer;font:inherit;transition:background .2s,box-shadow .2s}
+.rm-observation button::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor}
+.rm-observation button[aria-pressed=true]{background:color-mix(in oklch,currentColor 18%,oklch(.12 .02 260/.7));box-shadow:0 0 18px color-mix(in oklch,currentColor 35%,transparent)}
+.rm-observation a{color:inherit;opacity:.8;font-size:12px;text-decoration:none;border-bottom:1px dotted currentColor}
+.rm-observation-above{position:absolute;top:84px;left:50%;transform:translateX(-50%);width:min(650px,92vw);color:oklch(.9 .1 160)}
+.rm-observation-below{color:oklch(.86 .1 70)}
 @media(max-width:700px){.rm-observation-above{top:91px}}
-.rm-factor-dock{position:absolute;bottom:58px;left:50%;transform:translateX(-50%);width:min(650px,94vw);display:grid;gap:8px;pointer-events:none}
-.rm-factor-options{display:flex;justify-content:center;flex-wrap:wrap;gap:6px}
-.rm-factor-options button{color:#e8faf4;background:#122831;border:1px solid #86bcac;border-radius:8px;padding:7px 10px;font-size:13px;cursor:pointer}
-.rm-factor-options button[aria-pressed=true]{color:#0b201a;background:#a5dfce}
+.rm-factor-dock{position:absolute;bottom:62px;left:50%;transform:translateX(-50%);width:min(650px,94vw);display:grid;gap:8px;pointer-events:none}
+.rm-factor-options{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;pointer-events:auto}
+.rm-factor-options:not(:empty)::before{content:"Selittävä tekijä:";align-self:center;font-size:12px;letter-spacing:.06em;color:oklch(.8 .03 230);margin-right:4px}
+.rm-factor-options button{color:oklch(.92 .06 175);background:oklch(.14 .03 220/.65);backdrop-filter:blur(8px);border:1px solid oklch(.7 .08 175/.5);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer}
+.rm-factor-options button[aria-pressed=true]{color:oklch(.15 .03 200);background:oklch(.88 .1 175);box-shadow:0 0 16px oklch(.85 .12 175/.5)}
 .rm[data-factors=true] .rm-mini{top:14px;bottom:auto;left:auto;right:14px;transform:none}
-@media(max-width:700px){.rm-factor-dock{bottom:120px}.rm[data-factors=true] .rm-mini{top:48px}}
+@media(max-width:700px){.rm-factor-dock{bottom:192px}.rm[data-factors=true] .rm-mini{top:48px}}
 
 .rm-hud-now{overflow:hidden;text-overflow:ellipsis;min-width:0}.rm-hud-now b{color:var(--c);margin-right:6px}.rm-hud-now i{opacity:.65;font-style:normal}
 .rm-hud button{background:none;border:0;color:var(--c);font:inherit;cursor:pointer;padding:2px 6px;max-width:22ch;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.rm-hud .rm-hud-x{color:oklch(.8 .02 230);font-size:16px}
@@ -438,7 +441,9 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                   const dy = lane.side * (70 + lane.lane * 9);
                   const ink = effect === "difficulty" ? "#f1c492" : "#b9f3d7";
                   return <g aria-label={selectedObservation.label}>
-                    <path d={segPath(first, last, dy)} fill="none" stroke={ink} strokeWidth={5} />
+                    <path d={segPath(first, last, dy)} fill="none" stroke={ink} strokeWidth={16} opacity={0.18} strokeLinecap="round" />
+                    <path d={segPath(first, last, dy)} fill="none" stroke={ink} strokeWidth={4} strokeLinecap="round" />
+                    <path d={segPath(first, last, dy)} fill="none" stroke="oklch(.99 .02 230)" strokeWidth={1.4} strokeDasharray="2 12" className="rm-flow" />
                     {[first, last].map((px, index) => {
                       const py = roadY(px, CY) + dy;
                       const ly = py + (effect === "difficulty" ? 1 : -1) * (28 + index * 18);
@@ -460,10 +465,15 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                     return { x: px, y: roadY(px, CY) + lane.side * (70 + lane.lane * 9) };
                   };
                   const a = anchor(factor.from), b = anchor(factor.to);
-                  return <g stroke="#b9f3e1" strokeWidth={2} fill="#b9f3e1">
-                    <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
-                    <circle cx={a.x} cy={a.y} r={3} />
-                    <circle cx={b.x} cy={b.y} r={3} />
+                  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1, bend = Math.max(90, len * 0.35);
+                  const mx = (a.x + b.x) / 2 + ((b.y - a.y) / len) * bend, my = (a.y + b.y) / 2 - ((b.x - a.x) / len) * bend;
+                  const d = `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`;
+                  return <g fill="none" aria-label={factor.title}>
+                    <path d={d} stroke="oklch(.85 .12 175)" strokeWidth={10} opacity={0.18} strokeLinecap="round" />
+                    <path d={d} stroke="oklch(.9 .11 175)" strokeWidth={2.4} strokeLinecap="round" />
+                    <path id="rmf-factor" d={d} stroke="oklch(.99 .03 175)" strokeWidth={2} strokeDasharray="2 12" className="rm-flow" />
+                    <text x={(a.x + b.x) / 4 + mx / 2 + 12} y={(a.y + b.y) / 4 + my / 2 + 5} fontSize={15} fill="oklch(.95 .06 175)" className="rm-label">{factor.title}</text>
+                    {[a, b].map((p, i) => <g key={i}><circle cx={p.x} cy={p.y} r={14} fill="oklch(.9 .11 175)" opacity={0.25} className="rm-pulse" /><circle cx={p.x} cy={p.y} r={5} fill="oklch(.97 .05 175)" /></g>)}
                   </g>;
                 })()}
                 {!selectedObservation && !factors.length && bx != null && <g>

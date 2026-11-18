@@ -146,7 +146,7 @@ export function AtlasPage() {
             ⟿ Tiekartta
           </button>
           <button type="button" onClick={() => setBridgeOpen(true)}>
-            Komentosilta
+            ⎈ Komentosilta
           </button>
         </nav>
         {space && <ReasoningSpace data={data} onClose={() => setSpace(false)} />}
