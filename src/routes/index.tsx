@@ -4,6 +4,7 @@ import { ThemeSystem } from "@/components/ThemeSystem";
 import { OrganicNodeGraph } from "@/components/OrganicNodeGraph";
 import { ReasoningSpace } from "@/components/ReasoningSpace";
 import { ReasoningChain } from "@/components/ReasoningChain";
+import { BridgeView } from "@/components/BridgeView";
 import { Roadmap } from "@/components/Roadmap";
 import { ConceptMap } from "@/components/ConceptMap";
 import { ThemeConceptMap } from "@/components/ThemeConceptMap";
@@ -69,6 +70,7 @@ export function AtlasPage() {
   >("sphere");
   const [space, setSpace] = useState(false);
   const [chainOpen, setChainOpen] = useState(false);
+  const [bridgeOpen, setBridgeOpen] = useState(false);
   const [roadOpen, setRoadOpen] = useState(false);
   const [visited, setVisited] = useState<Set<string>>(new Set([view]));
   useEffect(() => {
@@ -143,9 +145,13 @@ export function AtlasPage() {
           <button type="button" onClick={() => setRoadOpen(true)}>
             ⟿ Tiekartta
           </button>
+          <button type="button" onClick={() => setBridgeOpen(true)}>
+            Komentosilta
+          </button>
         </nav>
         {space && <ReasoningSpace data={data} onClose={() => setSpace(false)} />}
         {chainOpen && <ReasoningChain onClose={() => setChainOpen(false)} />}
+        {bridgeOpen && <BridgeView onClose={() => setBridgeOpen(false)} />}
         {roadOpen && <Roadmap onClose={() => setRoadOpen(false)} />}
         <div hidden={view !== "sphere"}>
           <AtlasExperience data={data} active={view === "sphere"} />
