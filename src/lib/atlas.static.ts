@@ -20,15 +20,20 @@ type Snapshot = {
   treatments: (Treatment & { conclusionId: number; reviewStatus: string })[];
 };
 let pending: Promise<Snapshot> | undefined;
+async function loadSnapshot(): Promise<Snapshot> {
+  // Vite removes this branch from the Pages/browser bundle. SSR uses the same
+  // public snapshot without touching browser globals or making an HTTP request.
+  if (import.meta.env.SSR) {
+    const { default: data } = await import("../../public/data/atlas.json");
+    return data as unknown as Snapshot;
+  }
+  const response = await fetch(new URL("data/atlas.json", document.baseURI).href);
+  if (!response.ok) throw new Error("Atlas-aineistoa ei saatu ladattua.");
+  return (await response.json()) as Snapshot;
+}
 async function snapshot(): Promise<Snapshot> {
   if (!pending)
-    pending = fetch(new URL("data/atlas.json", document.baseURI).href).then(
-      async (response) => {
-        if (!response.ok)
-          throw new Error("Atlas-aineistoa ei saatu ladattua.");
-        return (await response.json()) as Snapshot;
-      },
-    )
+    pending = loadSnapshot()
       .then(async (data: Snapshot) => {
         if (
           data.schemaVersion !== 1 ||

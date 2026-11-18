@@ -51,3 +51,52 @@ export function lanes<T extends { start: number; end?: number }>(items: T[], gap
 
 /** Route that a year belongs to (1–5). */
 export const routeOf = (year: number) => { let i = 1; while (i < 5 && year >= BREAKS[i]) i++; return i; };
+
+/** Split a station title into at most two lines of roughly `max` characters. */
+export function wrapLabel(text: string, max = 22): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [""];
+  for (const w of words) {
+    const cur = lines[lines.length - 1];
+    if (!cur || (cur + " " + w).length <= max) lines[lines.length - 1] = cur ? cur + " " + w : w;
+    else if (lines.length < 2) lines.push(w);
+    else { lines[1] = (lines[1] + " " + w); }
+  }
+  if (lines[1] && lines[1].length > max + 2) lines[1] = lines[1].slice(0, max) + "…";
+  return lines;
+}
+
+/**
+ * Greedy collision-free label slots: each label (centre x, width) gets a side (-1 up, 1 down) and tier 0..n.
+ * Labels alternate sides and climb tiers until they no longer overlap a previously placed label on that side.
+ */
+export function labelSlots(items: { x: number; w: number }[], gap = 12, maxTier = 5): { side: -1 | 1; tier: number }[] {
+  const placed: { side: number; tier: number; a: number; b: number }[] = [];
+  return items.map((it, i) => {
+    const a = it.x - it.w / 2 - gap / 2, b = it.x + it.w / 2 + gap / 2;
+    const free = (side: number, tier: number) => !placed.some((p) => p.side === side && p.tier === tier && p.a < b && a < p.b);
+    const pref: (-1 | 1)[] = i % 2 === 0 ? [-1, 1] : [1, -1];
+    for (let tier = 0; tier <= maxTier; tier++) {
+      for (const side of pref) {
+        if (free(side, tier)) { placed.push({ side, tier, a, b }); return { side, tier }; }
+      }
+    }
+    placed.push({ side: pref[0], tier: maxTier, a, b });
+    return { side: pref[0], tier: maxTier };
+  });
+}
+
+export type StageContext = { era?: Route; gate?: Boundary; before?: Stage; after?: Stage; lanes: RouteChain[]; lasting: RouteChain[] };
+/** Gathers what the roadmap records around a stage: its era, preceding gate and stage, the next stage, and overlapping lanes. Order only, no causal claim. */
+export function stageContext(m: Roadmap, s: Stage, linked: Set<string> = new Set()): StageContext {
+  const end = s.end ?? s.start;
+  const era = m.routes.find((r) => r.order === s.route);
+  const gate = m.boundaries.filter((b) => b.year <= s.start).sort((a, b) => b.year - a.year)[0];
+  const seq = m.stages.filter((t) => t.route === s.route).sort((a, b) => a.start - b.start || a.seq - b.seq);
+  const i = seq.findIndex((t) => t.seq === s.seq && t.start === s.start);
+  const lanes = m.chains
+    .filter((c) => linked.has(c.id) || (c.routes.includes(s.route) && c.start <= end && (c.end ?? c.start) >= s.start))
+    .sort((a, b) => Number(linked.has(b.id)) - Number(linked.has(a.id)) || Math.abs(a.start - s.start) - Math.abs(b.start - s.start));
+  const lasting = lanes.filter((c) => (c.end ?? c.start) >= end + 30 && !!c.learning);
+  return { era, gate, before: i > 0 ? seq[i - 1] : undefined, after: i >= 0 ? seq[i + 1] : undefined, lanes, lasting };
+}
