@@ -192,7 +192,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
                     body: "Tähän väliin ei ole piirretty teemaketjua tällä kaistalla. Viereisillä kaistoilla voi olla saman ajan aineistoa.",
                   })}>
                     <path d={path} fill="none" stroke="transparent" strokeWidth={8} />
-                    <path d={path} fill="none" stroke="currentColor" strokeWidth={1} strokeDasharray="2 5" opacity={0.24} />
+                    <path d={path} fill="none" stroke="currentColor" strokeWidth={1} opacity={0.24} />
                   </g>
                 );
               })}
@@ -285,7 +285,7 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       )}
-      <p className="rm-hint">vedä = kulje ajassa · rulla = zoomaa · kosketa asemaa, porttia tai virtaa · himmeät virrat ovat teemaketjuja, katkoviiva merkitsee väliä kaistalla · kaaret ulottuvat aikakausien yli</p>
+      <p className="rm-hint">vedä = kulje ajassa · rulla = zoomaa · kosketa asemaa, porttia tai virtaa · himmeät virrat ovat teemaketjuja, himmein viiva yhdistää kaistan osat · kaaret ulottuvat aikakausien yli</p>
       <aside className="rm-panel" data-open={!!pick} style={{ "--c": col(pick?.route ?? 2) } as React.CSSProperties} aria-hidden={!pick}>
         {pick && (
           <>
