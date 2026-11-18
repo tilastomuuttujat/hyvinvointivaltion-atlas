@@ -161,8 +161,22 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
   const direction = Math.abs(motion.velocity) > 0.008 ? Math.sign(motion.velocity) : travelDirection(motion.heading);
   const roll = motion.roll + Math.sin(t * 0.7) * 0.55;
   const bob = Math.sin(t * 0.9) * 4 + Math.sin(t * 2.1) * 1.0;
-  const sway = (d: number) => -motion.lateral * (36 + 360 * sAt(Math.max(d, -0.6)) ** 2);
-  const xAt = (d: number) => centerAt(d) + sway(d);
+  // Rotate the water plane about a point just ahead of the bow.
+  // Distant marks swing farther than those at the ship.
+  const yaw = -Math.cos(motion.heading * Math.PI / 180) * 0.66;
+  const sinYaw = Math.sin(yaw), cosYaw = Math.cos(yaw);
+  const focal = 650;
+  const project = (d: number, offset = 0) => {
+    const depth = 1 + Math.max(0, d) * 0.5;
+    const across = ((centerAt(d) - CX) * depth + offset - motion.lateral * 46) / focal;
+    const ahead = depth - 1;
+    const cameraX = across * cosYaw - ahead * sinYaw;
+    const cameraZ = Math.max(0.48, 1 + ahead * cosYaw + across * sinYaw);
+    return { x: CX + focal * cameraX / cameraZ, y: HZ + (H - 120 - HZ) / cameraZ, scale: 1 / cameraZ };
+  };
+  const track = (depths: number[], offset = 0) =>
+    depths.map((d) => { const p = project(d, offset); return `${p.x},${p.y}`; });
+  const horizonX = CX - focal * Math.tan(yaw);
 
   useEffect(() => {
     let on = true;
@@ -243,12 +257,15 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
         <g transform={`rotate(${roll.toFixed(2)} ${CX} ${H}) translate(0 ${bob.toFixed(1)})`}>
         <rect x={-200} y={-100} width={W + 400} height={HZ + 100} fill="url(#bv-sky)" />
         {STARS.map((s, i) => <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#dff4ff" opacity={s.o * (1 - s.y / HZ * 0.6)} />)}
-        <ellipse cx={CX} cy={HZ} rx="620" ry="190" fill="url(#bv-sun)" />
+        <ellipse cx={horizonX} cy={HZ} rx="620" ry="190" fill="url(#bv-sun)" />
         <rect x={-200} y={HZ} width={W + 400} height={H - HZ + 100} fill="url(#bv-floor)" />
         {/* perspective floor grid */}
         <g stroke={c} strokeOpacity=".16" fill="none">
-          {Array.from({ length: 25 }, (_, i) => { const x = (i - 12) * 260; return <line key={i} x1={CX + x * 0.02} y1={HZ} x2={CX + x} y2={H} />; })}
-          {Array.from({ length: 14 }, (_, i) => { const d = i * 0.5 + 0.5 - ((((direction * pos) * 1.2 % 0.5) + 0.5) % 0.5); const y = yAt(d * 1.4) ; return <line key={i} x1="0" x2={W} y1={y} y2={y} strokeOpacity={0.05 + 0.18 * sAt(d)} />; })}
+          {Array.from({ length: 17 }, (_, i) => {
+            const offset = (i - 8) * 230;
+            return <path key={i} d={`M${track([0, 1, 2, 4, 8, 18, 40], offset).join(" L")}`} />;
+          })}
+          {Array.from({ length: 14 }, (_, i) => { const d = i * 0.5 + 0.5 - ((((direction * pos) * 1.2 % 0.5) + 0.5) % 0.5); return <path key={i} d={`M${[-1800, -900, 0, 900, 1800].map((offset) => track([d * 1.4], offset)[0]).join(" L")}`} strokeOpacity={0.05 + 0.18 * sAt(d)} />; })}
         </g>
         <line x1="0" x2={W} y1={HZ} y2={HZ} stroke={c} strokeOpacity=".7" />
         <line x1="0" x2={W} y1={HZ} y2={HZ} stroke={c} strokeWidth="6" opacity=".35" filter="url(#bv-glow)" />
@@ -257,8 +274,8 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
           {/* road of time */}
           {(() => {
             const pts = Array.from({ length: 30 }, (_, i) => i / 29 * (AHEAD + 1.5));
-            const L = pts.map((d) => `${xAt(d) - 150 * sAt(d)},${yAt(d)}`), R = pts.map((d) => `${xAt(d) + 150 * sAt(d)},${yAt(d)}`).reverse();
-            const mid = pts.map((d, i) => `${i ? "L" : "M"}${xAt(d)},${yAt(d)}`).join(" ");
+            const L = track(pts, -150), R = track(pts, 150).reverse();
+            const mid = `M${track(pts).join(" L")}`;
             return <g>
               <path d={`M${L.join(" L")} L${R.join(" L")}Z`} fill="url(#bv-road)" />
               <path d={mid} stroke={c} strokeWidth="3" fill="none" strokeDasharray="3 16" strokeDashoffset={-pos * 55} opacity=".9" />
@@ -269,7 +286,8 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
           {/* theme lanes */}
           {!selected && lanes.map((l, i) => {
             const side = i % 2 ? 1 : -1, off = 330 + Math.floor(i / 2) * 260;
-            const d = `M${CX + sway(0) + side * off * 1.6},${H} Q${CX + sway(1.2) + side * off * 0.7},${yAt(1.2)} ${CX + sway(AHEAD) + side * off * 0.08},${HZ + 4}`;
+            const depths = Array.from({ length: 25 }, (_, n) => n * 0.34);
+            const d = `M${track(depths, side * off).join(" L")}`;
             return <g key={l.id} className="bv-enter">
               <path d={d} stroke={LANE_C[i]} strokeWidth="14" fill="none" opacity={l.context ? .06 : .16} filter="url(#bv-glow)" />
               <path id={`bvl-${i}`} d={d} stroke={LANE_C[i]} strokeWidth={l.context ? 1.2 : 2.2} fill="none" opacity=".7" strokeDasharray={l.context ? "6 8" : undefined} />
@@ -283,7 +301,9 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
           {/* observation arcs */}
           {selected && (() => {
             const col = effect === "difficulty" ? "#ffc58f" : "#9ff0c0", side = effect === "difficulty" ? 1 : -1;
-            const x0 = xAt(0), y0 = yAt(0) - 40, x1 = CX + side * 420, y1 = HZ + 120;
+            const x0 = CX, y0 = yAt(0) - 40;
+            const target = project(3, side * 760);
+            const x1 = target.x, y1 = target.y;
             const d = `M${x0},${y0} Q${(x0 + x1) / 2 + side * 120},${y0 - 40} ${x1},${y1}`;
             return <g className="bv-enter" key={effect}>
               <path d={d} stroke={col} strokeWidth="18" fill="none" opacity=".25" filter="url(#bv-glow)" />
@@ -299,7 +319,7 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
 
           {/* era gate */}
           {gate && gateDepth != null && (() => {
-            const s = sAt(gateDepth), x = xAt(gateDepth), y = yAt(gateDepth), w = 420 * s + 60, h = 520 * s + 60;
+            const { scale: s, x, y } = project(gateDepth), w = 420 * s + 60, h = 520 * s + 60;
             return <g className="bv-enter" key={gate.boundary_year}>
               <path d={`M${x - w / 2},${y} V${y - h + w / 2} A${w / 2},${w / 2} 0 0 1 ${x + w / 2},${y - h + w / 2} V${y}`}
                 fill="none" stroke="#e8fbff" strokeWidth="14" opacity=".2" filter="url(#bv-glow)" />
@@ -313,7 +333,7 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
           {/* upcoming beacons, far first */}
           {[...ahead].reverse().map(({ s, depth: dd, n }, i) => {
             const d = i + 1;
-            const sc = sAt(Math.max(dd, -0.6)) * (dd < 0 ? 1 + dd : 1), x = xAt(dd) + (dd < 0 ? (d % 2 ? 1 : -1) * dd * -900 : 0), y = yAt(Math.max(dd, -0.6)), col = COLORS[s.route_order], side = d % 2 ? 1 : -1;
+            const { scale: sc, x, y } = project(dd), col = COLORS[s.route_order], side = d % 2 ? 1 : -1;
             const h = 240 * sc + 20, title = SHORT(s.title), short = title.length > 34 ? title.slice(0, 33) + "…" : title;
             return <g key={keyOf(s)} className="bv-beacon bv-moving" role="button" tabIndex={0}
               aria-label={`Siirry: ${s.start_year} ${title}`} opacity={Math.min(1, 0.35 + 0.65 * sc * 1.6) * (dd > AHEAD - 0.5 ? Math.max(0, AHEAD + 0.5 - dd) : 1)}
@@ -331,13 +351,13 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
             </g>;
           })}
 
-          {!ahead.length && <text x={CX} y={HZ - 30} textAnchor="middle" fontSize="22" fill={c} className="bv-label bv-enter" letterSpacing="4">{direction > 0 ? "AIKAJANAN LOPPU" : "AIKAJANAN ALKU"}</text>}
+          {!ahead.length && <text x={horizonX} y={HZ - 30} textAnchor="middle" fontSize="22" fill={c} className="bv-label bv-enter" letterSpacing="4">{direction > 0 ? "AIKAJANAN LOPPU" : "AIKAJANAN ALKU"}</text>}
           {/* current stage: the bridge's bow */}
           <g key={keyOf(stage)} className="bv-enter">
-            <ellipse cx={xAt(0)} cy={yAt(0)} rx="200" ry="34" fill={c} opacity=".25" filter="url(#bv-glow)" />
-            <circle cx={xAt(0)} cy={yAt(0) - 40} r="38" fill={c} opacity=".3" className="bv-pulse" />
-            <circle cx={xAt(0)} cy={yAt(0) - 40} r="14" fill={c} />
-            <circle cx={xAt(0)} cy={yAt(0) - 40} r="24" fill="none" stroke={c} strokeOpacity=".8" />
+            <ellipse cx={CX} cy={yAt(0)} rx="200" ry="34" fill={c} opacity=".25" filter="url(#bv-glow)" />
+            <circle cx={CX} cy={yAt(0) - 40} r="38" fill={c} opacity=".3" className="bv-pulse" />
+            <circle cx={CX} cy={yAt(0) - 40} r="14" fill={c} />
+            <circle cx={CX} cy={yAt(0) - 40} r="24" fill="none" stroke={c} strokeOpacity=".8" />
           </g>
         </>}
         </g>
