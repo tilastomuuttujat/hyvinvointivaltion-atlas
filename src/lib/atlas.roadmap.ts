@@ -9,7 +9,8 @@ export type RoadmapSnapshot = {
   routes: (SnapshotYears & { route_order: number; phenomenon_id: string; title: string; phenomenon_kind: string; review_status: string })[];
   stages: (SnapshotYears & { route_order: number; sequence_no: number; title: string; situation: string })[];
   boundaries: { from_route_order: number; to_route_order: number; boundary_year: number; title: string }[];
-  chains: (SnapshotYears & { chain_id: string; title: string; route_orders: number[]; learning_point: string })[];
+  chains: (SnapshotYears & { chain_id: string; title: string; observed_change: string; route_orders: number[]; learning_point: string })[];
+  details?: { chain_id: string; detail_id: string; detail_kind: string; detail: Record<string, unknown> }[];
   intersections: (SnapshotYears & { phenomenon_id: string; title: string; route_orders: number[] })[];
 };
 
