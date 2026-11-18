@@ -178,13 +178,13 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
 
   const toSvgX = (clientDx: number) => { const r = svgRef.current?.getBoundingClientRect(); return r ? clientDx / Math.max(r.width / W, r.height / H) : clientDx; };
   const onDown = (e: React.PointerEvent) => { drag.current = { x: e.clientX, pan, moved: false }; target.current = null; (e.currentTarget as Element).setPointerCapture(e.pointerId); };
-  const onMove = (e: React.PointerEvent) => { const d = drag.current; if (!d) return; const dx = toSvgX(e.clientX - d.x) / zoom; if (Math.abs(dx) > 4 && !d.moved) { d.moved = true; setPick(null); } setPan(d.pan + dx); };
+  const onMove = (e: React.PointerEvent) => { const d = drag.current; if (!d) return; const dx = toSvgX(e.clientX - d.x) / zoom; if (Math.abs(dx) > 4 && !d.moved) { d.moved = true; setPick((current) => current?.stage ? current : null); } setPan(d.pan + dx); };
   const onUp = (e: React.PointerEvent) => {
     const d = drag.current; drag.current = null;
     if (d && !d.moved) { lastClick.current = { x: e.clientX, y: e.clientY }; const el = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-pick]") as HTMLElement | null; el?.dispatchEvent(new CustomEvent("rmpick", { bubbles: true })); }
   };
   const onWheel = (e: React.WheelEvent) => {
-    if (pick) setPick(null);
+    setPick((current) => current?.stage ? current : null);
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { setPan((p) => p - e.deltaX / zoom); return; }
     setZoom((z) => Math.max(0.35, Math.min(2.4, z * Math.exp(-e.deltaY * 0.0015))));
   };
@@ -201,7 +201,12 @@ export function Roadmap({ onClose }: { onClose: () => void }) {
   const lit = new Set<string>(ctx ? ctx.lanes.slice(0, 6).map((c) => c.id) : []);
   const selectPick = (p: Pick) => {
     const c = lastClick.current; lastClick.current = null;
-    setPick({ ...p, cx: p.cx ?? c?.x, cy: p.cy ?? c?.y });
+    setPick((current) => {
+      const selected = current?.stage;
+      if (selected && p.stage && selected.route === p.stage.route && selected.seq === p.stage.seq)
+        return null;
+      return { ...p, cx: p.cx ?? c?.x, cy: p.cy ?? c?.y };
+    });
     if (p.kind === "chain") { const hit = streams.find(({ c: s }) => s.title === p.title); if (hit) setHover(null); }
   };
   const pickable = (p: Pick) => ({ "data-pick": "1", className: "rm-hit", ref: (el: Element | null) => { if (el) (el as any).__rm = p; } });
