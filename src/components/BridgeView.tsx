@@ -1,6 +1,6 @@
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { advanceBridge, normalizeHeading, travelDirection, type BridgeMotion } from "@/lib/bridge.motion";
+import { advanceBridge, clampHeading, type TimeDirection, type BridgeMotion } from "@/lib/bridge.motion";
 import { getRoadmap } from "@/lib/atlas.static";
 import type { RoadmapSnapshot } from "@/lib/atlas.roadmap";
 import { STAGE_OBSERVATIONS, type ObservationKind } from "@/lib/roadmap.observations";
@@ -117,10 +117,11 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
   const [cruise, setCruise] = useState(true);
   const [t, setT] = useState(0);
   const [heading, setHeading] = useState(90);
+  const [timeDirection, setTimeDirection] = useState<TimeDirection>(1);
   const last = stages.at(-1);
   const end = last && (last.end_year ?? last.start_year) > last.start_year ? stages.length : stages.length - 1;
-  const command = useRef({ heading, cruise, end });
-  command.current = { heading, cruise, end };
+  const command = useRef({ heading, cruise, end, timeDirection });
+  command.current = { heading, cruise, end, timeDirection };
   const destination = useRef<number | null>(null);
   const pos = motion.pos;
   const currentIndex = Math.min(Math.floor(pos + 1e-6), Math.max(0, stages.length - 1));
@@ -132,7 +133,13 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
   };
   const steer = (course: number) => {
     destination.current = null;
-    setHeading(normalizeHeading(course));
+    setHeading(clampHeading(course));
+  };
+
+  const sailInTime = (next: TimeDirection) => {
+    destination.current = null;
+    setTimeDirection(next);
+    setCruise(true);
   };
 
   useEffect(() => {
@@ -141,9 +148,9 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
     const step = (now: number) => {
       const dt = Math.max(0, Math.min((now - prev) / 1000, 0.05));
       prev = now;
-      const { heading: course, cruise: running, end } = command.current;
+      const { heading: course, cruise: running, end, timeDirection } = command.current;
       if (end >= 0) {
-        const next = advanceBridge(motionRef.current, course, running, end, destination.current, dt);
+        const next = advanceBridge(motionRef.current, course, running, timeDirection, end, destination.current, dt);
         if (destination.current === next.pos) destination.current = null;
         motionRef.current = next;
         setMotion(next);
@@ -158,7 +165,7 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
   const frac = Math.max(0, pos - currentIndex);
   const nextYear = stages[currentIndex + 1]?.start_year ?? stage?.end_year ?? stage?.start_year ?? 0;
   const year = stage ? stage.start_year + (nextYear - stage.start_year) * frac : 0;
-  const direction = Math.abs(motion.velocity) > 0.008 ? Math.sign(motion.velocity) : travelDirection(motion.heading);
+  const direction = Math.abs(motion.velocity) > 0.008 ? Math.sign(motion.velocity) : timeDirection;
   const roll = motion.roll + Math.sin(t * 0.7) * 0.55;
   const bob = Math.sin(t * 0.9) * 4 + Math.sin(t * 2.1) * 1.0;
   // Rotate the water plane about a point just ahead of the bow.
@@ -373,7 +380,7 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
         {stage && <div className="bv-readout" aria-live="polite">
           Komentosilta · Reitti {ROMAN[stage.route_order]}
           <b>{Math.floor(year)}</b>
-          {cruise ? (travelDirection(motion.heading) > 0 ? `▶ Tulevaisuuteen ${Math.floor(motion.heading)}° · ` : `◀ Menneisyyteen ${Math.floor(motion.heading)}° · `) : "⏸ Pysäytetty · "}
+          {cruise ? (direction > 0 ? `▶ Tulevaisuuteen ${Math.floor(motion.heading)}° · ` : `◀ Menneisyyteen ${Math.floor(motion.heading)}° · `) : "⏸ Pysäytetty · "}
           {gate ? `${Math.round(Math.abs(gate.boundary_year - year))} v. rajaan ${gate.boundary_year}` : "Horisontti avoin"}
         </div>}
       </header>
@@ -401,7 +408,7 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
           {lanes.map((l, i) => <span key={l.id} className="bv-lane" data-context={l.context}
             style={{ "--l": LANE_C[i] } as React.CSSProperties}>{l.label}{l.context ? " · samanaikainen" : ""}</span>)}
         </div>}
-        <NavOrb stages={stages} index={currentIndex} onPick={jump} heading={heading} onHeading={steer}
+        <NavOrb stages={stages} index={currentIndex} onPick={jump} heading={heading} onHeading={steer} year={year} timeDirection={timeDirection} onTimeDirection={sailInTime}
           routes={(data?.routes ?? []).map((r) => ({ order: r.route_order, title: SHORT(r.title) }))} />
       </footer>}
     </section>
@@ -419,24 +426,19 @@ function proj(lon: number, lat: number, v: { lon: number; lat: number }) {
     z: Math.sin(f0) * Math.sin(f) + Math.cos(f0) * Math.cos(f) * Math.cos(l) };
 }
 
-function NavOrb({ stages, index, onPick, routes, heading, onHeading }: { stages: Stage[]; index: number; onPick: (i: number) => void; routes: { order: number; title: string }[]; heading: number; onHeading: (h: number) => void }) {
-  const target = { lon: heading, lat: stages[index] ? latOf(stages[index].start_year) : 0 };
-  const [view, setView] = useState(target);
-  const drag = useRef<{ x: number; y: number; v: { lon: number; lat: number }; moved: boolean } | null>(null);
-  const viewRef = useRef(view); viewRef.current = view;
-  useEffect(() => {
-    if (drag.current) return;
-    let raf = 0;
-    const step = () => {
-      const v = viewRef.current;
-      let dl = ((target.lon - v.lon + 540) % 360) - 180; const df = target.lat - v.lat;
-      if (Math.abs(dl) < 0.1 && Math.abs(df) < 0.1) { setView(target); return; }
-      setView({ lon: v.lon + dl * 0.16, lat: v.lat + df * 0.16 });
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target.lon, target.lat]);
+function NavOrb({ stages, index, onPick, routes, heading, onHeading, year, timeDirection, onTimeDirection }: {
+  stages: Stage[];
+  index: number;
+  onPick: (i: number) => void;
+  routes: { order: number; title: string }[];
+  heading: number;
+  onHeading: (h: number) => void;
+  year: number;
+  timeDirection: TimeDirection;
+  onTimeDirection: (direction: TimeDirection) => void;
+}) {
+  const view = { lon: heading, lat: latOf(year) };
+  const drag = useRef<{ x: number; y: number; heading: number; axis?: "horizontal" | "vertical"; time?: TimeDirection } | null>(null);
 
   const S = 100, Rr = 86;
   const P = (lon: number, lat: number) => { const q = proj(lon, lat, view); return { x: S + q.x * Rr, y: S + q.y * Rr, z: q.z }; };
@@ -450,28 +452,47 @@ function NavOrb({ stages, index, onPick, routes, heading, onHeading }: { stages:
   const routeAt = routes.find((r) => r.order === hover?.route_order);
 
   return <div className="bv-orbwrap">
-    <svg className="bv-orb" viewBox="0 0 200 200" role="slider" tabIndex={0} aria-label="Navigointipallo: kurssi"
-      aria-valuemin={0} aria-valuemax={359} aria-valuenow={Math.floor(heading)} aria-valuetext={`${Math.floor(heading)} astetta, ${travelDirection(heading) > 0 ? "eteenpäin" : "taaksepäin"}`}
+    <svg className="bv-orb" viewBox="0 0 200 200" role="slider" tabIndex={0} aria-label="Navigointipallo: sivukurssi ja aika"
+      aria-valuemin={0} aria-valuemax={180} aria-valuenow={Math.floor(heading)}
+      aria-valuetext={`${Math.floor(heading)} astetta, ajassa ${timeDirection > 0 ? "eteenpäin" : "taaksepäin"}`}
       onKeyDown={(e) => {
-        if (!cur) return;
-        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-          e.preventDefault(); e.stopPropagation();
-          onHeading(normalizeHeading(heading + (e.key === "ArrowRight" ? 10 : -10)));
+        if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight")
+          onHeading(clampHeading(heading + (e.key === "ArrowRight" ? 10 : -10)));
+        else onTimeDirection(e.key === "ArrowUp" ? 1 : -1);
+      }}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = { x: e.clientX, y: e.clientY, heading };
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d) return;
+        const dx = e.clientX - d.x, dy = e.clientY - d.y;
+        if (!d.axis) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) < 7) return;
+          d.axis = Math.abs(dx) >= Math.abs(dy) ? "horizontal" : "vertical";
+        }
+        if (d.axis === "horizontal") {
+          onHeading(clampHeading(d.heading + dx * 0.9));
+        } else if (Math.abs(dy) >= 7) {
+          const next = dy < 0 ? 1 : -1;
+          if (d.time !== next) {
+            d.time = next;
+            onTimeDirection(next);
+          }
         }
       }}
-      onPointerDown={(e) => { (e.currentTarget as Element).setPointerCapture(e.pointerId); drag.current = { x: e.clientX, y: e.clientY, v: viewRef.current, moved: false }; }}
-      onPointerMove={(e) => {
-        const d = drag.current; if (!d) return;
-        const dx = e.clientX - d.x, dy = e.clientY - d.y;
-        if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
-        const lon = (((d.v.lon - dx * 0.9) % 360) + 360) % 360; setView({ lon, lat: d.v.lat }); onHeading(lon);
-      }}
       onPointerUp={(e) => {
-        const d = drag.current; drag.current = null; if (!d) return;
-        if (d.moved) return;
-        const el = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-si]");
-        if (el) onPick(Number(el.getAttribute("data-si")));
+        const d = drag.current;
+        drag.current = null;
+        if (!d || d.axis) return;
+        const element = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-si]");
+        if (element) onPick(Number(element.getAttribute("data-si")));
       }}
+      onPointerCancel={() => { drag.current = null; }}
       onLostPointerCapture={() => { drag.current = null; }}>
       <defs>
         <radialGradient id="bv-orbg" cx=".38" cy=".32" r=".75">
@@ -490,8 +511,8 @@ function NavOrb({ stages, index, onPick, routes, heading, onHeading }: { stages:
       {stages.map((s, i) => { const o = orbLonLat(s), q = P(o.lon, o.lat); if (q.z <= 0) return null;
         const on = i === index;
         return <circle key={keyOf(s)} data-si={i} cx={q.x} cy={q.y} r={on ? 4.5 : 1.6 + 1.6 * q.z} fill={COLORS[s.route_order]} opacity={0.3 + 0.7 * q.z} style={{ cursor: "pointer" }} />; })}
-      {(() => { const a = (heading - 90) * R2D; const fw = travelDirection(heading) > 0; return <g pointerEvents="none">
-        <circle cx={S} cy={S} r={Rr + 8} fill="none" stroke={fw ? "#7ad7ea" : "#f2ba86"} strokeOpacity=".5" strokeDasharray={`${Math.abs(Math.sin(heading * R2D)) * 60} 600`} transform={`rotate(${heading - 90 - 15} ${S} ${S})`} />
+      {(() => { const a = (heading - 90) * R2D; const fw = timeDirection > 0; return <g pointerEvents="none">
+        <circle cx={S} cy={S} r={Rr + 8} fill="none" stroke={fw ? "#7ad7ea" : "#f2ba86"} strokeOpacity=".5" strokeDasharray={`${60} 600`} transform={`rotate(${heading - 90 - 15} ${S} ${S})`} />
         <text x={S + Math.sin(a) * (Rr + 2)} y={S - Math.cos(a) * (Rr + 2) + 3} textAnchor="middle" fontSize="10" fill={fw ? "#7ad7ea" : "#f2ba86"}>{fw ? "▲" : "▼"}</text>
       </g>; })()}
       {/* specular + crosshair */}
@@ -504,8 +525,8 @@ function NavOrb({ stages, index, onPick, routes, heading, onHeading }: { stages:
     </svg>
     <div className="bv-orbinfo" aria-hidden="true">
       Reitti {hover ? ROMAN[hover.route_order] : ""}<b>{hover?.start_year}</b>{routeAt?.title.slice(0, 26)}
-      <div style={{ marginTop: 4, color: travelDirection(heading) > 0 ? "#7ad7ea" : "#f2ba86" }}>Kurssi {Math.floor(heading)}° {travelDirection(heading) > 0 ? "▶ eteen" : "◀ taakse"}</div>
-      <div style={{ opacity: .7 }}>↔ vedä tai käytä nuolinäppäimiä</div>
+      <div style={{ marginTop: 4, color: timeDirection > 0 ? "#7ad7ea" : "#f2ba86" }}>Kurssi {Math.floor(heading)}° {timeDirection > 0 ? "▶ eteen" : "◀ taakse"}</div>
+      <div style={{ opacity: .7 }}>↔ sivukurssi · ↑ tuleva · ↓ mennyt</div>
     </div>
   </div>;
 }

@@ -1,5 +1,5 @@
-export const normalizeHeading = (heading: number) => ((heading % 360) + 360) % 360;
-export const travelDirection = (heading: number) => normalizeHeading(heading) < 180 ? 1 : -1;
+export const clampHeading = (heading: number) => Math.max(0, Math.min(180, heading));
+export type TimeDirection = 1 | -1;
 
 export type BridgeMotion = {
   pos: number;
@@ -13,17 +13,18 @@ export function advanceBridge(
   state: BridgeMotion,
   course: number,
   cruise: boolean,
+  timeDirection: TimeDirection,
   end: number,
   destination: number | null,
   dt: number,
 ): BridgeMotion {
-  const turn = normalizeHeading(course - state.heading + 180) - 180;
+  const turn = clampHeading(course) - state.heading;
   const rotation = Math.sign(turn) * Math.min(Math.abs(turn), 52 * dt);
-  const heading = normalizeHeading(state.heading + rotation);
+  const heading = clampHeading(state.heading + rotation);
   const angle = heading * Math.PI / 180;
   const remaining = destination == null ? 0 : destination - state.pos;
   const speed = destination == null
-    ? (cruise ? travelDirection(heading) * 0.19 * Math.max(0.08, Math.abs(Math.sin(angle))) : 0)
+    ? (cruise ? timeDirection * 0.19 : 0)
     : Math.sign(remaining) * Math.min(0.75, Math.sqrt(2 * 0.7 * Math.abs(remaining)));
   const velocity = state.velocity + (speed - state.velocity) * (1 - Math.exp(-2.4 * dt));
   const next = state.pos + velocity * dt;
