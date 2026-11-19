@@ -72,6 +72,8 @@ const CSS = `
 .bv-ends{display:flex;justify-content:space-between;font:10px ui-monospace,monospace;color:#6f8f9b;margin-top:-4px}
 .bv-routes button{width:30px;height:30px;padding:0;border-radius:50%;border:1px solid var(--r);color:var(--r);background:transparent;cursor:pointer;font:600 11px ui-sans-serif}
 .bv-routes button[aria-current=true]{background:var(--r);color:#04101a;box-shadow:0 0 14px var(--r)}
+.bv-lane[aria-pressed=true]{color:#e9fff7;border-color:var(--l);box-shadow:0 0 10px var(--l)}
+.bv-lane{cursor:pointer}
 .bv-orbwrap{display:flex;justify-content:center;align-items:center;gap:14px}
 .bv-orb{width:min(168px,40vw);height:auto;touch-action:none;cursor:grab;filter:drop-shadow(0 0 18px color-mix(in oklab,var(--c) 45%,transparent))}
 .bv-orb:active{cursor:grabbing}.bv-orb:focus-visible{outline:2px solid #c0fff0;outline-offset:4px;border-radius:50%}
@@ -102,6 +104,9 @@ async function fallback(): Promise<RoadmapSnapshot | undefined> {
 }
 
 type Stage = RoadmapSnapshot["stages"][number] & { start_year: number };
+const LANE_COLORS = ["#79d8e6", "#d5b9fb", "#f2ba86", "#9befcd"];
+const laneOffset = (i: number) => (i % 2 ? 1 : -1) * (330 + Math.floor(i / 2) * 260);
+type Lane = { id: string; label: string; context: boolean; offset: number; color: string; start: number | null; end: number | null };
 const keyOf = (s: Stage) => `${s.route_order}:${s.state_id}`;
 
 export function BridgeView({ onClose }: { onClose: () => void }) {
@@ -117,11 +122,13 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
   const [cruise, setCruise] = useState(true);
   const [t, setT] = useState(0);
   const [heading, setHeading] = useState(90);
+  const [following, setFollowing] = useState<Lane | null>(null);
+  const lanePosition = useRef(0);
+  const scrubOrigin = useRef<number | null>(null);
   const [timeDirection, setTimeDirection] = useState<TimeDirection>(1);
   const last = stages.at(-1);
   const end = last && (last.end_year ?? last.start_year) > last.start_year ? stages.length : stages.length - 1;
-  const command = useRef({ heading, cruise, end, timeDirection });
-  command.current = { heading, cruise, end, timeDirection };
+  const command = useRef({ heading, cruise, end, timeDirection, following, limit: end });
   const destination = useRef<number | null>(null);
   const pos = motion.pos;
   const currentIndex = Math.min(Math.floor(pos + 1e-6), Math.max(0, stages.length - 1));
@@ -129,12 +136,11 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
   const jump = (n: number) => {
     if (n < 0 || n >= stages.length) return;
     destination.current = n;
+    setFollowing(null);
+    setHeading(90);
     setEffect(null);
   };
-  const steer = (course: number) => {
-    destination.current = null;
-    setHeading(clampHeading(course));
-  };
+
 
   const sailInTime = (next: TimeDirection) => {
     destination.current = null;
@@ -148,9 +154,15 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
     const step = (now: number) => {
       const dt = Math.max(0, Math.min((now - prev) / 1000, 0.05));
       prev = now;
-      const { heading: course, cruise: running, end, timeDirection } = command.current;
+      const { heading: course, cruise: running, end, timeDirection, following, limit } = command.current;
+      const remaining = (following?.offset ?? 0) - lanePosition.current;
+      lanePosition.current += remaining * (1 - Math.exp(-1.15 * dt));
       if (end >= 0) {
-        const next = advanceBridge(motionRef.current, course, running, timeDirection, end, destination.current, dt);
+        const alignedCourse = following ? 90 + Math.sign(remaining) * Math.min(55, Math.abs(remaining) * 0.12) : course;
+        let next = advanceBridge(motionRef.current, alignedCourse, running && scrubOrigin.current === null, timeDirection, end, destination.current, dt);
+        if (following && (next.pos - limit) * timeDirection > 0 && (next.pos - motionRef.current.pos) * timeDirection > 0) {
+          next = { ...next, pos: (motionRef.current.pos - limit) * timeDirection > 0 ? motionRef.current.pos : limit, velocity: 0 };
+        }
         if (destination.current === next.pos) destination.current = null;
         motionRef.current = next;
         setMotion(next);
@@ -175,7 +187,7 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
   const focal = 650;
   const project = (d: number, offset = 0) => {
     const depth = 1 + Math.max(0, d) * 0.5;
-    const across = ((centerAt(d) - CX) * depth + offset - motion.lateral * 46) / focal;
+    const across = ((centerAt(d) - CX) * depth + offset - lanePosition.current - (following ? 0 : motion.lateral * 46)) / focal;
     const ahead = depth - 1;
     const cameraX = across * cosYaw - ahead * sinYaw;
     const cameraZ = Math.max(0.48, 1 + ahead * cosYaw + across * sinYaw);
@@ -215,13 +227,57 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
   };
   const strength = available("strength"), difficulty = available("difficulty");
   const selected = effect === "strength" ? strength : effect === "difficulty" ? difficulty : undefined;
-  const lanes = stage ? (data?.chains ?? []).filter((c) => linked.has(c.chain_id)
+  const visibleLanes: Lane[] = stage ? (data?.chains ?? []).filter((c) => linked.has(c.chain_id)
       || (c.route_orders.includes(stage.route_order) && c.start_year != null
         && c.start_year <= (stage.end_year ?? stage.start_year) && (c.end_year ?? c.start_year) >= stage.start_year))
     .sort((a, b) => Number(linked.has(b.chain_id)) - Number(linked.has(a.chain_id))
       || Math.abs((a.start_year ?? 1e9) - stage.start_year) - Math.abs((b.start_year ?? 1e9) - stage.start_year))
-    .slice(0, 4).map((c) => ({ id: c.chain_id, label: SHORT(c.title).split(":")[0], context: !linked.has(c.chain_id) })) : [];
-  const LANE_C = ["#79d8e6", "#d5b9fb", "#f2ba86", "#9befcd"];
+    .filter((c) => c.start_year != null && c.start_year <= year && (c.end_year == null || c.end_year >= year))
+    .slice(0, 4).map((c, i) => ({ id: c.chain_id, label: SHORT(c.title).split(":")[0], context: !linked.has(c.chain_id),
+      offset: laneOffset(i), color: LANE_COLORS[i], start: c.start_year, end: c.end_year })) : [];
+  const lanes = following ? [following, ...visibleLanes.filter((item) => item.id !== following.id && item.offset !== following.offset)] : visibleLanes;
+  const positionAtYear = (target: number) => {
+    const i = stages.findIndex((s) => s.start_year >= target);
+    if (i === 0) return 0;
+    if (i > 0) {
+      const before = stages[i - 1].start_year;
+      return i - 1 + (target - before) / (stages[i].start_year - before);
+    }
+    if (!last || end <= stages.length - 1) return Math.max(0, end);
+    return stages.length - 1 + Math.min(1, (target - last.start_year) / ((last.end_year ?? last.start_year) - last.start_year));
+  };
+  const [lower, upper] = following ? [following.start == null ? 0 : positionAtYear(following.start),
+    following.end == null ? end : positionAtYear(following.end)] : [0, end];
+  command.current = { heading, cruise, end, timeDirection, following, limit: timeDirection > 0 ? upper : lower };
+  const follow = (lane: Lane | null) => {
+    destination.current = null;
+    setFollowing(lane);
+    setHeading(lane ? (lane.offset < 0 ? lane.offset === -330 ? 45 : 0 : lane.offset === 330 ? 135 : 180) : 90);
+    setEffect(null);
+    if (lane) setCruise(true);
+  };
+  const steer = (course: number) => {
+    const angle = clampHeading(course);
+    const options = lanes.filter((lane) => Math.sign(lane.offset) === Math.sign(angle - 90));
+    const desired = ((angle - 90) / 90) * 590;
+    const lane = Math.abs(angle - 90) < 14 ? null : options.reduce<Lane | null>((best, item) =>
+      !best || Math.abs(item.offset - desired) < Math.abs(best.offset - desired) ? item : best, null);
+    destination.current = null;
+    if (lane?.id !== following?.id) follow(lane);
+    setHeading(angle);
+  };
+  const scrub = (delta: number) => {
+    scrubOrigin.current ??= motionRef.current.pos;
+    destination.current = null;
+    const target = Math.max(lower, Math.min(upper, scrubOrigin.current + delta));
+    const next = { ...motionRef.current, pos: target, velocity: 0 };
+    motionRef.current = next;
+    setMotion(next);
+    setEffect(null);
+    if (delta !== 0) setTimeDirection(delta > 0 ? 1 : -1);
+  };
+  const finishScrub = () => { scrubOrigin.current = null; };
+
   const c = COLORS[stage?.route_order ?? 0];
   const ahead = stages.map((s, n) => ({ s, n, depth: (n - pos) * direction }))
     .filter(({ depth }) => depth > 0.06 && depth < AHEAD + 0.5)
@@ -292,14 +348,15 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
 
           {/* theme lanes */}
           {!selected && lanes.map((l, i) => {
-            const side = i % 2 ? 1 : -1, off = 330 + Math.floor(i / 2) * 260;
-            const depths = Array.from({ length: 25 }, (_, n) => n * 0.34);
-            const d = `M${track(depths, side * off).join(" L")}`;
+            const active = l.id === following?.id;
+            const extent = active ? Math.max(0, Math.min(8.16, direction * ((direction > 0 ? upper : lower) - pos))) : 8.16;
+            const depths = Array.from({ length: 25 }, (_, n) => n / 24 * extent);
+            const d = `M${track(depths, l.offset).join(" L")}`;
             return <g key={l.id} className="bv-enter">
-              <path d={d} stroke={LANE_C[i]} strokeWidth="14" fill="none" opacity={l.context ? .06 : .16} filter="url(#bv-glow)" />
-              <path id={`bvl-${i}`} d={d} stroke={LANE_C[i]} strokeWidth={l.context ? 1.2 : 2.2} fill="none" opacity=".7" strokeDasharray={l.context ? "6 8" : undefined} />
+              <path d={d} stroke={l.color} strokeWidth="14" fill="none" opacity={l.context ? .06 : .16} filter="url(#bv-glow)" />
+              <path id={`bvl-${i}`} d={d} stroke={l.color} strokeWidth={active ? 4 : l.context ? 1.2 : 2.2} fill="none" opacity=".7" strokeDasharray={l.context ? "6 8" : undefined} />
               <path d={d} stroke="#fff" strokeWidth="2.5" fill="none" strokeDasharray="2 22" strokeDashoffset={-pos * 36} opacity=".6" />
-              <text fontSize="20" fill={LANE_C[i]} className="bv-label" letterSpacing="2">
+              <text fontSize="20" fill={l.color} className="bv-label" letterSpacing="2">
                 <textPath href={`#bvl-${i}`} startOffset="6%">{l.label}</textPath>
               </text>
             </g>;
@@ -405,10 +462,11 @@ export function BridgeView({ onClose }: { onClose: () => void }) {
           {selected && <a className="bv-effect" href={selected.url} target="_blank" rel="noreferrer">Lähde ↗</a>}
         </div>}
         {!selected && lanes.length > 0 && <div className="bv-row bv-lanes" aria-label="Teemakaistat">
-          {lanes.map((l, i) => <span key={l.id} className="bv-lane" data-context={l.context}
-            style={{ "--l": LANE_C[i] } as React.CSSProperties}>{l.label}{l.context ? " · samanaikainen" : ""}</span>)}
+          {lanes.map((l) => <button key={l.id} type="button" className="bv-lane" data-context={l.context}
+            aria-pressed={following?.id === l.id} onClick={() => follow(following?.id === l.id ? null : l)}
+            style={{ "--l": l.color } as React.CSSProperties}>{l.label}{following?.id === l.id ? " · seurannassa" : l.context ? " · samanaikainen" : ""}</button>)}
         </div>}
-        <NavOrb stages={stages} index={currentIndex} onPick={jump} heading={heading} onHeading={steer} year={year} timeDirection={timeDirection} onTimeDirection={sailInTime}
+        <NavOrb stages={stages} index={currentIndex} onPick={jump} heading={heading} onHeading={steer} year={year} timeDirection={timeDirection} onTimeDirection={sailInTime} onScrub={scrub} onFinishScrub={finishScrub}
           routes={(data?.routes ?? []).map((r) => ({ order: r.route_order, title: SHORT(r.title) }))} />
       </footer>}
     </section>
@@ -426,7 +484,7 @@ function proj(lon: number, lat: number, v: { lon: number; lat: number }) {
     z: Math.sin(f0) * Math.sin(f) + Math.cos(f0) * Math.cos(f) * Math.cos(l) };
 }
 
-function NavOrb({ stages, index, onPick, routes, heading, onHeading, year, timeDirection, onTimeDirection }: {
+function NavOrb({ stages, index, onPick, routes, heading, onHeading, year, timeDirection, onTimeDirection, onScrub, onFinishScrub }: {
   stages: Stage[];
   index: number;
   onPick: (i: number) => void;
@@ -436,9 +494,11 @@ function NavOrb({ stages, index, onPick, routes, heading, onHeading, year, timeD
   year: number;
   timeDirection: TimeDirection;
   onTimeDirection: (direction: TimeDirection) => void;
+  onScrub: (delta: number) => void;
+  onFinishScrub: () => void;
 }) {
   const view = { lon: heading, lat: latOf(year) };
-  const drag = useRef<{ x: number; y: number; heading: number; axis?: "horizontal" | "vertical"; time?: TimeDirection } | null>(null);
+  const drag = useRef<{ x: number; y: number; heading: number; axis?: "horizontal" | "vertical"; } | null>(null);
 
   const S = 100, Rr = 86;
   const P = (lon: number, lat: number) => { const q = proj(lon, lat, view); return { x: S + q.x * Rr, y: S + q.y * Rr, z: q.z }; };
@@ -477,23 +537,20 @@ function NavOrb({ stages, index, onPick, routes, heading, onHeading, year, timeD
         }
         if (d.axis === "horizontal") {
           onHeading(clampHeading(d.heading + dx * 0.9));
-        } else if (Math.abs(dy) >= 7) {
-          const next = dy < 0 ? 1 : -1;
-          if (d.time !== next) {
-            d.time = next;
-            onTimeDirection(next);
-          }
+        } else {
+          onScrub(-dy / 47);
         }
       }}
       onPointerUp={(e) => {
         const d = drag.current;
         drag.current = null;
+        if (d?.axis === "vertical") onFinishScrub();
         if (!d || d.axis) return;
         const element = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-si]");
         if (element) onPick(Number(element.getAttribute("data-si")));
       }}
-      onPointerCancel={() => { drag.current = null; }}
-      onLostPointerCapture={() => { drag.current = null; }}>
+      onPointerCancel={() => { drag.current = null; onFinishScrub(); }}
+      onLostPointerCapture={() => { drag.current = null; onFinishScrub(); }}>
       <defs>
         <radialGradient id="bv-orbg" cx=".38" cy=".32" r=".75">
           <stop offset="0" stopColor="#1d3b4c" /><stop offset=".6" stopColor="#081722" /><stop offset="1" stopColor="#02060c" />
@@ -524,9 +581,9 @@ function NavOrb({ stages, index, onPick, routes, heading, onHeading, year, timeD
       </g>
     </svg>
     <div className="bv-orbinfo" aria-hidden="true">
-      Reitti {hover ? ROMAN[hover.route_order] : ""}<b>{hover?.start_year}</b>{routeAt?.title.slice(0, 26)}
+      Reitti {hover ? ROMAN[hover.route_order] : ""}<b>{Math.floor(year)}</b>{routeAt?.title.slice(0, 26)}
       <div style={{ marginTop: 4, color: timeDirection > 0 ? "#7ad7ea" : "#f2ba86" }}>Kurssi {Math.floor(heading)}° {timeDirection > 0 ? "▶ eteen" : "◀ taakse"}</div>
-      <div style={{ opacity: .7 }}>↔ sivukurssi · ↑ tuleva · ↓ mennyt</div>
+      <div style={{ opacity: .7 }}>↔ valitse kaista · ↑ tuleva · ↓ mennyt</div>
     </div>
   </div>;
 }
